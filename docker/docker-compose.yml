@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # Main RAG Pipeline Service
+  rag-pipeline:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: production
+    container_name: langchain-rag-pipeline
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app/src
+      - USER_AGENT=Docker-MCP-Server/2.0
+      - MCP_LOG_LEVEL=INFO
+      - VECTOR_STORE_TYPE=faiss
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ../data:/app/data:ro
+      - ../store:/app/store
+      - ../vs_data:/app/vs_data
+      - ../logs:/app/logs
+      - ../configs:/app/configs:ro
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "from langchain_rag.rag.pipeline import Pipeline; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: ChromaDB Service (if using Chroma vector store)
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+    networks:
+      - rag-network
+    restart: unless-stopped
+    profiles:
+      - chromadb
+
+  # Optional: Ollama Service (for local LLMs)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - rag-network
+    restart: unless-stopped
+    profiles:
+      - ollama
+    # Uncomment if you have GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Optional: Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - rag-network
+    restart: unless-stopped
+    profiles:
+      - cache
+
+  # Development/Debug Service with Streamlit
+  rag-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: production
+    container_name: langchain-rag-dev
+    ports:
+      - "8080:8000"
+      - "8501:8501"  # Streamlit
+    environment:
+      - PYTHONPATH=/app/src
+      - USER_AGENT=Docker-MCP-Server-Dev/2.0
+      - MCP_LOG_LEVEL=DEBUG
+      - VECTOR_STORE_TYPE=faiss
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ..:/app
+      - /app/venv
+      - /app/__pycache__
+    networks:
+      - rag-network
+    command: ["streamlit", "run", "src/langchain_rag/ui/streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    profiles:
+      - dev
+    restart: "no"
+
+networks:
+  rag-network:
+    driver: bridge
+
+volumes:
+  chroma_data:
+  ollama_data:
+  redis_data: 

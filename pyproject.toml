@@ -1,0 +1,195 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "langchain-rag-pipeline"
+version = "2.0.0"
+description = "Production-ready RAG pipeline with multiple LLM backends"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Dongxu Guo", email = "ericguohit@outlook.com"}
+]
+maintainers = [
+    {name = "Dongxu Guo", email = "ericguohit@outlook.com"}
+]
+keywords = ["rag", "langchain", "llm", "openai", "ollama", "vector-store", "mcp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.9"
+dependencies = [
+    # ============================================
+    # LangChain Dependencies - PINNED FOR STABILITY
+    # ============================================
+    # Pin to minor versions (allows patches, blocks breaking changes)
+    # Current tested versions: 0.3.x
+    # Last compatibility test: 2025-01-XX (run pytest tests/test_langchain_compatibility.py)
+    "langchain>=0.3.0,<0.4.0",
+    "langchain-community>=0.3.0,<0.4.0",
+    "langchain-core>=0.3.0,<0.4.0",
+    "langchain-openai>=0.3.0,<0.4.0",
+    "langchain-ollama>=0.3.0,<0.4.0",
+    "langchain-text-splitters>=0.3.0,<0.4.0",
+
+    # UI Framework
+    "streamlit>=1.28.0,<2.0.0",
+
+    # Core Utilities
+    "python-dotenv>=1.0.0,<2.0.0",
+
+    # Vector Stores
+    "chromadb>=0.4.0,<0.7.0",
+    "faiss-cpu>=1.7.4,<2.0.0",
+
+    # Document Loaders
+    "beautifulsoup4>=4.12.0,<5.0.0",
+    "wikipedia>=1.4.0,<2.0.0",
+    "PyPDF2>=3.0.0,<4.0.0",
+    "python-docx>=0.8.11,<2.0.0",
+
+    # Data Processing
+    "pandas>=2.0.0,<3.0.0",
+    "numpy>=1.24.0,<2.0.0",
+
+    # HTTP/Async
+    "requests>=2.31.0,<3.0.0",
+    "httpx>=0.25.0,<1.0.0",
+    "aiohttp>=3.9.0,<4.0.0",
+
+    # Data Validation
+    "pydantic>=2.5.0,<3.0.0",
+
+    # API Framework
+    "fastapi>=0.104.0,<1.0.0",
+    "uvicorn>=0.24.0,<1.0.0",
+
+    # MCP Protocol
+    "mcp>=1.0.0,<2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.0.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.25.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocstrings>=0.23.0",
+]
+docker = [
+    "docker>=6.1.0",
+    "docker-compose>=1.29.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/DongxuGuo1997/langchain-rag-pipeline"
+Documentation = "https://github.com/DongxuGuo1997/langchain-rag-pipeline#readme"
+Repository = "https://github.com/DongxuGuo1997/langchain-rag-pipeline.git"
+Issues = "https://github.com/DongxuGuo1997/langchain-rag-pipeline/issues"
+Changelog = "https://github.com/DongxuGuo1997/langchain-rag-pipeline/blob/main/CHANGELOG.md"
+
+[project.scripts]
+langchain-rag = "langchain_rag.ui.streamlit_app:main"
+rag-mcp-server = "langchain_rag.api.mcp_server_fastmcp:main"
+rag-chat = "langchain_rag.ui.chat_interface:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"langchain_rag" = ["configs/*.json", "configs/*.yml"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["langchain_rag"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "chromadb.*",  
+    "faiss.*",
+    "wikipedia.*",
+    "streamlit.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+] 

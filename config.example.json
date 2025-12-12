@@ -1,0 +1,24 @@
+{
+  "database": {
+    "default_type": "faiss",
+    "chroma_persist_dir": "store/chroma_db",
+    "batch_size": 100,
+    "similarity_k": 4
+  },
+  "llm": {
+    "openai_models": ["gpt-3.5-turbo", "gpt-4", "gpt-4o-mini"],
+    "ollama_models": ["llama3", "phi4", "deepseek-r1:8b"],
+    "default_temperature": 0.0,
+    "prefer_ollama_embeddings": true
+  },
+  "cache": {
+    "enable_semantic_cache": false,
+    "semantic_cache_size": 100,
+    "semantic_similarity_threshold": 0.95
+  },
+  "logging": {
+    "level": "INFO",
+    "log_to_file": true,
+    "log_file_path": "logs/application.log"
+  }
+}
