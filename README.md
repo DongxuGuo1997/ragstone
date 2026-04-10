@@ -1,6 +1,8 @@
 # LangChain RAG Pipeline
 
-A production-ready Retrieval-Augmented Generation (RAG) pipeline built with LangChain, featuring support for multiple LLM providers, advanced RAG techniques, and a modern Streamlit web interface.
+> **Note**: This is an internal proof-of-concept project, not intended for production use.
+
+A Retrieval-Augmented Generation (RAG) pipeline built with LangChain, supporting multiple LLM providers and a Streamlit web interface.
 
 ## Features
 
@@ -14,10 +16,10 @@ A production-ready Retrieval-Augmented Generation (RAG) pipeline built with Lang
 - **Wikipedia**: Search and load articles automatically
 - **File Upload**: Drag-and-drop interface for documents
 
-### Advanced RAG Techniques
+### RAG Techniques
 - **Simple RAG**: Standard retrieval-augmented generation
-- **Multi-Query RAG**: Generates multiple queries for better retrieval
-- **Fusion RAG**: Uses reciprocal rank fusion for improved results
+- **Multi-Query RAG**: Generates multiple queries for retrieval
+- **Fusion RAG**: Uses reciprocal rank fusion
 - **Ensemble Retrieval**: Combines BM25 and vector similarity
 
 ### Vector Store Support
@@ -31,12 +33,11 @@ A production-ready Retrieval-Augmented Generation (RAG) pipeline built with Lang
 - **Validation**: Comprehensive configuration validation
 - **Flexible Settings**: Database, LLM, UI, and API configurations
 
-### Production Features
-- **Comprehensive Error Handling**: Custom exception hierarchy
-- **Structured Logging**: Configurable logging with file rotation
-- **Session Management**: Persistent chat sessions with memory
-- **Resource Management**: Automatic cleanup and memory optimization
-- **Security**: Input validation and safe deserialization options
+### Other Features
+- Custom exception hierarchy
+- Configurable logging
+- Chat session memory
+- Basic input validation
 
 ### MCP Integration (Model Context Protocol)
 
@@ -97,7 +98,7 @@ For complete setup instructions, see [docs/README_MCP.md](docs/README_MCP.md).
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/langchain-rag-pipeline.git
+   git clone https://github.com/DongxuGuo1997/langchain-rag-pipeline.git
    cd langchain-rag-pipeline
    ```
 
@@ -125,7 +126,7 @@ For complete setup instructions, see [docs/README_MCP.md](docs/README_MCP.md).
 
 ## MCP Server Integration
 
-Transform your RAG pipeline into a powerful VS Code/Cursor plugin using the Model Context Protocol (MCP).
+Expose the RAG pipeline as MCP tools for use in VS Code/Cursor.
 
 ### Quick MCP Setup
 
@@ -162,11 +163,10 @@ Transform your RAG pipeline into a powerful VS Code/Cursor plugin using the Mode
 
 ### MCP Features
 
-- **8 Powerful Tools**: Pipeline management, document loading, Q&A
-- **Multiple Pipelines**: Specialized knowledge bases for different projects
-- **Advanced RAG**: Multi-query, fusion, and ensemble retrieval
-- **Session Memory**: Persistent conversations
-- **Error Handling**: Robust error management and reporting
+- 8 tools for pipeline management, document loading, and Q&A
+- Support for multiple pipelines
+- Multi-query, fusion, and ensemble retrieval options
+- Session memory for conversations
 
 **Full MCP Documentation**: See [docs/README_MCP.md](docs/README_MCP.md) for complete setup and usage guide.
 
@@ -211,7 +211,7 @@ langchain-rag-pipeline/
 
 ## Configuration
 
-The application uses a hierarchical configuration system that supports:
+Configuration options:
 
 ### Environment Variables
 ```bash
@@ -393,9 +393,9 @@ pytest tests/ -v
 pytest tests/ --cov=src --cov-report=html
 ```
 
-## Monitoring and Logging
+## Logging
 
-The application provides comprehensive logging and monitoring:
+The application includes basic logging:
 
 ### Log Levels
 - **DEBUG**: Detailed debugging information
@@ -413,44 +413,12 @@ streamlit run run.py --log DEBUG
 streamlit run run.py
 ```
 
-### Metrics and Performance
-- Document processing times
-- Query response times
-- Memory usage tracking
-- Error rates and types
-
 ## Security Considerations
 
 - **API Keys**: Never commit API keys to version control
 - **Input Validation**: All user inputs are validated
 - **Safe Deserialization**: FAISS loading uses safe defaults
 - **Error Information**: Sensitive information is filtered from logs
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Setup
-
-```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run code formatting
-black src/ tests/
-isort src/ tests/
-
-# Run linting
-flake8 src/ tests/
-mypy src/
-
-# Run tests
-pytest tests/ -v
-```
 
 ## License
 
@@ -465,12 +433,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [OpenAI](https://openai.com/) for language models
 - [Ollama](https://ollama.ai/) for local language models
 
-## Support
-
-- **Documentation**: Check this README and inline documentation
-- **Issues**: Open an issue on GitHub
-- **Discussions**: Use GitHub Discussions for questions
-
----
-
-**Built for the AI community**
