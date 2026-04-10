@@ -1,44 +1,44 @@
-# 🤖 LangChain RAG Pipeline
+# LangChain RAG Pipeline
 
 A production-ready Retrieval-Augmented Generation (RAG) pipeline built with LangChain, featuring support for multiple LLM providers, advanced RAG techniques, and a modern Streamlit web interface.
 
-## ✨ Features
+## Features
 
-### 🧠 **Multiple LLM Providers**
+### Multiple LLM Providers
 - **OpenAI**: GPT-3.5 Turbo, GPT-4, GPT-4o Mini
 - **Ollama**: Llama3, Phi4, DeepSeek-R1, and other local models
 
-### 📚 **Flexible Data Sources**
+### Flexible Data Sources
 - **Local Files**: PDF, TXT, CSV, DOCX, Markdown
 - **Web Pages**: Automatic scraping and content extraction
 - **Wikipedia**: Search and load articles automatically
 - **File Upload**: Drag-and-drop interface for documents
 
-### 🔍 **Advanced RAG Techniques**
+### Advanced RAG Techniques
 - **Simple RAG**: Standard retrieval-augmented generation
 - **Multi-Query RAG**: Generates multiple queries for better retrieval
 - **Fusion RAG**: Uses reciprocal rank fusion for improved results
 - **Ensemble Retrieval**: Combines BM25 and vector similarity
 
-### 💾 **Vector Store Support**
+### Vector Store Support
 - **FAISS**: Fast similarity search with local storage
 - **Chroma**: Persistent vector database with advanced features
 - **Custom Embeddings**: OpenAI embeddings with fallback options
 
-### 🎛️ **Configuration Management**
+### Configuration Management
 - **Environment-based**: Automatic configuration from `.env` files
 - **JSON Configuration**: Structured configuration files
 - **Validation**: Comprehensive configuration validation
 - **Flexible Settings**: Database, LLM, UI, and API configurations
 
-### 🛡️ **Production Features**
+### Production Features
 - **Comprehensive Error Handling**: Custom exception hierarchy
 - **Structured Logging**: Configurable logging with file rotation
 - **Session Management**: Persistent chat sessions with memory
 - **Resource Management**: Automatic cleanup and memory optimization
 - **Security**: Input validation and safe deserialization options
 
-### 🔌 **MCP Integration (Model Context Protocol)**
+### MCP Integration (Model Context Protocol)
 
 The RAG pipeline can be exposed as MCP tools for use in VS Code/Cursor and other MCP-compatible clients.
 
@@ -54,8 +54,7 @@ The RAG pipeline can be exposed as MCP tools for use in VS Code/Cursor and other
    ```
 
 2. **Configure Cursor/VS Code:**
-   - See `CURSOR_SETUP_GUIDE.md` for detailed setup instructions
-   - Use the configuration in `cursor_mcp_config.json`
+   - See [docs/README_MCP.md](docs/README_MCP.md) for detailed setup instructions
 
 ### **Available MCP Tools**
 
@@ -84,11 +83,9 @@ The RAG pipeline can be exposed as MCP tools for use in VS Code/Cursor and other
 @langchain-rag-pipeline ask_question "What is the main architecture pattern?" with pipeline_id "my_project"
 ```
 
-For complete setup instructions, see:
-- `README_MCP.md` - Technical documentation
-- `CURSOR_SETUP_GUIDE.md` - Step-by-step setup guide
+For complete setup instructions, see [docs/README_MCP.md](docs/README_MCP.md).
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -100,8 +97,8 @@ For complete setup instructions, see:
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd test-langchain
+   git clone https://github.com/your-username/langchain-rag-pipeline.git
+   cd langchain-rag-pipeline
    ```
 
 2. **Create virtual environment**
@@ -126,7 +123,7 @@ For complete setup instructions, see:
    streamlit run run.py
    ```
 
-## 🔌 MCP Server Integration
+## MCP Server Integration
 
 Transform your RAG pipeline into a powerful VS Code/Cursor plugin using the Model Context Protocol (MCP).
 
@@ -147,9 +144,9 @@ Transform your RAG pipeline into a powerful VS Code/Cursor plugin using the Mode
        "langchain-rag-pipeline": {
          "command": "python",
          "args": ["mcp_rag_server.py"],
-         "cwd": "/path/to/your/test-langchain",
+         "cwd": "/path/to/your/langchain-rag-pipeline",
          "env": {
-           "PYTHONPATH": "/path/to/your/test-langchain/src"
+           "PYTHONPATH": "/path/to/your/langchain-rag-pipeline/src"
          }
        }
      }
@@ -171,36 +168,48 @@ Transform your RAG pipeline into a powerful VS Code/Cursor plugin using the Mode
 - **Session Memory**: Persistent conversations
 - **Error Handling**: Robust error management and reporting
 
-📖 **Full MCP Documentation**: See [README_MCP.md](README_MCP.md) for complete setup and usage guide.
+**Full MCP Documentation**: See [docs/README_MCP.md](docs/README_MCP.md) for complete setup and usage guide.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
-test-langchain/
-├── src/                          # Core package
-│   ├── __init__.py              # Package exports and metadata
-│   ├── config.py                # Configuration management
-│   ├── exceptions.py            # Custom exception hierarchy
-│   ├── base_model.py           # LLM proxy classes
-│   ├── vector_db.py            # Vector store implementations
-│   ├── loader.py               # Document loading utilities
-│   ├── memory.py               # Conversation memory management
-│   ├── rag.py                  # RAG chain implementations
-│   ├── pipeline.py             # Main pipeline orchestration
-│   ├── splitter.py             # Document splitting utilities
-│   ├── ensemble.py             # Ensemble retrieval methods
-│   └── full_chain.py           # Complete chain integration
-├── data/                        # Default data directory
-├── logs/                        # Application logs
-├── store/                       # Vector store persistence
-├── run.py                       # Main Streamlit application
+langchain-rag-pipeline/
+├── src/langchain_rag/           # Core package
+│   ├── config/                  # Configuration management
+│   │   └── settings.py          # Dataclass-based settings
+│   ├── models/                  # LLM abstraction layer
+│   │   └── base_model.py        # OpenAI/Ollama proxy classes
+│   ├── rag/                     # Core RAG implementation
+│   │   ├── pipeline.py          # Main orchestration
+│   │   ├── rag.py               # RAG chain creation
+│   │   ├── loader.py            # Document loading utilities
+│   │   ├── vector_db.py         # Vector store implementations
+│   │   ├── memory.py            # Conversation memory
+│   │   ├── ensemble.py          # Ensemble retrieval
+│   │   └── splitter.py          # Document chunking
+│   ├── ui/                      # User interfaces
+│   │   ├── streamlit_app.py     # Web interface
+│   │   ├── chat_interface.py    # CLI chat
+│   │   └── app.py               # Application framework
+│   ├── mcp/                     # MCP server integration
+│   │   ├── mcp_server.py        # Standard MCP server
+│   │   └── mcp_server_fastmcp.py
+│   └── utils/                   # Utilities and helpers
+│       ├── exceptions.py        # Custom exception hierarchy
+│       ├── common.py            # Helper functions
+│       └── full_chain.py        # Complete chain integration
+├── tests/                       # Test suite
+├── docker/                      # Docker deployment files
+├── docs/                        # Documentation
+├── examples/                    # Example code
+├── scripts/                     # Utility scripts
 ├── requirements.txt             # Python dependencies
+├── pyproject.toml               # Project configuration
 ├── .env.example                 # Environment template
-├── config.json                  # Configuration file
 └── README.md                    # This file
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 The application uses a hierarchical configuration system that supports:
 
@@ -236,10 +245,10 @@ OLLAMA_BASE_URL=http://localhost:11434
 ### Docker Configuration
 
 For Docker deployments, **FAISS is now the default vector store** (changed from ChromaDB). This provides:
-- ✅ **Better performance** in containerized environments
-- ✅ **No external dependencies** required
-- ✅ **Lower memory footprint**
-- ✅ **Faster startup times**
+- Better performance in containerized environments
+- No external dependencies required
+- Lower memory footprint
+- Faster startup times
 
 #### Environment Variables
 
@@ -269,9 +278,9 @@ echo "VECTOR_STORE_TYPE=chroma" >> .env
 docker-compose --profile chromadb up -d
 ```
 
-See **[DOCKER_GUIDE.md](DOCKER_GUIDE.md)** for complete Docker setup instructions.
+See **[docs/guides/DOCKER_GUIDE.md](docs/guides/DOCKER_GUIDE.md)** for complete Docker setup instructions.
 
-## 🎯 Usage
+## Usage
 
 ### Web Interface
 
@@ -317,7 +326,7 @@ response = pipeline.ask_question("What is artificial intelligence?")
 print(response)
 ```
 
-## 🔧 Advanced Features
+## Advanced Features
 
 ### Custom Configuration
 
@@ -369,7 +378,7 @@ chroma_store = create_vector_store_proxy(
 faiss_store = create_vector_store_proxy("faiss")
 ```
 
-## 🧪 Testing
+## Testing
 
 Run the test suite:
 
@@ -384,7 +393,7 @@ pytest tests/ -v
 pytest tests/ --cov=src --cov-report=html
 ```
 
-## 📊 Monitoring and Logging
+## Monitoring and Logging
 
 The application provides comprehensive logging and monitoring:
 
@@ -410,14 +419,14 @@ streamlit run run.py
 - Memory usage tracking
 - Error rates and types
 
-## 🔒 Security Considerations
+## Security Considerations
 
 - **API Keys**: Never commit API keys to version control
 - **Input Validation**: All user inputs are validated
 - **Safe Deserialization**: FAISS loading uses safe defaults
 - **Error Information**: Sensitive information is filtered from logs
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -443,11 +452,11 @@ mypy src/
 pytest tests/ -v
 ```
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [LangChain](https://github.com/langchain-ai/langchain) for the RAG framework
 - [Streamlit](https://streamlit.io/) for the web interface
@@ -456,7 +465,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [OpenAI](https://openai.com/) for language models
 - [Ollama](https://ollama.ai/) for local language models
 
-## 📞 Support
+## Support
 
 - **Documentation**: Check this README and inline documentation
 - **Issues**: Open an issue on GitHub
@@ -464,4 +473,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ for the AI community**
+**Built for the AI community**
