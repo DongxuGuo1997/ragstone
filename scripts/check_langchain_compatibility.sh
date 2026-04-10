@@ -15,39 +15,32 @@
 
 set -e  # Exit on error
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}LangChain Compatibility Check${NC}"
-echo -e "${BLUE}========================================${NC}"
+echo "========================================"
+echo "LangChain Compatibility Check"
+echo "========================================"
 echo ""
 
 # Check if we're in the project root
 if [ ! -f "pyproject.toml" ]; then
-    echo -e "${RED}Error: pyproject.toml not found${NC}"
+    echo "Error: pyproject.toml not found"
     echo "Please run this script from the project root directory"
     exit 1
 fi
 
 # Activate virtual environment if it exists
 if [ -d "venv" ]; then
-    echo -e "${YELLOW}Activating virtual environment...${NC}"
+    echo "Activating virtual environment..."
     source venv/bin/activate
 fi
 
 # Check if pytest is installed
 if ! command -v pytest &> /dev/null; then
-    echo -e "${YELLOW}pytest not found. Installing...${NC}"
+    echo "pytest not found. Installing..."
     pip install pytest pytest-cov -q
 fi
 
 # Display current LangChain versions
-echo -e "${BLUE}Current LangChain Versions:${NC}"
+echo "Current LangChain Versions:"
 python -c "
 try:
     import langchain
@@ -73,31 +66,31 @@ try:
     import langchain_ollama
     print(f'  langchain-ollama: {langchain_ollama.__version__}')
 except: pass
-" || echo -e "${RED}  Could not detect versions${NC}"
+" || echo "  Could not detect versions"
 
 echo ""
 
 # Run compatibility tests
-echo -e "${YELLOW}Running compatibility tests...${NC}"
+echo "Running compatibility tests..."
 echo ""
 
 if pytest tests/test_langchain_compatibility.py -v --tb=short; then
     echo ""
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}✅ ALL COMPATIBILITY TESTS PASSED${NC}"
-    echo -e "${GREEN}========================================${NC}"
+    echo "========================================"
+    echo "ALL COMPATIBILITY TESTS PASSED"
+    echo "========================================"
     echo ""
-    echo -e "Your LangChain installation is ${GREEN}COMPATIBLE${NC} with your codebase."
-    echo "It's safe to use this version in production."
+    echo "Your LangChain installation is COMPATIBLE with your codebase."
+    echo "It's safe to use this version."
     echo ""
     exit 0
 else
     echo ""
-    echo -e "${RED}========================================${NC}"
-    echo -e "${RED}❌ COMPATIBILITY TESTS FAILED${NC}"
-    echo -e "${RED}========================================${NC}"
+    echo "========================================"
+    echo "COMPATIBILITY TESTS FAILED"
+    echo "========================================"
     echo ""
-    echo -e "${YELLOW}Breaking changes detected!${NC}"
+    echo "Breaking changes detected!"
     echo ""
     echo "Possible causes:"
     echo "  1. LangChain API has changed"

@@ -11,12 +11,12 @@ wait_for_service() {
     local host=$1
     local port=$2
     local service=$3
-    
-    echo "⏳ Waiting for $service to be ready..."
+
+    echo "Waiting for $service to be ready..."
     while ! nc -z "$host" "$port" 2>/dev/null; do
         sleep 1
     done
-    echo "✅ $service is ready!"
+    echo "$service is ready"
 }
 
 # Wait for dependent services if they're configured
@@ -33,32 +33,32 @@ fi
 # Initialize data directories
 mkdir -p /app/data /app/store /app/vs_data /app/logs
 
-echo "🚀 Starting LangChain RAG Pipeline in $MODE mode..."
+echo "Starting LangChain RAG Pipeline in $MODE mode..."
 
 case "$MODE" in
     "mcp")
-        echo "🔧 Starting MCP Server..."
+        echo "Starting MCP Server..."
         exec python mcp_rag_server_fastmcp.py
         ;;
     "streamlit")
-        echo "🎨 Starting Streamlit UI..."
+        echo "Starting Streamlit UI..."
         exec streamlit run run.py --server.address="$HOST" --server.port="$PORT"
         ;;
     "chat")
-        echo "💬 Starting Chat Interface..."
+        echo "Starting Chat Interface..."
         exec python chat_interface.py
         ;;
     "test")
-        echo "🧪 Running Connection Test..."
+        echo "Running Connection Test..."
         exec python mcp_connection_test.py
         ;;
     "shell")
-        echo "🐚 Starting Interactive Shell..."
+        echo "Starting Interactive Shell..."
         exec /bin/bash
         ;;
     *)
-        echo "❌ Unknown mode: $MODE"
+        echo "Unknown mode: $MODE"
         echo "Available modes: mcp, streamlit, chat, test, shell"
         exit 1
         ;;
-esac 
+esac
