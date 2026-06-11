@@ -42,7 +42,7 @@ def _get_cached_import(module_name: str, attr_name: str = None):
 
 def _lazy_import_langchain_docs():
     """Lazy import for LangChain documents."""
-    return _get_cached_import("langchain.docstore.document", "Document")
+    return _get_cached_import("langchain_core.documents", "Document")
 
 
 def _lazy_import_openai_embeddings():
@@ -52,7 +52,7 @@ def _lazy_import_openai_embeddings():
 
 def _lazy_import_chroma():
     """Lazy import for ChromaDB."""
-    chroma_module = _get_cached_import("langchain_community.vectorstores", "Chroma")
+    chroma_module = _get_cached_import("langchain_chroma", "Chroma")
     chromadb_module = _get_cached_import("chromadb")
     return chroma_module, chromadb_module
 

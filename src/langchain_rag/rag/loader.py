@@ -83,7 +83,7 @@ def _get_cached_loader(loader_type: str):
 def _lazy_import_document():
     """Lazy import for LangChain Document class."""
     if "document" not in _loader_cache:
-        from langchain.docstore.document import Document
+        from langchain_core.documents import Document
 
         _loader_cache["document"] = Document
     return _loader_cache["document"]

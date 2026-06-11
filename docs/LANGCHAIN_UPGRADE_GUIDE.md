@@ -5,11 +5,13 @@ This guide provides a safe procedure for upgrading LangChain dependencies withou
 ## 🔒 **Current Stable Versions**
 
 Your application is tested and working with:
-- `langchain`: 0.3.x
-- `langchain-core`: 0.3.x
-- `langchain-community`: 0.3.x
-- `langchain-openai`: 0.3.x
-- `langchain-ollama`: 0.3.x
+- `langchain`: 1.x
+- `langchain-core`: 1.x
+- `langchain-community`: 0.4.x
+- `langchain-classic`: 1.x (legacy retrievers: ensemble, contextual compression)
+- `langchain-openai`: 1.x
+- `langchain-ollama`: 1.x
+- `langchain-chroma`: 1.x
 
 **Last Compatibility Test**: See test run in `tests/test_langchain_compatibility.py`
 
@@ -22,14 +24,14 @@ Your application is tested and working with:
 LangChain is actively developed and occasionally introduces breaking changes. Our version pinning strategy:
 
 ```python
-"langchain>=0.3.0,<0.4.0"  # ✅ Allows: 0.3.1, 0.3.24, etc.
-                            # ❌ Blocks: 0.4.0, 1.0.0, etc.
+"langchain>=1.0,<2.0"  # ✅ Allows: 1.1, 1.3.7, etc.
+                            # ❌ Blocks: 2.0.0, etc.
 ```
 
 This ensures you get:
-- ✅ **Bug fixes** (patch versions like 0.3.1 → 0.3.2)
+- ✅ **Bug fixes** (minor/patch versions like 1.3.x → 1.4.x)
 - ✅ **Security updates**
-- ❌ **No breaking API changes** (minor version bumps like 0.3.x → 0.4.x are blocked)
+- ❌ **No breaking API changes** (major version bumps like 1.x → 2.x are blocked)
 
 ---
 
@@ -47,8 +49,8 @@ pip list --outdated | grep langchain
 
 **Example output:**
 ```
-langchain      0.3.24  0.3.30  wheel
-langchain-core 0.3.55  0.3.60  wheel
+langchain      1.3.5   1.3.7   wheel
+langchain-core 1.4.2   1.4.4   wheel
 ```
 
 ### **Step 2: Run Compatibility Tests (CURRENT VERSION)**
@@ -100,12 +102,12 @@ cp -r . ../langchain-rag-pipeline-backup
 Upgrade within the same minor version (safest):
 
 ```bash
-# Upgrade to latest 0.3.x versions
-pip install --upgrade 'langchain>=0.3.0,<0.4.0' \
-                      'langchain-core>=0.3.0,<0.4.0' \
-                      'langchain-community>=0.3.0,<0.4.0' \
-                      'langchain-openai>=0.3.0,<0.4.0' \
-                      'langchain-ollama>=0.3.0,<0.4.0'
+# Upgrade to latest 1.x versions
+pip install --upgrade 'langchain>=1.0,<2.0' \
+                      'langchain-core>=1.0,<2.0' \
+                      'langchain-community>=0.4,<0.5' \
+                      'langchain-openai>=1.0,<2.0' \
+                      'langchain-ollama>=1.0,<2.0'
 ```
 
 ### **Step 6: Run Compatibility Tests (NEW VERSION)**
@@ -161,12 +163,12 @@ If everything works, update `pyproject.toml`:
 
 ```toml
 # Before:
-"langchain>=0.3.0,<0.4.0",
+"langchain>=1.0,<2.0",
 
-# After (if upgrading to 0.3.30):
+# After (if upgrading past a tested version):
 # Update the comment with new tested version
 # Last compatibility test: 2025-01-XX (run pytest tests/test_langchain_compatibility.py)
-"langchain>=0.3.0,<0.4.0",  # Tested up to 0.3.30
+"langchain>=1.0,<2.0",  # Tested up to 1.3.7
 ```
 
 ### **Step 10: Commit and Deploy**
@@ -176,7 +178,7 @@ If everything works, update `pyproject.toml`:
 
 # Commit changes
 git add pyproject.toml
-git commit -m "chore: upgrade LangChain to 0.3.30 (tested)"
+git commit -m "chore: upgrade LangChain to 1.3.7 (tested)"
 
 # Merge to main
 git checkout main
@@ -187,7 +189,7 @@ git merge test/langchain-upgrade
 
 ## 🚀 **Upgrading to MAJOR/MINOR Versions**
 
-When upgrading to a new minor version (e.g., 0.3.x → 0.4.x), **more caution is needed**:
+When upgrading to a new major version (e.g., 1.x → 2.x), **more caution is needed**:
 
 ### **Step 1: Research Migration Path**
 
@@ -202,7 +204,7 @@ open https://python.langchain.com/docs/versions/migration
 [project]
 dependencies = [
     # Temporarily allow new version for testing
-    "langchain>=0.3.0,<0.5.0",  # Testing 0.4.x upgrade
+    "langchain>=1.0,<3.0",  # Testing 2.x upgrade
 ]
 ```
 
@@ -224,7 +226,7 @@ E   ModuleNotFoundError: No module named 'langchain.docstore.document'
 **Example fix for import path change:**
 
 ```python
-# OLD (0.3.x):
+# OLD (previous major):
 from langchain.docstore.document import Document
 
 # NEW (0.4.x - hypothetical):
@@ -268,7 +270,7 @@ Update this guide with breaking changes:
 ```markdown
 ## Breaking Changes Log
 
-### LangChain 0.3.x → 0.4.x
+### LangChain major version upgrades (e.g. 1.x → 2.x)
 
 - **Import change**: `langchain.docstore.document.Document` → `langchain_core.documents.Document`
 - **Action taken**: Updated imports in `loader.py`, `splitter.py`, `ensemble.py`
@@ -388,8 +390,8 @@ Our test suite covers these critical imports:
 
 | Type | Example | Frequency | Risk | Procedure |
 |------|---------|-----------|------|-----------|
-| **Patch** | 0.3.24 → 0.3.30 | Monthly | 🟢 Low | Steps 1-10 |
-| **Minor** | 0.3.x → 0.4.x | Quarterly | 🟡 Medium | Full migration guide |
+| **Minor/Patch** | 1.3.5 → 1.3.7 | Monthly | 🟢 Low | Steps 1-10 |
+| **Major** | 1.x → 2.x | When released | 🟡 Medium | Full migration guide |
 | **Major** | 0.x → 1.x | Yearly | 🔴 High | Extensive testing |
 
 ---
@@ -408,6 +410,6 @@ Our test suite covers these critical imports:
 
 ### 2025-01-XX - Initial Version
 - Created upgrade guide
-- Pinned LangChain to 0.3.x
+- Pinned LangChain to 1.x (community 0.4.x)
 - Added 28 compatibility tests
 - All tests passing ✅

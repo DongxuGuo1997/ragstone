@@ -1,7 +1,7 @@
+import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from langchain.load import dumps, loads
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages.base import BaseMessage
@@ -197,13 +197,20 @@ class RagProxy:
         logger.info("RAG chain with Reciprocal Rank Fusion created.")
         return final_rag_chain
 
+    @staticmethod
+    def _doc_key(doc: Document) -> Tuple[str, str]:
+        """Hashable identity for a document (content + metadata)."""
+        return doc.page_content, json.dumps(doc.metadata, sort_keys=True, default=str)
+
     def _get_unique_union(self, documents: List[List[Document]]) -> List[Document]:
         """
         Takes a list of lists of documents and returns a single list of unique documents.
         """
-        flattened_docs = [dumps(doc) for sublist in documents for doc in sublist]
-        unique_docs_str = list(set(flattened_docs))
-        return [loads(doc_str) for doc_str in unique_docs_str]
+        unique: Dict[Tuple[str, str], Document] = {}
+        for sublist in documents:
+            for doc in sublist:
+                unique.setdefault(self._doc_key(doc), doc)
+        return list(unique.values())
 
     def _reciprocal_rank_fusion(
         self, results: List[List[Document]], k: int = 60
@@ -218,20 +225,16 @@ class RagProxy:
         Returns:
             A list of (Document, score) tuples, sorted by fused score in descending order.
         """
-        fused_scores: Dict[str, float] = {}
+        fused_scores: Dict[Tuple[str, str], float] = {}
+        doc_by_key: Dict[Tuple[str, str], Document] = {}
         for docs in results:
             for rank, doc in enumerate(docs):
-                doc_str = dumps(doc)  # Serialize document to use as a dictionary key
-                if doc_str not in fused_scores:
-                    fused_scores[doc_str] = 0.0
-                fused_scores[doc_str] += 1 / (rank + k)
+                key = self._doc_key(doc)
+                doc_by_key.setdefault(key, doc)
+                fused_scores[key] = fused_scores.get(key, 0.0) + 1 / (rank + k)
 
-        reranked_results_tuples: List[Tuple[str, float]] = sorted(
-            fused_scores.items(), key=lambda x: x[1], reverse=True
+        return sorted(
+            ((doc_by_key[key], score) for key, score in fused_scores.items()),
+            key=lambda pair: pair[1],
+            reverse=True,
         )
-
-        # Deserialize documents
-        final_reranked_results: List[Tuple[Document, float]] = [
-            (loads(doc_str), score) for doc_str, score in reranked_results_tuples
-        ]
-        return final_reranked_results

@@ -748,11 +748,11 @@ def _get_cached_pipeline_import(import_type: str):
     if import_type not in _pipeline_cache:
         try:
             if import_type == "document":
-                from langchain.docstore.document import Document
+                from langchain_core.documents import Document
 
                 _pipeline_cache[import_type] = Document
             elif import_type == "ensemble_retriever":
-                from langchain.retrievers import EnsembleRetriever
+                from langchain_classic.retrievers import EnsembleRetriever
 
                 _pipeline_cache[import_type] = EnsembleRetriever
             elif import_type == "bm25_retriever":

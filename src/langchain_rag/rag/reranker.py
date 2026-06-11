@@ -48,8 +48,10 @@ def wrap_with_reranker(
             installed.
     """
     try:
-        from langchain.retrievers import ContextualCompressionRetriever
-        from langchain.retrievers.document_compressors import CrossEncoderReranker
+        from langchain_classic.retrievers import ContextualCompressionRetriever
+        from langchain_classic.retrievers.document_compressors import (
+            CrossEncoderReranker,
+        )
         from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 
         cross_encoder = HuggingFaceCrossEncoder(model_name=model_name)

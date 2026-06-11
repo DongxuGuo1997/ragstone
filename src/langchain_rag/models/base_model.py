@@ -120,9 +120,9 @@ class OpenAIProxy(LLMProxy):
             ChatOpenAI = _get_cached_llm_import("openai")
 
             self._llm = ChatOpenAI(
-                model_name=model_name,
+                model=model_name,
                 temperature=temperature,
-                openai_api_key=api_key,  # Explicitly pass API key
+                api_key=api_key,  # Explicitly pass API key
                 **kwargs,
             )
             self._model_name = model_name

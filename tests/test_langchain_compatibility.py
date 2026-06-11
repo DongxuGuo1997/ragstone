@@ -25,7 +25,7 @@ class TestCoreModels:
     def test_document_class_exists(self):
         """Verify Document class is importable and has expected attributes."""
         try:
-            from langchain.docstore.document import Document
+            from langchain_core.documents import Document
         except ImportError as e:
             pytest.fail(f"Failed to import Document: {e}")
 
@@ -128,7 +128,7 @@ class TestRetrievers:
     def test_ensemble_retriever_import(self):
         """Verify EnsembleRetriever is importable."""
         try:
-            from langchain.retrievers import EnsembleRetriever
+            from langchain_classic.retrievers import EnsembleRetriever
         except ImportError as e:
             pytest.fail(f"Failed to import EnsembleRetriever: {e}")
 
@@ -175,7 +175,7 @@ class TestVectorStores:
     def test_chroma_import(self):
         """Verify Chroma vector store is importable and has expected methods."""
         try:
-            from langchain_community.vectorstores import Chroma
+            from langchain_chroma import Chroma
         except ImportError as e:
             pytest.fail(f"Failed to import Chroma: {e}")
 
@@ -249,7 +249,7 @@ class TestUtilities:
     def test_text_splitter_import(self):
         """Verify RecursiveCharacterTextSplitter is importable."""
         try:
-            from langchain.text_splitter import RecursiveCharacterTextSplitter
+            from langchain_text_splitters import RecursiveCharacterTextSplitter
         except ImportError as e:
             pytest.fail(f"Failed to import RecursiveCharacterTextSplitter: {e}")
 
@@ -261,12 +261,12 @@ class TestUtilities:
     def test_dumps_loads_import(self):
         """Verify dumps/loads utilities are importable."""
         try:
-            from langchain.load import dumps, loads
+            from langchain_core.load import dumps, loads
         except ImportError as e:
             pytest.fail(f"Failed to import dumps/loads: {e}")
 
         # Test basic functionality with Document
-        from langchain.docstore.document import Document
+        from langchain_core.documents import Document
 
         doc = Document(page_content="test")
 
@@ -278,15 +278,12 @@ class TestUtilities:
         assert isinstance(deserialized, Document)
         assert deserialized.page_content == "test"
 
-    def test_langchain_hub_import(self):
-        """Verify langchain hub is importable (external dependency - higher risk)."""
-        try:
-            from langchain import hub
-        except ImportError as e:
-            pytest.fail(f"Failed to import langchain hub: {e}")
+    def test_bundled_rag_prompt(self):
+        """The default RAG prompt is bundled locally (no hub/network needed)."""
+        from langchain_rag.rag.rag import DEFAULT_RAG_PROMPT_TEMPLATE
 
-        # Verify pull method exists
-        assert hasattr(hub, "pull"), "hub missing 'pull' method"
+        assert "{question}" in DEFAULT_RAG_PROMPT_TEMPLATE
+        assert "{context}" in DEFAULT_RAG_PROMPT_TEMPLATE
 
 
 class TestRunnables:

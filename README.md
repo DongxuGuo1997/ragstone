@@ -42,7 +42,7 @@ A Retrieval-Augmented Generation (RAG) pipeline built with LangChain, supporting
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.10+
 - OpenAI API key (for online models)
 - Ollama installed (for offline models)
 

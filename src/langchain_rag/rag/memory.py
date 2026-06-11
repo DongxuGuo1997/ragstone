@@ -1,9 +1,10 @@
-from typing import Any, Dict, Iterable, List, Union
+from typing import Any, Dict, Iterable, List
 
-from langchain.chains.base import Chain
-from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
-from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.chat_history import (
+    BaseChatMessageHistory,
+    InMemoryChatMessageHistory,
+)
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
@@ -33,15 +34,15 @@ class MemoryProxy:
         self._type = type
 
     def create_memory_chain(
-        self, llm: BaseChatModel, base_chain: Union[Chain, Runnable]
+        self, llm: BaseChatModel, base_chain: Runnable
     ) -> RunnableWithMessageHistory:
         """
         Create a memory-enabled chain that can maintain conversation history.
 
         Args:
             llm: The language model to use for contextualizing questions.
-            base_chain: The base chain to wrap with memory functionality.
-                        Can be either a Chain or Runnable (including RunnableSequence).
+            base_chain: The base chain (any Runnable, including
+                        RunnableSequence) to wrap with memory functionality.
 
         Returns:
             A RunnableWithMessageHistory that includes conversation memory.
@@ -52,9 +53,8 @@ class MemoryProxy:
         if not isinstance(llm, BaseChatModel):
             raise TypeError("llm must be an instance of BaseChatModel")
 
-        # Accept both Chain and Runnable objects (including RunnableSequence)
-        if not isinstance(base_chain, (Chain, Runnable)):
-            raise TypeError("base_chain must be an instance of Chain or Runnable")
+        if not isinstance(base_chain, Runnable):
+            raise TypeError("base_chain must be a Runnable")
 
         contextualize_q_system_prompt = (
             "Given a chat history and the latest user question "
@@ -101,7 +101,7 @@ class MemoryProxy:
                 raise TypeError("session_id must be a string")
 
             if session_id not in session_store:
-                session_store[session_id] = ChatMessageHistory()
+                session_store[session_id] = InMemoryChatMessageHistory()
             return session_store[session_id]
 
         with_message_history = RunnableWithMessageHistory(
