@@ -15,6 +15,11 @@ from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
 from typing_extensions import TypedDict
 
+# How many history messages (human + AI) the rephrase step sees. Without a
+# cap, the rephrase prompt grows with every turn and so does its token cost;
+# recent turns are what matter for resolving references like "its" or "that".
+MAX_REPHRASE_HISTORY = 10
+
 
 class MemoryState(TypedDict, total=False):
     """Per-session conversation state, checkpointed by thread_id."""
@@ -96,7 +101,7 @@ class MemoryProxy:
             return {
                 "standalone_question": rephrase_chain.invoke(
                     {
-                        "chat_history": state["messages"],
+                        "chat_history": state["messages"][-MAX_REPHRASE_HISTORY:],
                         "question": state["question"],
                     }
                 )

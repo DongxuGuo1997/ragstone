@@ -27,6 +27,10 @@ _INSTALL_HINT = (
     'Install it with: pip install -e ".[rerank]"'
 )
 
+# Loading a cross-encoder reads ~80 MB from disk; reuse one instance per
+# model name for the life of the process.
+_encoder_cache: dict = {}
+
 
 def wrap_with_reranker(
     retriever, top_k: int = 4, model_name: str = DEFAULT_CROSS_ENCODER
@@ -54,7 +58,9 @@ def wrap_with_reranker(
         )
         from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 
-        cross_encoder = HuggingFaceCrossEncoder(model_name=model_name)
+        if model_name not in _encoder_cache:
+            _encoder_cache[model_name] = HuggingFaceCrossEncoder(model_name=model_name)
+        cross_encoder = _encoder_cache[model_name]
     except ImportError as e:
         raise ImportError(_INSTALL_HINT) from e
 

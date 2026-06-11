@@ -12,6 +12,12 @@ def test_missing_extra_raises_helpful_error(monkeypatch):
     """Without sentence-transformers, the wrapper must fail with install help."""
     import builtins
 
+    from langchain_rag.rag import reranker
+
+    # A previously cached encoder would bypass construction entirely; clear
+    # it so the simulated missing import is actually exercised.
+    monkeypatch.setattr(reranker, "_encoder_cache", {})
+
     real_import = builtins.__import__
 
     def fake_import(name, *args, **kwargs):

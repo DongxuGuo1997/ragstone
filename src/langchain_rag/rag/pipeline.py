@@ -5,6 +5,9 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.retrievers import BaseRetriever
+
 from ..config.settings import get_config
 from ..models.base_model import OllamaProxy, OpenAIProxy
 from ..utils.exceptions import ChainExecutionError, ChainInitializationError
@@ -793,6 +796,30 @@ def _get_cached_pipeline_import(import_type: str):
     return _pipeline_cache[import_type]
 
 
+# Embedding selection is expensive (probes several Ollama models with real
+# requests); remember the working choice per LLM model for the process.
+_smart_embeddings_cache: Dict[str, Any] = {}
+
+
+class _SourceRecordingRetriever(BaseRetriever):
+    """Wraps the final retriever and records the documents it returns.
+
+    Lets get_sources() reuse the documents retrieved while answering instead
+    of paying for a second retrieval (query embedding + ensemble + reranker)
+    per question. The record is cleared at the start of each ask.
+    """
+
+    wrapped: BaseRetriever
+    record: List = []
+
+    def _get_relevant_documents(
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+    ) -> List:
+        docs = self.wrapped.invoke(query)
+        self.record.extend(docs)
+        return docs
+
+
 class Pipeline:
     """Base pipeline class with lazy loading and optimized performance."""
 
@@ -839,6 +866,8 @@ class Pipeline:
         self._retriever: Optional = None
         self._chain: Optional[FullChain] = None
         self.LLM: Optional = None
+        self._last_question: Optional[str] = None
+        self._vector_db_fingerprint: Optional[str] = None
 
         logger.info(
             f"Pipeline initialized with loader: {loader_name}, vector store: {vector_store_type or 'default'}, optimization: {optimize_loading}"
@@ -933,8 +962,21 @@ class Pipeline:
 
         # Add timeout protection for vector store creation
         try:
-            logger.info("Creating vector store database...")
-            self.vector_db.create_db(docs=self.texts, embeddings=embeddings)
+            # Re-embedding the corpus is the expensive step (one API call per
+            # chunk). Skip it when the corpus and embedding model are
+            # unchanged — e.g. toggling the reranker or rebuilding the chain.
+            fingerprint = self._corpus_fingerprint(embeddings)
+            if (
+                fingerprint == self._vector_db_fingerprint
+                and self.vector_db.db is not None
+            ):
+                logger.info(
+                    "Corpus and embeddings unchanged; reusing existing vector store."
+                )
+            else:
+                logger.info("Creating vector store database...")
+                self.vector_db.create_db(docs=self.texts, embeddings=embeddings)
+                self._vector_db_fingerprint = fingerprint
 
             vs = self.vector_db.db  # Use the property .db
             if vs is None:
@@ -991,6 +1033,27 @@ class Pipeline:
 
             self._retriever = wrap_with_reranker(self._retriever, top_k=final_k)
 
+        if self._retriever is not None:
+            # Outermost wrapper: records final retrieved docs so get_sources
+            # can reuse them without a second retrieval.
+            self._retriever = _SourceRecordingRetriever(wrapped=self._retriever)
+
+    def _corpus_fingerprint(self, embeddings) -> str:
+        """Hash of the loaded corpus plus the embedding configuration.
+
+        Identical fingerprints mean the existing vector store can be reused.
+        """
+        h = hashlib.sha256()
+        for doc in self.texts or []:
+            h.update(getattr(doc, "page_content", str(doc)).encode())
+            h.update(b"\x00")
+            h.update(str(sorted(getattr(doc, "metadata", {}).items())).encode())
+            h.update(b"\x01")
+        h.update(
+            f"{type(embeddings).__name__}:{getattr(embeddings, 'model', '')}".encode()
+        )
+        return h.hexdigest()
+
     def get_chain(self) -> Optional[FullChain]:
         """Returns the created RAG chain, if any."""
         if not self._chain:
@@ -1001,11 +1064,19 @@ class Pipeline:
         """Return the configured retriever, or None if not set."""
         return self._retriever
 
+    def _begin_ask(self, question: str) -> None:
+        """Reset per-question state so get_sources reflects this ask."""
+        self._last_question = question
+        if isinstance(self._retriever, _SourceRecordingRetriever):
+            self._retriever.record.clear()
+
     def get_sources(self, question: str, k: int = 4) -> List[Dict[str, str]]:
         """
-        Return the source chunks the retriever finds for a question.
+        Return the source chunks behind an answer, for displaying citations.
 
-        Intended for displaying citations alongside an answer.
+        If `question` is the one most recently asked, the documents recorded
+        during that ask are reused — no second retrieval (and no extra
+        embedding API call). Otherwise the retriever is invoked directly.
 
         Args:
             question (str): The question to retrieve sources for.
@@ -1018,11 +1089,19 @@ class Pipeline:
         if not self._retriever:
             logger.warning("Cannot get sources: retriever is not set.")
             return []
-        try:
-            docs = self._retriever.invoke(question)[:k]
-        except Exception as e:
-            logger.error(f"Failed to retrieve sources: {e}", exc_info=True)
-            return []
+
+        if (
+            question == self._last_question
+            and isinstance(self._retriever, _SourceRecordingRetriever)
+            and self._retriever.record
+        ):
+            docs = list(self._retriever.record)
+        else:
+            try:
+                docs = self._retriever.invoke(question)
+            except Exception as e:
+                logger.error(f"Failed to retrieve sources: {e}", exc_info=True)
+                return []
 
         sources = []
         seen = set()
@@ -1037,6 +1116,8 @@ class Pipeline:
                 continue
             seen.add(key)
             sources.append({"source": source, "snippet": snippet})
+            if len(sources) >= k:
+                break
         return sources
 
     def create_rag_chain(self, chain_type: str = "simple") -> None:
@@ -1101,6 +1182,7 @@ class Pipeline:
                 "and call create_rag_chain() first."
             )
 
+        self._begin_ask(question)
         logger.info(
             f"Asking question (session: {session_id}): '{question[:100]}{'...' if len(question) > 100 else ''}'"
         )
@@ -1187,6 +1269,7 @@ class Pipeline:
                 "and call create_rag_chain() first."
             )
 
+        self._begin_ask(question)
         cache_enabled = _is_semantic_cache_enabled()
         if use_cache and cache_enabled:
             cached_response = _get_query_cache().get_response(question, session_id)
@@ -1310,17 +1393,9 @@ class OpenAIPipeline(Pipeline):
                 max_retries=2,  # Retry up to 2 times
             )
 
-            # Test embeddings with a simple query to ensure they work
-            logger.info("Testing embeddings with simple query...")
-            try:
-                test_embedding = embeddings.embed_query("test")
-                logger.info(
-                    f"✅ Embeddings test successful: {len(test_embedding)} dimensions"
-                )
-            except Exception as e:
-                logger.error(f"❌ Embeddings test failed: {e}")
-                raise
-
+            # No probe call here: auth/connectivity failures surface on the
+            # first real embedding request moments later, so a paid "test"
+            # embed per setup buys nothing.
             logger.info(
                 f"✅ OpenAI embeddings created successfully (model: {embeddings.model})"
             )
@@ -1392,12 +1467,26 @@ class OllamaPipeline(Pipeline):
 
     def _get_smart_embeddings(self):
         """
-        Get embeddings with intelligent model-aware selection.
-        PRIORITIZES SPEED: Try dedicated embedding models first!
+        Get embeddings with intelligent model-aware selection, memoized.
+
+        The model probing (several Ollama round trips) runs once per LLM
+        model per process; later retriever setups reuse the result.
 
         Returns:
             Embeddings instance or None if all attempts fail.
         """
+        cache_key = self.LLM.get_model_name() if self.LLM else "default"
+        if cache_key in _smart_embeddings_cache:
+            logger.info(f"Reusing embeddings selected earlier for '{cache_key}'")
+            return _smart_embeddings_cache[cache_key]
+
+        embeddings = self._select_smart_embeddings()
+        if embeddings is not None:
+            _smart_embeddings_cache[cache_key] = embeddings
+        return embeddings
+
+    def _select_smart_embeddings(self):
+        """Probe embedding options in speed order (uncached)."""
         from ..config.settings import get_config
 
         config = get_config()
