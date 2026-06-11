@@ -216,12 +216,12 @@ class StreamlitApp:
                 # Simplified Cache Setting (Optional)
                 cache_enabled = st.checkbox(
                     "Enable Response Cache",
-                    value=self.config.cache.enable_semantic_cache,
-                    help="Cache responses to speed up repeated questions (optional)",
+                    value=self.config.cache.enable_response_cache,
+                    help="Cache answers to repeated identical questions (optional)",
                 )
 
                 # Update config with new value
-                self.config.cache.enable_semantic_cache = cache_enabled
+                self.config.cache.enable_response_cache = cache_enabled
 
             # Build pipeline button (with state tracking to avoid unnecessary rebuilds)
             if st.button("🚀 Build Pipeline", type="primary"):

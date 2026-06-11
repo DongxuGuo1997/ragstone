@@ -141,3 +141,30 @@ class TestConfigFunctions:
         config = load_config("nonexistent_config.json")
         assert isinstance(config, Config)
         # Should return default config when file doesn't exist
+
+
+class TestConfigRobustness:
+    """Fixes for config bugs found in review: debug override, env
+    normalization, and Ollama-only deployments."""
+
+    def test_explicit_debug_false_is_respected(self):
+        config = Config(environment="development", debug=False)
+        assert config.debug is False
+
+    def test_debug_derived_from_environment_when_unset(self):
+        assert Config(environment="development").debug is True
+        assert Config(environment="production").debug is False
+
+    def test_vector_store_type_env_is_normalized(self, monkeypatch):
+        monkeypatch.setenv("VECTOR_STORE_TYPE", " FAISS ")
+        assert DatabaseConfig().default_type == "faiss"
+
+    def test_invalid_vector_store_type_names_valid_values(self, monkeypatch):
+        monkeypatch.setenv("VECTOR_STORE_TYPE", "chromadb")
+        with pytest.raises(ConfigurationError, match="faiss"):
+            DatabaseConfig()
+
+    def test_missing_openai_key_is_not_a_validation_error(self):
+        config = Config()
+        config.api.openai_api_key = None
+        assert config.validate() == []

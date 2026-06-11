@@ -27,7 +27,7 @@ class DatabaseConfig:
     """Configuration for vector databases."""
 
     default_type: str = field(
-        default_factory=lambda: os.getenv("VECTOR_STORE_TYPE", "faiss")
+        default_factory=lambda: os.getenv("VECTOR_STORE_TYPE", "faiss").strip().lower()
     )
     chroma_persist_dir: str = "store/chroma_db"
     faiss_index_name: str = "faiss_index"
@@ -38,7 +38,11 @@ class DatabaseConfig:
     def __post_init__(self):
         """Validate database configuration."""
         if self.default_type not in ["faiss", "chroma"]:
-            raise ConfigurationError(f"Invalid database type: {self.default_type}")
+            raise ConfigurationError(
+                f"Invalid database type: {self.default_type!r}. "
+                "Valid values are 'faiss' and 'chroma' "
+                "(set via VECTOR_STORE_TYPE or config)."
+            )
         if self.batch_size <= 0:
             raise ConfigurationError("Batch size must be positive")
         if self.similarity_k <= 0:
@@ -192,34 +196,11 @@ class UIConfig:
 
 @dataclass
 class CacheConfig:
-    """Configuration for caching behavior."""
+    """Configuration for the response cache (exact-match, per session)."""
 
-    # Document loading cache
-    enable_document_cache: bool = True
-    document_cache_ttl: int = 3600  # 1 hour in seconds
-
-    # Embedding cache
-    enable_embedding_cache: bool = True
-    embedding_cache_size: int = 1000  # Max number of cached embeddings
-    embedding_cache_ttl: int = 7200  # 2 hours in seconds
-
-    # Vector store cache
-    enable_vector_store_cache: bool = True
-    vector_store_cache_ttl: int = 1800  # 30 minutes in seconds
-
-    # Semantic response cache (3-tier cache system)
-    enable_semantic_cache: bool = False
-    semantic_cache_size: int = 100  # Max number of cached responses
-    semantic_cache_ttl: int = 3600  # 1 hour in seconds
-    semantic_similarity_threshold: float = (
-        0.95  # Similarity threshold for semantic matching
-    )
-
-    # Memory limits
-    max_cache_memory_mb: int = 512  # Maximum cache memory usage
-
-    # Cache cleanup intervals
-    cache_cleanup_interval: int = 600  # 10 minutes in seconds
+    enable_response_cache: bool = False
+    response_cache_size: int = 100  # Max number of cached responses
+    response_cache_ttl: int = 3600  # 1 hour in seconds
 
 
 @dataclass
@@ -236,13 +217,14 @@ class Config:
 
     # Global settings
     environment: str = "development"
-    debug: bool = False
+    # None means "derive from environment"; an explicit value (e.g. from a
+    # config file) is always respected.
+    debug: Optional[bool] = None
 
     def __post_init__(self):
         """Post-initialization setup and validation."""
-        # Set debug based on environment
-        if self.environment.lower() == "development":
-            self.debug = True
+        if self.debug is None:
+            self.debug = self.environment.lower() == "development"
 
         # Adjust logging level based on debug mode
         if self.debug and self.logging.level == "INFO":
@@ -288,7 +270,7 @@ class Config:
                 ui=ui_config,
                 cache=cache_config,
                 environment=main_config.get("environment", "development"),
-                debug=main_config.get("debug", False),
+                debug=main_config.get("debug"),
             )
 
         except FileNotFoundError:
@@ -358,19 +340,9 @@ class Config:
                 "max_upload_size_mb": self.ui.max_upload_size_mb,
             },
             "cache": {
-                "enable_document_cache": self.cache.enable_document_cache,
-                "document_cache_ttl": self.cache.document_cache_ttl,
-                "enable_embedding_cache": self.cache.enable_embedding_cache,
-                "embedding_cache_size": self.cache.embedding_cache_size,
-                "embedding_cache_ttl": self.cache.embedding_cache_ttl,
-                "enable_vector_store_cache": self.cache.enable_vector_store_cache,
-                "vector_store_cache_ttl": self.cache.vector_store_cache_ttl,
-                "enable_semantic_cache": self.cache.enable_semantic_cache,
-                "semantic_cache_size": self.cache.semantic_cache_size,
-                "semantic_cache_ttl": self.cache.semantic_cache_ttl,
-                "semantic_similarity_threshold": self.cache.semantic_similarity_threshold,
-                "max_cache_memory_mb": self.cache.max_cache_memory_mb,
-                "cache_cleanup_interval": self.cache.cache_cleanup_interval,
+                "enable_response_cache": self.cache.enable_response_cache,
+                "response_cache_size": self.cache.response_cache_size,
+                "response_cache_ttl": self.cache.response_cache_ttl,
             },
             "main": {
                 "environment": self.environment,
@@ -400,16 +372,20 @@ class Config:
         """
         errors = []
 
-        # Check required API keys based on enabled models
-        if not self.api.openai_api_key and self.llm.openai_models:
-            errors.append(
-                "OpenAI API key is required when OpenAI models are configured"
+        # A missing OpenAI key is not an error: Ollama-only deployments are
+        # fully supported. The key is checked when an OpenAI pipeline is
+        # actually constructed.
+        if not self.api.openai_api_key:
+            logger.warning(
+                "OPENAI_API_KEY is not set — OpenAI pipelines will be "
+                "unavailable (Ollama still works)."
             )
 
-        # Check data directory exists
+        # A missing data directory is not an error either: documents can
+        # come from uploads, URLs, or Wikipedia.
         data_path = Path(self.loader.default_data_dir)
         if not data_path.exists():
-            errors.append(f"Default data directory does not exist: {data_path}")
+            logger.warning(f"Default data directory does not exist: {data_path}")
 
         # Check vector store directory can be created
         try:
@@ -461,8 +437,10 @@ class Config:
         )
 
 
-# Global configuration instance
-config = Config()
+# Global configuration instance, created on first use. Deferring this means
+# a bad environment variable surfaces as a clear ConfigurationError from the
+# first get_config() call instead of crashing `import langchain_rag` itself.
+config: Optional[Config] = None
 
 
 def get_config() -> Config:
@@ -472,6 +450,9 @@ def get_config() -> Config:
     Returns:
         The global Config instance.
     """
+    global config
+    if config is None:
+        config = Config()
     return config
 
 
