@@ -74,7 +74,11 @@ class LLMConfig:
             "ollama_default": ["nomic-embed-text", "all-minilm", "mxbai-embed-large"],
         }
     )
-    openai_embedding_model: str = "text-embedding-ada-002"
+    openai_embedding_model: str = field(
+        default_factory=lambda: os.getenv(
+            "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"
+        )
+    )
     prefer_ollama_embeddings: bool = True  # Try Ollama first, fallback to OpenAI
     auto_detect_available_models: bool = True  # Detect available Ollama models
     default_temperature: float = 0.0

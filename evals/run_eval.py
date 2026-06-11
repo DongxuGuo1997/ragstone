@@ -18,6 +18,7 @@ committed baseline in evals/baseline.json.
 import argparse
 import json
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -29,6 +30,23 @@ REPORT_PATH = EVALS_DIR / "report.md"
 
 # How far a metric may drop below the baseline before the run fails.
 TOLERANCE = 0.05
+
+# Transient API errors (e.g. OpenAI's edge occasionally returns a spurious
+# HTTP 431 that the SDK treats as non-retryable) shouldn't kill a whole run.
+RETRIES = 3
+
+
+def with_retries(fn, *args, **kwargs):
+    for attempt in range(RETRIES):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            if attempt == RETRIES - 1:
+                raise
+            wait = 2**attempt
+            print(f"  retrying after error ({e.__class__.__name__}): {e}")
+            time.sleep(wait)
+
 
 sys.path.insert(0, str(EVALS_DIR.parent / "src"))  # allow running without install
 sys.path.insert(0, str(EVALS_DIR))  # for `import judge`
@@ -89,7 +107,7 @@ def eval_retrieval(pipeline, cases, k):
     for case in cases:
         if case["category"] == "unanswerable":
             continue
-        docs = retriever.invoke(case["question"])[:k]
+        docs = with_retries(retriever.invoke, case["question"])[:k]
         rank = find_hit_rank(case, docs)
         rows.append({"case": case, "rank": rank})
         marker = f"hit@{rank}" if rank else "MISS"
@@ -109,8 +127,11 @@ def eval_generation(pipeline, cases, args):
     rows = []
     for case in cases:
         question = case["question"]
-        answer = pipeline.ask_question(
-            question, session_id=f"eval_{case['id']}", use_cache=False
+        answer = with_retries(
+            pipeline.ask_question,
+            question,
+            session_id=f"eval_{case['id']}",
+            use_cache=False,
         )
         if not answer:
             rows.append(
@@ -131,13 +152,23 @@ def eval_generation(pipeline, cases, args):
             continue
 
         context = "\n\n".join(
-            d.page_content for d in retriever.invoke(question)[: args.k]
+            d.page_content for d in with_retries(retriever.invoke, question)[: args.k]
         )
-        correct = judge.judge_correctness(
-            question, case["gold_answer"], answer, args.judge_model, args.judge_provider
+        correct = with_retries(
+            judge.judge_correctness,
+            question,
+            case["gold_answer"],
+            answer,
+            args.judge_model,
+            args.judge_provider,
         )
-        faithful = judge.judge_faithfulness(
-            question, context, answer, args.judge_model, args.judge_provider
+        faithful = with_retries(
+            judge.judge_faithfulness,
+            question,
+            context,
+            answer,
+            args.judge_model,
+            args.judge_provider,
         )
         rows.append(
             {"case": case, "answer": answer, "correct": correct, "faithful": faithful}

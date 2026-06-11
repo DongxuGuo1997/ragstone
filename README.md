@@ -172,9 +172,14 @@ Configuration options:
 ```bash
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_ORG_ID=your_org_id  # Optional
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small  # Optional, this is the default
 OLLAMA_BASE_URL=http://localhost:11434
 VECTOR_STORE_TYPE=faiss  # or chroma
 ```
+
+> **Note:** Persisted vector stores (FAISS indices, Chroma collections) must be
+> rebuilt if the embedding model changes — embeddings from different models are
+> not compatible.
 
 ### Configuration File (config.json)
 ```json

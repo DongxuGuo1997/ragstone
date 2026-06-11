@@ -65,10 +65,11 @@ class FullChain:
         Returns:
             The response from the chain.
         """
-        response = self._chain.invoke(
-            {"question": query}, config={"configurable": {"session_id": session_id}}
+        result = self._chain.invoke(
+            {"question": query},
+            config={"configurable": {"thread_id": session_id}},
         )
-        return response
+        return result["answer"]
 
     def stream_question(self, query: str, session_id: str):
         """
@@ -82,7 +83,9 @@ class FullChain:
             str: Successive chunks of the answer.
         """
         for chunk in self._chain.stream(
-            {"question": query}, config={"configurable": {"session_id": session_id}}
+            {"question": query},
+            config={"configurable": {"thread_id": session_id}},
+            stream_mode="custom",
         ):
             if chunk:
                 yield chunk

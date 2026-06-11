@@ -1,17 +1,28 @@
-from typing import Any, Dict, Iterable, List
+from typing import Annotated, Any, Iterable, List
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
-from langchain_core.chat_history import (
-    BaseChatMessageHistory,
-    InMemoryChatMessageHistory,
-)
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.retrievers import BaseRetriever
-from langchain_core.runnables import Runnable, RunnableBranch
-from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.runnables import Runnable
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.config import get_stream_writer
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.graph.state import CompiledStateGraph
+from typing_extensions import TypedDict
+
+
+class MemoryState(TypedDict, total=False):
+    """Per-session conversation state, checkpointed by thread_id."""
+
+    messages: Annotated[List[AnyMessage], add_messages]
+    question: str  # original user question for the current turn
+    standalone_question: str  # history-rephrased question for the RAG chain
+    answer: str
 
 
 class MemoryProxy:
@@ -35,17 +46,26 @@ class MemoryProxy:
 
     def create_memory_chain(
         self, llm: BaseChatModel, base_chain: Runnable
-    ) -> RunnableWithMessageHistory:
+    ) -> CompiledStateGraph:
         """
         Create a memory-enabled chain that can maintain conversation history.
 
+        Builds a small LangGraph state graph with an in-memory checkpointer:
+        on follow-up turns the question is first rephrased against the chat
+        history into a standalone question; the first turn skips that LLM
+        call entirely. History is kept per thread_id (the caller's
+        session_id).
+
         Args:
             llm: The language model to use for contextualizing questions.
-            base_chain: The base chain (any Runnable, including
-                        RunnableSequence) to wrap with memory functionality.
+            base_chain: The base RAG chain (any Runnable taking a question
+                        string and producing an answer string).
 
         Returns:
-            A RunnableWithMessageHistory that includes conversation memory.
+            A compiled LangGraph. Invoke with {"question": ...} and
+            config={"configurable": {"thread_id": ...}}; the answer is in
+            the result's "answer" key. Streaming the graph with
+            stream_mode="custom" yields answer text chunks only.
 
         Raises:
             TypeError: If llm or base_chain are not of the expected types.
@@ -70,50 +90,51 @@ class MemoryProxy:
                 ("human", "{question}"),
             ]
         )
+        rephrase_chain = contextualize_q_prompt | llm | StrOutputParser()
 
-        # Rephrase the question against the chat history before handing it to
-        # the RAG chain. StrOutputParser ensures the chain receives plain text
-        # rather than an AIMessage. Skip the rephrase LLM call entirely when
-        # there is no history yet.
-        rephrase_question = contextualize_q_prompt | llm | StrOutputParser()
-        runnable = (
-            RunnableBranch(
-                (lambda x: not x.get("chat_history"), lambda x: x["question"]),
-                rephrase_question,
-            )
-            | base_chain
+        def rephrase(state: MemoryState) -> MemoryState:
+            return {
+                "standalone_question": rephrase_chain.invoke(
+                    {
+                        "chat_history": state["messages"],
+                        "question": state["question"],
+                    }
+                )
+            }
+
+        def answer(state: MemoryState) -> MemoryState:
+            # get_stream_writer() is a no-op under .invoke(), so this one
+            # implementation serves both invoke and custom-mode streaming.
+            writer = get_stream_writer()
+            question = state.get("standalone_question") or state["question"]
+            parts: List[str] = []
+            for chunk in base_chain.stream(question):
+                if chunk:
+                    writer(chunk)
+                    parts.append(chunk)
+            text = "".join(parts)
+            # History records the ORIGINAL question, not the rephrased one,
+            # matching the previous RunnableWithMessageHistory behavior.
+            return {
+                "messages": [HumanMessage(state["question"]), AIMessage(text)],
+                "answer": text,
+                "standalone_question": "",
+            }
+
+        def route(state: MemoryState) -> str:
+            return "rephrase" if state.get("messages") else "answer"
+
+        graph = StateGraph(MemoryState)
+        graph.add_node("rephrase", rephrase)
+        graph.add_node("answer", answer)
+        graph.add_conditional_edges(
+            START, route, {"rephrase": "rephrase", "answer": "answer"}
         )
+        graph.add_edge("rephrase", "answer")
+        graph.add_edge("answer", END)
 
-        # Store for session histories
-        session_store: Dict[str, BaseChatMessageHistory] = {}
-
-        def get_session_history(session_id: str) -> BaseChatMessageHistory:
-            """
-            Retrieve or create a chat message history for the given session.
-
-            Args:
-                session_id: Unique identifier for the session.
-
-            Returns:
-                BaseChatMessageHistory for the session.
-            """
-            if not isinstance(session_id, str):
-                raise TypeError("session_id must be a string")
-
-            if session_id not in session_store:
-                session_store[session_id] = InMemoryChatMessageHistory()
-            return session_store[session_id]
-
-        with_message_history = RunnableWithMessageHistory(
-            runnable,
-            get_session_history,
-            input_messages_key="question",
-            history_messages_key="chat_history",
-        )
-
-        # Update the memory type to reflect successful creation
         self._type = "InMemory"
-        return with_message_history
+        return graph.compile(checkpointer=InMemorySaver())
 
 
 class SimpleTextRetriever(BaseRetriever):

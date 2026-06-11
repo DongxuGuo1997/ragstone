@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import List, Optional
 
+from ..config.settings import get_config
 from ..utils import (
     VectorStoreInitializationError,
     VectorStoreOperationError,
@@ -234,7 +235,7 @@ class ChromaProxy(VectorStoreProxy):
                     embeddings = OpenAIEmbeddings(
                         openai_api_key=os.getenv("OPENAI_API_KEY"),
                         openai_organization=None,
-                        model="text-embedding-ada-002",
+                        model=get_config().llm.openai_embedding_model,
                     )
                 except Exception as e:
                     logger.error(f"Failed to initialize default embeddings: {e}")
@@ -428,7 +429,7 @@ class FaissProxy(VectorStoreProxy):
                     embeddings = OpenAIEmbeddings(
                         openai_api_key=os.getenv("OPENAI_API_KEY"),
                         openai_organization=None,
-                        model="text-embedding-ada-002",
+                        model=get_config().llm.openai_embedding_model,
                     )
                 except Exception as e:
                     logger.error(f"Failed to initialize default embeddings: {e}")
@@ -567,7 +568,7 @@ class FaissProxy(VectorStoreProxy):
                     embeddings = OpenAIEmbeddings(
                         openai_api_key=os.getenv("OPENAI_API_KEY"),
                         openai_organization=None,
-                        model="text-embedding-ada-002",
+                        model=get_config().llm.openai_embedding_model,
                     )
                 except Exception as e:
                     logger.error(f"Failed to initialize default embeddings: {e}")

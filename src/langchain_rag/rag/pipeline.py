@@ -183,7 +183,7 @@ class QueryResultCache:
                 self._embeddings_model = OpenAIEmbeddings(
                     openai_api_key=os.getenv("OPENAI_API_KEY"),
                     openai_organization=None,
-                    model="text-embedding-ada-002",
+                    model=get_config().llm.openai_embedding_model,
                 )
                 logger.info("✅ Initialized embeddings model for semantic similarity")
             except Exception as e:
@@ -1289,8 +1289,7 @@ class OpenAIPipeline(Pipeline):
                 openai_api_key=os.getenv("OPENAI_API_KEY"),
                 # Explicitly exclude organization to prevent "your_org_id_here" error
                 openai_organization=None,
-                # Use default model
-                model="text-embedding-ada-002",
+                model=get_config().llm.openai_embedding_model,
                 # Add timeout and retry settings
                 request_timeout=30,  # 30 second timeout
                 max_retries=2,  # Retry up to 2 times
@@ -1470,7 +1469,7 @@ class OllamaPipeline(Pipeline):
                 return OpenAIEmbeddings(
                     openai_api_key=os.getenv("OPENAI_API_KEY"),
                     openai_organization=None,
-                    model="text-embedding-ada-002",
+                    model=get_config().llm.openai_embedding_model,
                 )
             except Exception as e:
                 logger.error(f"Failed to create OpenAI embeddings: {e}")

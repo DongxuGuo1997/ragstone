@@ -306,14 +306,23 @@ class TestRunnables:
         assert RunnablePassthrough is not None
         assert RunnableSequence is not None
 
-    def test_runnable_with_message_history_import(self):
-        """Verify RunnableWithMessageHistory is importable."""
+    def test_langgraph_imports(self):
+        """Verify the LangGraph pieces used by MemoryProxy are importable."""
         try:
-            from langchain_core.runnables.history import RunnableWithMessageHistory
+            from langgraph.checkpoint.memory import InMemorySaver
+            from langgraph.config import get_stream_writer
+            from langgraph.graph import END, START, StateGraph
+            from langgraph.graph.message import add_messages
+            from langgraph.graph.state import CompiledStateGraph
         except ImportError as e:
-            pytest.fail(f"Failed to import RunnableWithMessageHistory: {e}")
+            pytest.fail(f"Failed to import LangGraph classes: {e}")
 
-        assert RunnableWithMessageHistory is not None
+        assert StateGraph is not None
+        assert START is not None and END is not None
+        assert InMemorySaver is not None
+        assert add_messages is not None
+        assert get_stream_writer is not None
+        assert CompiledStateGraph is not None
 
 
 class TestPrompts:
@@ -406,10 +415,18 @@ def test_generate_compatibility_report(capsys):
     except Exception:
         lc_community_version = "unknown"
 
+    try:
+        from importlib.metadata import version
+
+        langgraph_version = version("langgraph")
+    except Exception:
+        langgraph_version = "unknown"
+
     print("\nInstalled Versions:")
     print(f"  langchain: {lc_version}")
     print(f"  langchain-core: {lc_core_version}")
     print(f"  langchain-community: {lc_community_version}")
+    print(f"  langgraph: {langgraph_version}")
 
     print(f"\nPython Version: {sys.version}")
 
