@@ -24,7 +24,9 @@ Use the MCP tools directly in Cursor's chat interface:
 Run the interactive command-line chat:
 
 ```bash
-python chat_interface.py
+python -m langchain_rag.ui.chat_interface
+# or, after `pip install`:
+rag-chat
 ```
 
 **Features:**
@@ -40,26 +42,7 @@ python chat_interface.py
 3. Start chatting!
 4. Type 'quit' to exit
 
-## 📓 Method 3: Jupyter Notebook Interface
-
-Open and run `rag_chat.ipynb`:
-
-```bash
-jupyter notebook rag_chat.ipynb
-```
-
-**Features:**
-- 🎯 Interactive cells
-- 🔧 Customizable configuration
-- 📊 See intermediate results
-- 💡 Perfect for experimentation
-
-**Usage:**
-1. Run setup cells
-2. Use `ask("your question")` function
-3. Modify parameters as needed
-
-## 🔧 Method 4: Direct Python Integration
+## 🔧 Method 3: Direct Python Integration
 
 Use the pipeline directly in your own Python code:
 
@@ -68,7 +51,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path.cwd() / "src"))
 
-from src.pipeline import OllamaPipeline
+from langchain_rag.rag.pipeline import OllamaPipeline
 
 # Initialize pipeline
 pipeline = OllamaPipeline(model="llama3")
@@ -97,18 +80,10 @@ print(response)
 
 ### Using Command Line:
 ```bash
-python chat_interface.py
+python -m langchain_rag.ui.chat_interface
 # Choose: ollama
 # Model: llama3
 # Then start asking questions!
-```
-
-### Using Jupyter:
-```python
-# In notebook cell:
-ask("How do I configure the MCP server?")
-ask("What are the different pipeline types?")
-ask("Show me the installation steps")
 ```
 
 ## 🛠️ Configuration Options
@@ -152,7 +127,7 @@ ask("Show me the installation steps")
 - Check API quota and billing
 
 **MCP tools not working:**
-- Restart MCP server: `./start_mcp_server.sh`
+- Restart MCP server: `./scripts/start_mcp_server.sh`
 - Check `.cursor/mcp.json` configuration
 - Verify Cursor MCP integration
 
@@ -160,7 +135,6 @@ ask("Show me the installation steps")
 
 - **For Cursor users**: Use MCP tools (Method 1)
 - **For quick testing**: Use command line (Method 2)  
-- **For experimentation**: Use Jupyter notebook (Method 3)
-- **For custom integration**: Use direct Python (Method 4)
+- **For custom integration**: Use direct Python (Method 3)
 
 Happy chatting with your documents! 🚀 

@@ -97,3 +97,13 @@ dmypy.json
 local_config.json
 test_data/
 experiments/
+# Claude Code local settings
+.claude/
+
+# Local vector store data
+chroma_db/
+faiss_index/
+vs_data/
+
+# Eval reports (regenerated each run)
+evals/report.md

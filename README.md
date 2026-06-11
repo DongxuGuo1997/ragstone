@@ -1,7 +1,5 @@
 # LangChain RAG Pipeline
 
-> **Note**: This is an internal proof-of-concept project, not intended for production use.
-
 A Retrieval-Augmented Generation (RAG) pipeline built with LangChain, supporting multiple LLM providers and a Streamlit web interface.
 
 ## Features
@@ -21,6 +19,7 @@ A Retrieval-Augmented Generation (RAG) pipeline built with LangChain, supporting
 - **Multi-Query RAG**: Generates multiple queries for retrieval
 - **Fusion RAG**: Uses reciprocal rank fusion
 - **Ensemble Retrieval**: Combines BM25 and vector similarity
+- **Cross-Encoder Reranking** (optional): Two-stage retrieval for higher precision
 
 ### Vector Store Support
 - **FAISS**: Fast similarity search with local storage
@@ -39,58 +38,11 @@ A Retrieval-Augmented Generation (RAG) pipeline built with LangChain, supporting
 - Chat session memory
 - Basic input validation
 
-### MCP Integration (Model Context Protocol)
-
-The RAG pipeline can be exposed as MCP tools for use in VS Code/Cursor and other MCP-compatible clients.
-
-### **Quick Start**
-
-1. **Start the MCP Server:**
-   ```bash
-   # Using the startup script (recommended)
-   ./start_mcp_server.sh
-   
-   # Or directly
-   python mcp_rag_server_fastmcp.py
-   ```
-
-2. **Configure Cursor/VS Code:**
-   - See [docs/README_MCP.md](docs/README_MCP.md) for detailed setup instructions
-
-### **Available MCP Tools**
-
-- `create_openai_pipeline` - Create OpenAI-based pipeline
-- `create_ollama_pipeline` - Create Ollama-based pipeline  
-- `load_documents` - Load documents from various sources
-- `setup_retriever` - Configure retrieval strategy
-- `ask_question` - Query your documents
-- `list_pipelines` - Show all pipelines
-- `get_pipeline_info` - Get pipeline details
-- `delete_pipeline` - Remove pipeline
-
-### **Example Usage in Cursor**
-
-```
-# Create a pipeline
-@langchain-rag-pipeline create_openai_pipeline with model "gpt-4" and pipeline_id "my_project"
-
-# Load documents
-@langchain-rag-pipeline load_documents with pipeline_id "my_project" and data_dir "docs"
-
-# Setup advanced retrieval
-@langchain-rag-pipeline setup_retriever with pipeline_id "my_project" and use_ensemble true
-
-# Ask questions
-@langchain-rag-pipeline ask_question "What is the main architecture pattern?" with pipeline_id "my_project"
-```
-
-For complete setup instructions, see [docs/README_MCP.md](docs/README_MCP.md).
-
 ## Quick Start
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.9+
 - OpenAI API key (for online models)
 - Ollama installed (for offline models)
 
@@ -108,9 +60,9 @@ For complete setup instructions, see [docs/README_MCP.md](docs/README_MCP.md).
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. **Install dependencies**
+3. **Install the package**
    ```bash
-   pip install -r requirements.txt
+   pip install -e .
    ```
 
 4. **Set up environment variables**
@@ -121,34 +73,38 @@ For complete setup instructions, see [docs/README_MCP.md](docs/README_MCP.md).
 
 5. **Run the application**
    ```bash
-   streamlit run run.py
+   streamlit run src/langchain_rag/ui/streamlit_app.py
+   # Or: make run-streamlit
    ```
 
-## MCP Server Integration
+## MCP Server Integration (Model Context Protocol)
 
-Expose the RAG pipeline as MCP tools for use in VS Code/Cursor.
+Expose the RAG pipeline as MCP tools for use in VS Code/Cursor and other MCP-compatible clients.
 
 ### Quick MCP Setup
 
 1. **Start the MCP server**
    ```bash
-   ./start_mcp_server.sh
-   # Or manually: python mcp_rag_server.py
+   # Using the startup script
+   ./scripts/start_mcp_server.sh
+
+   # Or the console script (after pip install -e .)
+   rag-mcp-server
+
+   # Or directly
+   python mcp_rag_server_fastmcp.py
    ```
 
 2. **Configure VS Code/Cursor**
-   
+
    Add to your MCP configuration:
    ```json
    {
      "mcpServers": {
        "langchain-rag-pipeline": {
          "command": "python",
-         "args": ["mcp_rag_server.py"],
-         "cwd": "/path/to/your/langchain-rag-pipeline",
-         "env": {
-           "PYTHONPATH": "/path/to/your/langchain-rag-pipeline/src"
-         }
+         "args": ["mcp_rag_server_fastmcp.py"],
+         "cwd": "/path/to/langchain-rag-pipeline"
        }
      }
    }
@@ -161,12 +117,16 @@ Expose the RAG pipeline as MCP tools for use in VS Code/Cursor.
    @langchain-rag-pipeline ask_question "What is the main architecture?"
    ```
 
-### MCP Features
+### Available MCP Tools
 
-- 8 tools for pipeline management, document loading, and Q&A
-- Support for multiple pipelines
-- Multi-query, fusion, and ensemble retrieval options
-- Session memory for conversations
+- `create_openai_pipeline` - Create OpenAI-based pipeline
+- `create_ollama_pipeline` - Create Ollama-based pipeline
+- `load_documents` - Load documents from various sources
+- `setup_retriever` - Configure retrieval strategy
+- `ask_question` - Query your documents
+- `list_pipelines` - Show all pipelines
+- `get_pipeline_info` - Get pipeline details
+- `delete_pipeline` - Remove pipeline
 
 **Full MCP Documentation**: See [docs/README_MCP.md](docs/README_MCP.md) for complete setup and usage guide.
 
@@ -185,26 +145,21 @@ langchain-rag-pipeline/
 │   │   ├── loader.py            # Document loading utilities
 │   │   ├── vector_db.py         # Vector store implementations
 │   │   ├── memory.py            # Conversation memory
-│   │   ├── ensemble.py          # Ensemble retrieval
 │   │   └── splitter.py          # Document chunking
 │   ├── ui/                      # User interfaces
 │   │   ├── streamlit_app.py     # Web interface
-│   │   ├── chat_interface.py    # CLI chat
-│   │   └── app.py               # Application framework
+│   │   └── chat_interface.py    # CLI chat
 │   ├── mcp/                     # MCP server integration
-│   │   ├── mcp_server.py        # Standard MCP server
 │   │   └── mcp_server_fastmcp.py
 │   └── utils/                   # Utilities and helpers
 │       ├── exceptions.py        # Custom exception hierarchy
 │       ├── common.py            # Helper functions
 │       └── full_chain.py        # Complete chain integration
 ├── tests/                       # Test suite
-├── docker/                      # Docker deployment files
 ├── docs/                        # Documentation
 ├── examples/                    # Example code
 ├── scripts/                     # Utility scripts
-├── requirements.txt             # Python dependencies
-├── pyproject.toml               # Project configuration
+├── pyproject.toml               # Project configuration & dependencies
 ├── .env.example                 # Environment template
 └── README.md                    # This file
 ```
@@ -218,6 +173,7 @@ Configuration options:
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_ORG_ID=your_org_id  # Optional
 OLLAMA_BASE_URL=http://localhost:11434
+VECTOR_STORE_TYPE=faiss  # or chroma
 ```
 
 ### Configuration File (config.json)
@@ -242,51 +198,13 @@ OLLAMA_BASE_URL=http://localhost:11434
 }
 ```
 
-### Docker Configuration
-
-For Docker deployments, **FAISS is now the default vector store** (changed from ChromaDB). This provides:
-- Better performance in containerized environments
-- No external dependencies required
-- Lower memory footprint
-- Faster startup times
-
-#### Environment Variables
-
-```bash
-# Vector store selection (defaults to faiss in Docker)
-VECTOR_STORE_TYPE=faiss
-
-# Alternative: Use ChromaDB
-VECTOR_STORE_TYPE=chroma
-
-# API keys
-OPENAI_API_KEY=your_key_here
-ANTHROPIC_API_KEY=your_key_here
-
-# Logging
-MCP_LOG_LEVEL=INFO
-```
-
-#### Quick Docker Setup
-
-```bash
-# Start with FAISS (default)
-docker-compose up -d rag-pipeline
-
-# Or use ChromaDB
-echo "VECTOR_STORE_TYPE=chroma" >> .env
-docker-compose --profile chromadb up -d
-```
-
-See **[docs/guides/DOCKER_GUIDE.md](docs/guides/DOCKER_GUIDE.md)** for complete Docker setup instructions.
-
 ## Usage
 
 ### Web Interface
 
 1. **Start the application**
    ```bash
-   streamlit run run.py
+   streamlit run src/langchain_rag/ui/streamlit_app.py
    ```
 
 2. **Configure your pipeline**
@@ -302,7 +220,7 @@ See **[docs/guides/DOCKER_GUIDE.md](docs/guides/DOCKER_GUIDE.md)** for complete 
 ### Programmatic Usage
 
 ```python
-from src import OpenAIPipeline, get_config
+from langchain_rag import OpenAIPipeline, get_config
 
 # Load configuration
 config = get_config()
@@ -331,7 +249,7 @@ print(response)
 ### Custom Configuration
 
 ```python
-from src.config import Config, DatabaseConfig, LLMConfig
+from langchain_rag.config.settings import Config, DatabaseConfig, LLMConfig
 
 # Create custom configuration
 config = Config(
@@ -351,7 +269,8 @@ config.to_file("my_config.json")
 ### Error Handling
 
 ```python
-from src.exceptions import PipelineError, LLMInitializationError
+from langchain_rag import OpenAIPipeline
+from langchain_rag.utils import PipelineError, LLMInitializationError
 
 try:
     pipeline = OpenAIPipeline(model="gpt-4")
@@ -366,11 +285,11 @@ except PipelineError as e:
 ### Custom Vector Stores
 
 ```python
-from src.vector_db import create_vector_store_proxy
+from langchain_rag.rag.vector_db import create_vector_store_proxy
 
 # Create Chroma vector store
 chroma_store = create_vector_store_proxy(
-    "chroma", 
+    "chroma",
     persist_directory="custom_chroma_db"
 )
 
@@ -378,40 +297,76 @@ chroma_store = create_vector_store_proxy(
 faiss_store = create_vector_store_proxy("faiss")
 ```
 
+### Reranking (optional)
+
+Two-stage retrieval: the ensemble retriever fetches a wide candidate pool,
+then a local cross-encoder rescores each (question, chunk) pair and keeps
+only the best matches. This noticeably improves precision when documents
+contain similar, easily-confused facts — on the bundled eval set it lifts
+retrieval MRR from 0.90 to 0.96 and fixes the hardest distractor case.
+
+```bash
+pip install -e ".[rerank]"   # pulls sentence-transformers (~PyTorch)
+```
+
+```python
+pipeline.set_retriever_openai(use_ensemble=True, use_reranker=True)
+```
+
+The cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, ~80 MB,
+downloaded on first use) runs fully locally — it works in offline/Ollama
+mode too. In the Streamlit UI, enable it under Advanced Settings.
+
 ## Testing
 
 Run the test suite:
 
 ```bash
-# Install test dependencies
-pip install pytest pytest-cov
+# Install with development dependencies
+pip install -e ".[dev]"
 
 # Run tests
 pytest tests/ -v
 
 # Run with coverage
-pytest tests/ --cov=src --cov-report=html
+pytest tests/ --cov=langchain_rag --cov-report=html
 ```
+
+## Evaluation
+
+The repo ships a small, readable RAG evaluation harness (`evals/`) that runs
+against the real pipeline with a bundled corpus of fictional-fact documents
+and a hand-written golden dataset:
+
+- **Layer 1 — retrieval** (deterministic, no judge): hit rate and MRR for
+  whether the right chunks come back.
+- **Layer 2 — generation** (LLM-as-judge, costs a few cents): answer
+  correctness vs. the gold answer, and faithfulness to the retrieved context
+  (hallucination check). The judge prompts are in `evals/judge.py`, in the
+  open.
+
+```bash
+make eval-retrieval   # Layer 1 only — fast, free
+make eval             # both layers — needs OPENAI_API_KEY
+
+# Free, fully local run (requires Ollama; scores are not comparable
+# across different judge models):
+python evals/run_eval.py --provider ollama --model llama3 \
+    --judge-provider ollama --judge-model llama3
+
+# Measure the effect of reranking (requires the rerank extra)
+python evals/run_eval.py --mode retrieval --rerank
+```
+
+Each run is compared against `evals/baseline.json` and **fails if any metric
+drops more than 0.05 below baseline** — so quality regressions show up as
+failed runs, not silent drift. After an intentional behavior change, accept
+new scores with `python evals/run_eval.py --update-baseline` and commit the
+file. A per-case report with judge reasons is written to `evals/report.md`.
 
 ## Logging
 
-The application includes basic logging:
-
-### Log Levels
-- **DEBUG**: Detailed debugging information
-- **INFO**: General application flow
-- **WARNING**: Potential issues
-- **ERROR**: Error conditions
-- **CRITICAL**: Critical failures
-
-### Log Configuration
-```bash
-# Run with debug logging
-streamlit run run.py --log DEBUG
-
-# Run with file logging enabled
-streamlit run run.py
-```
+The application includes basic logging with the standard levels (DEBUG, INFO, WARNING, ERROR, CRITICAL). Configure the level and file output via the `logging` section of `config.json` (see Configuration above).
 
 ## Security Considerations
 
@@ -419,6 +374,17 @@ streamlit run run.py
 - **Input Validation**: All user inputs are validated
 - **Safe Deserialization**: FAISS loading uses safe defaults
 - **Error Information**: Sensitive information is filtered from logs
+
+## Contributing
+
+Contributions are welcome! To get started:
+
+1. Fork the repository and create a feature branch
+2. Set up the development environment: `./scripts/setup_environment.sh` (or `make install-dev`)
+3. Make your changes, keeping `make lint` and `make test` green
+4. Open a pull request with a clear description of the change
+
+Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/DongxuGuo1997/langchain-rag-pipeline/issues).
 
 ## License
 
@@ -432,4 +398,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Chroma](https://github.com/chroma-core/chroma) for vector database
 - [OpenAI](https://openai.com/) for language models
 - [Ollama](https://ollama.ai/) for local language models
-

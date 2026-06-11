@@ -13,9 +13,10 @@ When upgrading LangChain:
     3. Run these tests again
     4. If any fail, fix the imports/usage before deploying
 """
-import pytest
+
 import sys
-from typing import Any
+
+import pytest
 
 
 class TestCoreModels:
@@ -32,8 +33,8 @@ class TestCoreModels:
         doc = Document(page_content="test content", metadata={"key": "value"})
 
         # Verify expected attributes exist
-        assert hasattr(doc, 'page_content'), "Document missing 'page_content' attribute"
-        assert hasattr(doc, 'metadata'), "Document missing 'metadata' attribute"
+        assert hasattr(doc, "page_content"), "Document missing 'page_content' attribute"
+        assert hasattr(doc, "metadata"), "Document missing 'metadata' attribute"
         assert doc.page_content == "test content"
         assert doc.metadata == {"key": "value"}
 
@@ -45,14 +46,22 @@ class TestCoreModels:
             pytest.fail(f"Failed to import BaseChatModel: {e}")
 
         # Verify expected methods exist
-        assert hasattr(BaseChatModel, 'invoke'), "BaseChatModel missing 'invoke' method"
-        assert hasattr(BaseChatModel, 'ainvoke'), "BaseChatModel missing 'ainvoke' method"
-        assert hasattr(BaseChatModel, 'generate'), "BaseChatModel missing 'generate' method"
+        assert hasattr(BaseChatModel, "invoke"), "BaseChatModel missing 'invoke' method"
+        assert hasattr(
+            BaseChatModel, "ainvoke"
+        ), "BaseChatModel missing 'ainvoke' method"
+        assert hasattr(
+            BaseChatModel, "generate"
+        ), "BaseChatModel missing 'generate' method"
 
     def test_base_message_types(self):
         """Verify message types are importable."""
         try:
-            from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+            from langchain_core.messages import (  # noqa: F401
+                AIMessage,
+                HumanMessage,
+                SystemMessage,
+            )
         except ImportError as e:
             pytest.fail(f"Failed to import message types: {e}")
 
@@ -60,8 +69,8 @@ class TestCoreModels:
         human_msg = HumanMessage(content="test")
         ai_msg = AIMessage(content="response")
 
-        assert hasattr(human_msg, 'content')
-        assert hasattr(ai_msg, 'content')
+        assert hasattr(human_msg, "content")
+        assert hasattr(ai_msg, "content")
 
 
 class TestLLMProviders:
@@ -76,11 +85,12 @@ class TestLLMProviders:
 
         # Verify constructor accepts expected parameters
         import inspect
+
         sig = inspect.signature(ChatOpenAI.__init__)
         params = list(sig.parameters.keys())
 
         # These parameters should exist
-        assert 'self' in params
+        assert "self" in params
         # Note: We don't test specific param names as they might have **kwargs
 
     def test_ollama_chat_import(self):
@@ -133,7 +143,9 @@ class TestRetrievers:
             pytest.fail(f"Failed to import BM25Retriever: {e}")
 
         # Verify expected factory method exists
-        assert hasattr(BM25Retriever, 'from_texts'), "BM25Retriever missing 'from_texts' method"
+        assert hasattr(
+            BM25Retriever, "from_texts"
+        ), "BM25Retriever missing 'from_texts' method"
 
     def test_base_retriever_import(self):
         """Verify BaseRetriever interface is stable."""
@@ -156,9 +168,9 @@ class TestVectorStores:
             pytest.fail(f"Failed to import FAISS: {e}")
 
         # Verify expected factory methods exist
-        assert hasattr(FAISS, 'from_documents'), "FAISS missing 'from_documents' method"
-        assert hasattr(FAISS, 'load_local'), "FAISS missing 'load_local' method"
-        assert hasattr(FAISS, 'save_local'), "FAISS missing 'save_local' method"
+        assert hasattr(FAISS, "from_documents"), "FAISS missing 'from_documents' method"
+        assert hasattr(FAISS, "load_local"), "FAISS missing 'load_local' method"
+        assert hasattr(FAISS, "save_local"), "FAISS missing 'save_local' method"
 
     def test_chroma_import(self):
         """Verify Chroma vector store is importable and has expected methods."""
@@ -168,7 +180,9 @@ class TestVectorStores:
             pytest.fail(f"Failed to import Chroma: {e}")
 
         # Verify expected factory methods exist
-        assert hasattr(Chroma, 'from_documents'), "Chroma missing 'from_documents' method"
+        assert hasattr(
+            Chroma, "from_documents"
+        ), "Chroma missing 'from_documents' method"
 
     def test_vector_store_retriever_interface(self):
         """Verify VectorStoreRetriever interface is stable."""
@@ -240,12 +254,9 @@ class TestUtilities:
             pytest.fail(f"Failed to import RecursiveCharacterTextSplitter: {e}")
 
         # Verify it can be instantiated with expected parameters
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200
-        )
-        assert hasattr(splitter, 'split_text')
-        assert hasattr(splitter, 'create_documents')
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        assert hasattr(splitter, "split_text")
+        assert hasattr(splitter, "create_documents")
 
     def test_dumps_loads_import(self):
         """Verify dumps/loads utilities are importable."""
@@ -256,6 +267,7 @@ class TestUtilities:
 
         # Test basic functionality with Document
         from langchain.docstore.document import Document
+
         doc = Document(page_content="test")
 
         # Should be able to serialize and deserialize
@@ -274,7 +286,7 @@ class TestUtilities:
             pytest.fail(f"Failed to import langchain hub: {e}")
 
         # Verify pull method exists
-        assert hasattr(hub, 'pull'), "hub missing 'pull' method"
+        assert hasattr(hub, "pull"), "hub missing 'pull' method"
 
 
 class TestRunnables:
@@ -287,7 +299,7 @@ class TestRunnables:
                 Runnable,
                 RunnableLambda,
                 RunnablePassthrough,
-                RunnableSequence
+                RunnableSequence,
             )
         except ImportError as e:
             pytest.fail(f"Failed to import Runnable classes: {e}")
@@ -318,10 +330,9 @@ class TestPrompts:
             pytest.fail(f"Failed to import prompt classes: {e}")
 
         # Test basic usage
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful assistant"),
-            ("human", "{question}")
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [("system", "You are a helpful assistant"), ("human", "{question}")]
+        )
 
         assert prompt is not None
         assert MessagesPlaceholder is not None
@@ -352,8 +363,8 @@ class TestMemory:
             pytest.fail(f"Failed to import ChatMessageHistory: {e}")
 
         history = ChatMessageHistory()
-        assert hasattr(history, 'add_message')
-        assert hasattr(history, 'messages')
+        assert hasattr(history, "add_message")
+        assert hasattr(history, "messages")
 
     def test_base_chat_message_history_import(self):
         """Verify BaseChatMessageHistory interface is stable."""
@@ -369,41 +380,45 @@ class TestMemory:
 # Version Compatibility Report
 # ============================================
 
+
 def test_generate_compatibility_report(capsys):
     """Generate a compatibility report showing all tested imports."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("LANGCHAIN COMPATIBILITY REPORT")
-    print("="*70)
+    print("=" * 70)
 
     # Get LangChain version
     try:
         import langchain
+
         lc_version = langchain.__version__
-    except:
+    except Exception:
         lc_version = "unknown"
 
     try:
         import langchain_core
+
         lc_core_version = langchain_core.__version__
-    except:
+    except Exception:
         lc_core_version = "unknown"
 
     try:
         import langchain_community
+
         lc_community_version = langchain_community.__version__
-    except:
+    except Exception:
         lc_community_version = "unknown"
 
-    print(f"\nInstalled Versions:")
+    print("\nInstalled Versions:")
     print(f"  langchain: {lc_version}")
     print(f"  langchain-core: {lc_core_version}")
     print(f"  langchain-community: {lc_community_version}")
 
     print(f"\nPython Version: {sys.version}")
 
-    print("\n" + "-"*70)
+    print("\n" + "-" * 70)
     print("All compatibility tests passed! ✓")
-    print("-"*70)
+    print("-" * 70)
 
     # This test always passes - it just generates the report
     assert True

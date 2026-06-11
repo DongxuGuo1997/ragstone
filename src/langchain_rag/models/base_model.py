@@ -1,18 +1,15 @@
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Any, Optional
 
-# Lazy imports - only import heavy dependencies when needed
-if TYPE_CHECKING:
-    from langchain_ollama import ChatOllama
-    from langchain_openai import ChatOpenAI
-    from langchain_core.language_models.chat_models import BaseChatModel
+from ..config.settings import get_config
 
 logger = logging.getLogger(__name__)
 
 # Import cache for heavy dependencies
 _model_cache = {}
+
 
 def _get_cached_llm_import(provider: str):
     """Get cached LLM import or import and cache it."""
@@ -20,16 +17,18 @@ def _get_cached_llm_import(provider: str):
         try:
             if provider == "openai":
                 from langchain_openai import ChatOpenAI
+
                 _model_cache[provider] = ChatOpenAI
             elif provider == "ollama":
                 from langchain_ollama import ChatOllama
+
                 _model_cache[provider] = ChatOllama
             else:
                 raise ValueError(f"Unknown provider: {provider}")
         except ImportError as e:
             logger.error(f"Failed to import {provider} LLM: {e}")
             raise
-    
+
     return _model_cache[provider]
 
 
@@ -88,8 +87,10 @@ class OpenAIProxy(LLMProxy):
         if not self._llm:
             logger.warning("OpenAI LLM instance requested but not set.")
         return self._llm
-    
-    def set_llm(self, model_name: str, temperature: float = 0.0, **kwargs: Any) -> Optional:
+
+    def set_llm(
+        self, model_name: str, temperature: float = 0.0, **kwargs: Any
+    ) -> Optional:
         """
         Set and configure the OpenAI LLM instance with lazy loading.
 
@@ -101,30 +102,37 @@ class OpenAIProxy(LLMProxy):
         Returns:
             Optional: The configured ChatOpenAI instance, or None if setup fails.
         """
-        logger.info(f"Attempting to set OpenAI LLM to model: {model_name}, temperature: {temperature}")
-        
+        logger.info(
+            f"Attempting to set OpenAI LLM to model: {model_name}, temperature: {temperature}"
+        )
+
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            logger.error("OPENAI_API_KEY environment variable not found. Cannot initialize ChatOpenAI.")
+            logger.error(
+                "OPENAI_API_KEY environment variable not found. Cannot initialize ChatOpenAI."
+            )
             self._llm = None
             self._model_name = None
             return None
-            
+
         try:
             # Lazy import ChatOpenAI only when needed
             ChatOpenAI = _get_cached_llm_import("openai")
-            
+
             self._llm = ChatOpenAI(
-                model_name=model_name, 
-                temperature=temperature, 
-                openai_api_key=api_key, # Explicitly pass API key
-                **kwargs
+                model_name=model_name,
+                temperature=temperature,
+                openai_api_key=api_key,  # Explicitly pass API key
+                **kwargs,
             )
             self._model_name = model_name
             logger.info(f"Successfully set OpenAI LLM to model: {self._model_name}")
             return self._llm
         except Exception as e:
-            logger.error(f"Failed to initialize ChatOpenAI with model {model_name}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to initialize ChatOpenAI with model {model_name}: {e}",
+                exc_info=True,
+            )
             self._llm = None
             self._model_name = None
             return None
@@ -137,13 +145,13 @@ class OllamaProxy(LLMProxy):
         super().__init__()
         # Lazy-loaded LLM instance
         self._llm: Optional = None
-    
+
     def get_llm(self) -> Optional:
         """Get the Ollama LLM instance."""
         if not self._llm:
             logger.warning("Ollama LLM instance requested but not set.")
         return self._llm
-    
+
     def set_llm(self, model_name: str = "llama3", **kwargs: Any) -> Optional:
         """
         Set and configure the Ollama LLM instance with lazy loading.
@@ -159,13 +167,19 @@ class OllamaProxy(LLMProxy):
         try:
             # Lazy import ChatOllama only when needed
             ChatOllama = _get_cached_llm_import("ollama")
-            
-            self._llm = ChatOllama(model=model_name, **kwargs) # 'model' is the correct param for ChatOllama
+
+            kwargs.setdefault("base_url", get_config().api.ollama_base_url)
+            self._llm = ChatOllama(
+                model=model_name, **kwargs
+            )  # 'model' is the correct param for ChatOllama
             self._model_name = model_name
             logger.info(f"Successfully set Ollama LLM to model: {self._model_name}")
             return self._llm
         except Exception as e:
-            logger.error(f"Failed to initialize ChatOllama with model {model_name}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to initialize ChatOllama with model {model_name}: {e}",
+                exc_info=True,
+            )
             self._llm = None
             self._model_name = None
             return None

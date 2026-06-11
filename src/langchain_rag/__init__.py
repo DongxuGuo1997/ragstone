@@ -1,55 +1,61 @@
 """
-LangChain RAG Pipeline - A production-ready RAG system with multiple LLM backends.
+LangChain RAG Pipeline - A RAG system with multiple LLM backends.
 
 This package provides a complete RAG (Retrieval-Augmented Generation) pipeline
 with support for OpenAI and Ollama models, multiple vector stores, and MCP server integration.
 """
 
+import os
+import sys
+
+# On macOS, faiss-cpu and torch (installed via the optional `rerank` extra)
+# each bundle their own copy of the OpenMP runtime, and loading both aborts
+# the process ("OMP: Error #15"). This is the standard coexistence
+# workaround; it must be set before both libraries are loaded.
+if sys.platform == "darwin":
+    os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
 __version__ = "2.0.0"
-__author__ = "LangChain RAG Team"
-__email__ = "team@langchain-rag.com"
+__author__ = "Dongxu Guo"
+__email__ = "ericguohit@outlook.com"
 __license__ = "MIT"
 
+# Configuration and utilities
+from .config.settings import Config, get_config
+
 # RAG imports (consolidated from former core and services)
-from .rag.pipeline import Pipeline, OpenAIPipeline, OllamaPipeline
+from .rag.pipeline import OllamaPipeline, OpenAIPipeline, Pipeline
 from .rag.vector_db import (
-    VectorStoreProxy,
     ChromaProxy,
     FaissProxy,
-    create_vector_store_proxy
+    VectorStoreProxy,
+    create_vector_store_proxy,
 )
-
-# Configuration and utilities
-from .config.settings import get_config, Config
 from .utils.exceptions import (
-    PipelineError,
+    ConfigurationError,
     LLMInitializationError,
+    PipelineError,
     VectorStoreError,
-    ConfigurationError
 )
 
 __all__ = [
     # Core classes
     "Pipeline",
-    "OpenAIPipeline", 
+    "OpenAIPipeline",
     "OllamaPipeline",
-    
     # Configuration
     "get_config",
     "Config",
-    
     # Vector stores
     "VectorStoreProxy",
     "ChromaProxy",
     "FaissProxy",
     "create_vector_store_proxy",
-    
     # Exceptions
     "PipelineError",
-    "LLMInitializationError", 
+    "LLMInitializationError",
     "VectorStoreError",
     "ConfigurationError",
-    
     # Metadata
     "__version__",
     "__author__",
@@ -63,20 +69,20 @@ __all__ = [
 PACKAGE_INFO = {
     "name": "langchain-rag-pipeline",
     "version": __version__,
-    "description": "Production-ready RAG pipeline with multiple LLM backends",
+    "description": "RAG pipeline with multiple LLM backends",
     "author": __author__,
     "license": __license__,
     "python_requires": ">=3.9",
     "features": [
         "Multiple LLM backends (OpenAI, Ollama)",
         "Multiple vector stores (FAISS, ChromaDB)",
-        "MCP server integration", 
+        "MCP server integration",
         "Streamlit UI",
-        "Docker deployment",
-        "Production-ready logging and monitoring"
-    ]
+        "Configurable logging",
+    ],
 }
+
 
 def get_package_info():
     """Get package information."""
-    return PACKAGE_INFO 
+    return PACKAGE_INFO

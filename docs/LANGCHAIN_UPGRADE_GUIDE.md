@@ -92,7 +92,7 @@ open https://github.com/langchain-ai/langchain/releases
 git checkout -b test/langchain-upgrade
 
 # Or if not using git, make a backup
-cp -r . ../test-langchain-backup
+cp -r . ../langchain-rag-pipeline-backup
 ```
 
 ### **Step 5: Upgrade to Latest PATCH Version**
@@ -173,10 +173,9 @@ If everything works, update `pyproject.toml`:
 
 ```bash
 # Freeze exact versions for reproducibility
-pip freeze > requirements.txt
 
 # Commit changes
-git add pyproject.toml requirements.txt
+git add pyproject.toml
 git commit -m "chore: upgrade LangChain to 0.3.30 (tested)"
 
 # Merge to main
@@ -379,7 +378,7 @@ Our test suite covers these critical imports:
 5. ✅ **Upgrade minor versions cautiously (medium risk)**
 6. ✅ **Upgrade major versions rarely (high risk)**
 7. ✅ **Document any breaking changes you encounter**
-8. ✅ **Keep requirements.txt in sync with pyproject.toml**
+8. ✅ **Keep pyproject.toml as the single source of dependency truth**
 
 ---
 

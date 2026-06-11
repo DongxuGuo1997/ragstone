@@ -1,17 +1,18 @@
 from ..models.base_model import LLMProxy
-from ..rag.rag import RagProxy
 from ..rag.memory import MemoryProxy
+from ..rag.rag import RagProxy
 
 # Import utilities from centralized location
-from .common import safe_execute
-from .exceptions import ChainError
+
 
 class FullChain:
     """
     A class to create and manage a full RAG chain
     """
 
-    def __init__(self, llm_proxy: LLMProxy, rag_proxy: RagProxy, memory_proxy: MemoryProxy):
+    def __init__(
+        self, llm_proxy: LLMProxy, rag_proxy: RagProxy, memory_proxy: MemoryProxy
+    ):
         """
         Initialize the FullChain with LLM, RAG, and Memory proxies.
 
@@ -65,14 +66,23 @@ class FullChain:
             The response from the chain.
         """
         response = self._chain.invoke(
-            {"question": query},
-            config={"configurable": {"session_id": session_id}}
+            {"question": query}, config={"configurable": {"session_id": session_id}}
         )
         return response
 
-def main():
-    # Add your code here
-    pass
+    def stream_question(self, query: str, session_id: str):
+        """
+        Ask a question and yield the answer incrementally as text chunks.
 
-if __name__ == '__main__':
-    main()
+        Args:
+            query (str): The question to ask.
+            session_id (str): The session ID.
+
+        Yields:
+            str: Successive chunks of the answer.
+        """
+        for chunk in self._chain.stream(
+            {"question": query}, config={"configurable": {"session_id": session_id}}
+        ):
+            if chunk:
+                yield chunk

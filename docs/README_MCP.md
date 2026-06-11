@@ -24,11 +24,11 @@ This project provides a Model Context Protocol (MCP) server that exposes your La
 ### 1. Install Dependencies
 
 ```bash
-# Install the MCP Python SDK (already included in requirements.txt)
+# Install the MCP Python SDK (installed with the package)
 pip install mcp
 
 # Install other project dependencies
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ### 2. Configure Your MCP Client
@@ -44,10 +44,10 @@ pip install -r requirements.txt
   "mcpServers": {
     "langchain-rag-pipeline": {
       "command": "python",
-      "args": ["mcp_rag_server.py"],
-      "cwd": "/path/to/your/test-langchain",
+      "args": ["mcp_rag_server_fastmcp.py"],
+      "cwd": "/path/to/langchain-rag-pipeline",
       "env": {
-        "PYTHONPATH": "/path/to/your/test-langchain/src",
+        "PYTHONPATH": "/path/to/langchain-rag-pipeline/src",
         "OPENAI_API_KEY": "your-openai-api-key-if-using-openai"
       }
     }
@@ -64,9 +64,9 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "langchain-rag-pipeline": {
       "command": "python",
-      "args": ["/path/to/your/test-langchain/mcp_rag_server.py"],
+      "args": ["/path/to/langchain-rag-pipeline/mcp_rag_server_fastmcp.py"],
       "env": {
-        "PYTHONPATH": "/path/to/your/test-langchain/src"
+        "PYTHONPATH": "/path/to/langchain-rag-pipeline/src"
       }
     }
   }
@@ -77,7 +77,7 @@ Add to your `claude_desktop_config.json`:
 
 ```bash
 # Test that the server starts without errors
-python mcp_rag_server.py
+python mcp_rag_server_fastmcp.py
 ```
 
 You should see logging output indicating the server is initializing successfully.
@@ -187,7 +187,7 @@ Ask questions about your loaded documents.
 
 2. **Import Errors**:
    - Ensure `PYTHONPATH` includes the `src` directory
-   - Check that all dependencies are installed: `pip install -r requirements.txt`
+   - Check that all dependencies are installed: `pip install -e .`
 
 3. **LLM Connection Issues**:
    - **OpenAI**: Verify `OPENAI_API_KEY` is set correctly
@@ -196,7 +196,7 @@ Ask questions about your loaded documents.
 4. **Document Loading Issues**:
    - Check file permissions in the data directory
    - Verify URLs are accessible
-   - Ensure supported file formats (see config.json)
+   - Ensure supported file formats (see config.example.json)
 
 ### Debug Mode
 
@@ -214,8 +214,8 @@ import asyncio
 import sys
 sys.path.insert(0, 'src')
 
-from mcp_rag_server import server, _pipelines
-from src.pipeline import OpenAIPipeline
+from langchain_rag.mcp.mcp_server_fastmcp import mcp, _pipelines
+from langchain_rag.rag.pipeline import OpenAIPipeline
 
 # Test pipeline creation
 pipeline = OpenAIPipeline(model="gpt-3.5-turbo")
@@ -226,9 +226,9 @@ print("✅ Pipeline created successfully")
 ## 🔧 Configuration
 
 The server uses the same configuration system as the main application:
-- `config.json`: Main configuration file
+- `config.example.json`: Configuration template (copy to create your own)
 - Environment variables for API keys
-- Logging configuration in `src/config.py`
+- Logging configuration in `src/langchain_rag/config/settings.py`
 
 ## 🚀 Integration with Development Workflow
 
@@ -272,8 +272,8 @@ The tools will appear in Claude's interface and can be invoked naturally through
 ## 🤝 Contributing
 
 To extend the MCP server:
-1. Add new tools in the `list_tools()` function
-2. Implement handlers in the `call_tool()` function
+1. Add new tools with the `@mcp.tool()` decorator in `src/langchain_rag/mcp/mcp_server_fastmcp.py`
+2. Implement the tool function body
 3. Update documentation and examples
 4. Test with different MCP clients
 

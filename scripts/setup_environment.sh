@@ -57,9 +57,8 @@ if [ ! -f ".env" ]; then
     cat > .env << 'EOF'
 # LangChain RAG Pipeline Environment Configuration
 
-# API Keys (required for functionality)
+# API Keys (required for OpenAI mode; not needed for Ollama-only use)
 OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
 # Vector Store Configuration
 VECTOR_STORE_TYPE=faiss

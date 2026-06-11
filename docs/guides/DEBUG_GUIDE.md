@@ -12,7 +12,7 @@ Before diving into detailed troubleshooting, run these quick checks:
 ps aux | grep mcp_rag_server
 
 # 2. Test server connection
-python mcp_connection_test.py
+python -m langchain_rag.mcp.connection_test
 
 # 3. Verify configuration exists
 ls -la ~/.cursor/mcp.json .cursor/mcp.json
@@ -51,11 +51,11 @@ cat > ~/.cursor/mcp.json << 'EOF'
 {
   "mcpServers": {
     "langchain-rag-pipeline": {
-      "command": "/Users/dguo/MyProjects/test-langchain/venv/bin/python",
-      "args": ["/Users/dguo/MyProjects/test-langchain/mcp_rag_server_fastmcp.py"],
-      "cwd": "/Users/dguo/MyProjects/test-langchain",
+      "command": "/path/to/langchain-rag-pipeline/venv/bin/python",
+      "args": ["/path/to/langchain-rag-pipeline/mcp_rag_server_fastmcp.py"],
+      "cwd": "/path/to/langchain-rag-pipeline",
       "env": {
-        "PYTHONPATH": "/Users/dguo/MyProjects/test-langchain/src",
+        "PYTHONPATH": "/path/to/langchain-rag-pipeline/src",
         "USER_AGENT": "Cursor-MCP-Client/1.0"
       }
     }
@@ -70,7 +70,7 @@ rm -f .cursor/mcp.json
 #### **🐍 Solution C: Fix Python Environment**
 ```bash
 # Use absolute path to Python in venv
-which python  # Should show: /Users/dguo/MyProjects/test-langchain/venv/bin/python
+which python  # Should show: /path/to/langchain-rag-pipeline/venv/bin/python
 
 # If not, activate venv first
 source venv/bin/activate
@@ -88,7 +88,7 @@ source venv/bin/activate
 #### **📦 Fix Dependencies**
 ```bash
 # Reinstall all requirements
-pip install -r requirements.txt
+pip install -e .
 
 # Check specific MCP packages
 pip list | grep mcp
@@ -182,13 +182,13 @@ python mcp_rag_server_fastmcp.py
 # Should output: "Starting LangChain RAG Pipeline FastMCP Server..."
 
 # Test 2: Connection test
-python mcp_connection_test.py
+python -m langchain_rag.mcp.connection_test
 # Should show: "✅ All 8 tools found and working correctly!"
 
 # Test 3: Manual tool test
 python -c "
-from mcp_rag_server_fastmcp import app
-print('Available tools:', len(app.list_tools()))
+from mcp_rag_server_fastmcp import mcp
+print('FastMCP server loaded:', mcp.name)
 "
 ```
 
@@ -196,12 +196,12 @@ print('Available tools:', len(app.list_tools()))
 
 ```bash
 # Check config file syntax
-python -c "import json; json.load(open('~/.cursor/mcp.json'.replace('~', '/Users/dguo')))"
+python -c "import json, os; json.load(open(os.path.expanduser('~/.cursor/mcp.json')))"
 
 # Verify paths exist
-ls -la /Users/dguo/MyProjects/test-langchain/venv/bin/python
-ls -la /Users/dguo/MyProjects/test-langchain/mcp_rag_server_fastmcp.py
-ls -la /Users/dguo/MyProjects/test-langchain/src/
+ls -la /path/to/langchain-rag-pipeline/venv/bin/python
+ls -la /path/to/langchain-rag-pipeline/mcp_rag_server_fastmcp.py
+ls -la /path/to/langchain-rag-pipeline/src/
 ```
 
 ### **Step 3: Test Cursor Integration**
@@ -255,7 +255,7 @@ cat > test_mcp.json << 'EOF'
     "test-server": {
       "command": "python",
       "args": ["-c", "from mcp.server.fastmcp import FastMCP; app=FastMCP('test'); app.run()"],
-      "cwd": "/Users/dguo/MyProjects/test-langchain"
+      "cwd": "/path/to/langchain-rag-pipeline"
     }
   }
 }
@@ -288,7 +288,7 @@ Server initialized with 8 tools:
 
 ### **Tool Test Results**
 ```bash
-python mcp_connection_test.py
+python -m langchain_rag.mcp.connection_test
 ```
 Should output:
 ```
@@ -323,18 +323,18 @@ rm -rf ~/.cursor/logs/
 rm -rf ~/.cursor/CachedData/
 
 # 4. Reinstall dependencies
-pip install -r requirements.txt
+pip install -e .
 
 # 5. Create fresh global config
 cat > ~/.cursor/mcp.json << 'EOF'
 {
   "mcpServers": {
     "langchain-rag-pipeline": {
-      "command": "/Users/dguo/MyProjects/test-langchain/venv/bin/python",
-      "args": ["/Users/dguo/MyProjects/test-langchain/mcp_rag_server_fastmcp.py"],
-      "cwd": "/Users/dguo/MyProjects/test-langchain",
+      "command": "/path/to/langchain-rag-pipeline/venv/bin/python",
+      "args": ["/path/to/langchain-rag-pipeline/mcp_rag_server_fastmcp.py"],
+      "cwd": "/path/to/langchain-rag-pipeline",
       "env": {
-        "PYTHONPATH": "/Users/dguo/MyProjects/test-langchain/src",
+        "PYTHONPATH": "/path/to/langchain-rag-pipeline/src",
         "USER_AGENT": "Cursor-MCP-Client/1.0"
       }
     }
@@ -343,7 +343,7 @@ cat > ~/.cursor/mcp.json << 'EOF'
 EOF
 
 # 6. Test server
-python mcp_connection_test.py
+python -m langchain_rag.mcp.connection_test
 
 # 7. Start Cursor and test
 # Try: @langchain-rag-pipeline list_pipelines
@@ -366,7 +366,7 @@ python mcp_connection_test.py
 ### **Essential Commands**
 ```bash
 # Test server
-python mcp_connection_test.py
+python -m langchain_rag.mcp.connection_test
 
 # Start server manually
 python mcp_rag_server_fastmcp.py
@@ -385,8 +385,8 @@ cat ~/.cursor/mcp.json
 - **Global Config**: `~/.cursor/mcp.json` ✅ (Use this)
 - **Project Config**: `.cursor/mcp.json` ❌ (Remove this)
 - **Server Script**: `mcp_rag_server_fastmcp.py`
-- **Test Script**: `mcp_connection_test.py`
-- **Startup Script**: `start_mcp_server.sh`
+- **Test Script**: `src/langchain_rag/mcp/connection_test.py`
+- **Startup Script**: `scripts/start_mcp_server.sh`
 
 ---
 

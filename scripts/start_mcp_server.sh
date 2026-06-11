@@ -18,12 +18,12 @@ fi
 
 # Check if MCP SDK is available
 echo "Checking dependencies..."
-if ! python -c "from fastmcp import FastMCP" 2>/dev/null; then
-    echo "Error: FastMCP not found. Please install with: pip install fastmcp"
+if ! python -c "from mcp.server.fastmcp import FastMCP" 2>/dev/null; then
+    echo "Error: MCP SDK not found. Please install with: pip install -e ."
     exit 1
 fi
 
-echo "FastMCP SDK available"
+echo "MCP SDK available"
 
 # Set environment variables for better identification
 export USER_AGENT="Cursor-MCP-RAG-Pipeline/2.0"
@@ -38,4 +38,4 @@ echo "  Server: langchain-rag-pipeline"
 echo ""
 
 # Run the FastMCP server
-python src/langchain_rag/mcp/mcp_server_fastmcp.py
+python -m langchain_rag.mcp.mcp_server_fastmcp

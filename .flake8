@@ -1,0 +1,13 @@
+[flake8]
+max-line-length = 88
+# E203/W503: conflict with black. E501: black governs line length; remaining
+# long lines are log messages and docstrings that black deliberately keeps.
+extend-ignore = E203, W503, E501
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    venv,
+    .venv,
+    *.egg-info

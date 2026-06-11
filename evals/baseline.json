@@ -1,0 +1,25 @@
+{
+  "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full": {
+    "metrics": {
+      "hit_rate": 0.971,
+      "mrr": 0.902,
+      "correct_rate": 0.947,
+      "faithful_rate": 0.974
+    },
+    "date": "2026-06-11"
+  },
+  "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=retrieval": {
+    "metrics": {
+      "hit_rate": 0.971,
+      "mrr": 0.902
+    },
+    "date": "2026-06-11"
+  },
+  "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=retrieval|rerank": {
+    "metrics": {
+      "hit_rate": 1.0,
+      "mrr": 0.964
+    },
+    "date": "2026-06-11"
+  }
+}
