@@ -7,8 +7,10 @@ offering a clean API for RAG operations with proper error handling.
 """
 
 import logging
+from functools import partial
 from typing import Dict, Union
 
+from anyio import to_thread
 from mcp.server.fastmcp import FastMCP
 
 from langchain_rag.config.settings import get_config
@@ -70,7 +72,7 @@ def create_ollama_pipeline(
 
 
 @mcp.tool()
-def load_documents(
+async def load_documents(
     pipeline_id: str, data_dir: str = "data", page_urls: str = "", wiki_query: str = ""
 ) -> str:
     """Load and split documents into the specified pipeline.
@@ -97,11 +99,16 @@ def load_documents(
             else None
         )
 
-        # Load and split documents
-        texts = pipeline.load_and_split(
-            data_dir=data_dir,
-            page_urls=urls,
-            wiki_query=wiki_query if wiki_query else None,
+        # Load and split documents. Run in a worker thread: this scrapes the
+        # web and embeds the corpus, and a sync tool would block the server's
+        # event loop (pings, other tool calls) for the whole duration.
+        texts = await to_thread.run_sync(
+            partial(
+                pipeline.load_and_split,
+                data_dir=data_dir,
+                page_urls=urls,
+                wiki_query=wiki_query if wiki_query else None,
+            )
         )
 
         if texts:
@@ -116,7 +123,7 @@ def load_documents(
 
 
 @mcp.tool()
-def setup_retriever(
+async def setup_retriever(
     pipeline_id: str,
     use_ensemble: bool = True,
     chain_type: str = "simple",
@@ -139,18 +146,20 @@ def setup_retriever(
     try:
         pipeline = _pipelines[pipeline_id]
 
-        # Set up retriever based on pipeline type
-        if isinstance(pipeline, OpenAIPipeline):
-            pipeline.set_retriever_openai(
-                use_ensemble=use_ensemble, use_reranker=use_reranker
-            )
-        elif isinstance(pipeline, OllamaPipeline):
-            pipeline.set_retriever_ollama(
-                use_ensemble=use_ensemble, use_reranker=use_reranker
-            )
+        def _configure():
+            # Embeds the corpus and may download the cross-encoder model —
+            # too slow to run on the server's event loop.
+            if isinstance(pipeline, OpenAIPipeline):
+                pipeline.set_retriever_openai(
+                    use_ensemble=use_ensemble, use_reranker=use_reranker
+                )
+            elif isinstance(pipeline, OllamaPipeline):
+                pipeline.set_retriever_ollama(
+                    use_ensemble=use_ensemble, use_reranker=use_reranker
+                )
+            pipeline.create_rag_chain(chain_type=chain_type)
 
-        # Create RAG chain
-        pipeline.create_rag_chain(chain_type=chain_type)
+        await to_thread.run_sync(_configure)
 
         retriever_type = "Ensemble (BM25 + Vector)" if use_ensemble else "Vector only"
         if use_reranker:
@@ -163,7 +172,7 @@ def setup_retriever(
 
 
 @mcp.tool()
-def ask_question(
+async def ask_question(
     question: str, pipeline_id: str = "default_openai", session_id: str = "mcp_session"
 ) -> str:
     """Ask a question to the RAG pipeline and get an answer.
@@ -182,8 +191,10 @@ def ask_question(
     try:
         pipeline = _pipelines[pipeline_id]
 
-        # Ask the question
-        response = pipeline.ask_question(question, session_id=session_id)
+        # Full retrieval + LLM round trip — run off the event loop.
+        response = await to_thread.run_sync(
+            partial(pipeline.ask_question, question, session_id=session_id)
+        )
 
         if response:
             return f"🤖 **Answer:** {response}"

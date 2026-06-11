@@ -691,7 +691,13 @@ class RemoteLoader(Loader):
         WebBaseLoader = _get_cached_loader("web")
 
         try:
-            loader = WebBaseLoader(page_urls)
+            # Timeout so one unresponsive URL can't hang the load forever;
+            # continue_on_failure so one bad URL doesn't lose the others.
+            loader = WebBaseLoader(
+                page_urls,
+                requests_kwargs={"timeout": 30},
+                continue_on_failure=True,
+            )
             docs = loader.load()
             logger.info(
                 f"Loaded {len(docs)} documents from {len(page_urls)} web pages using WebBaseLoader"
@@ -714,7 +720,11 @@ class RemoteLoader(Loader):
             AsyncHtmlLoader = _get_cached_loader("html")
             Html2TextTransformer = _get_cached_loader("html_transformer")
 
-            html_loader = AsyncHtmlLoader(page_urls)
+            html_loader = AsyncHtmlLoader(
+                page_urls,
+                requests_kwargs={"timeout": 30},
+                ignore_load_errors=True,
+            )
             html_docs = html_loader.load()
 
             html2text = Html2TextTransformer()

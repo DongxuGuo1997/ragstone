@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from ..config.settings import get_config
 from ..models.base_model import OllamaProxy, OpenAIProxy
+from ..utils.exceptions import ChainExecutionError, ChainInitializationError
 from ..utils.full_chain import FullChain
 from .memory import MemoryProxy
 from .rag import RagProxy
@@ -1076,28 +1077,29 @@ class Pipeline:
             self._chain = None  # Ensure chain is None if creation fails
 
     def ask_question(
-        self, question: str, session_id: str = "foo", use_cache: bool = True
+        self, question: str, session_id: str = "default", use_cache: bool = True
     ) -> Optional[str]:
         """
-        🚀 OPTIMIZED: Asks a question to the RAG chain with intelligent caching.
-
-        Features:
-        - Level 3 Response Caching: Instant answers for repeated questions
-        - Performance Analytics: Track cache hits and time savings
-        - Cost Optimization: Reduce API calls by up to 80%
-        - Configurable Cache: Can be enabled/disabled via configuration
+        Asks a question to the RAG chain, with optional response caching.
 
         Args:
             question (str): The question to ask.
-            session_id (str): The session ID for memory. Defaults to "foo".
-            use_cache (bool): Whether to use caching for performance optimization. Defaults to True.
+            session_id (str): The session ID for memory. Defaults to "default".
+            use_cache (bool): Whether to use the response cache. Defaults to True.
 
         Returns:
-            Optional[str]: The answer from the RAG chain, or None if an error occurs.
+            str: The answer from the RAG chain.
+
+        Raises:
+            ChainInitializationError: If the RAG chain has not been created.
+            ChainExecutionError: If answer generation fails (network, API,
+                model errors). The original exception is attached.
         """
         if not self._chain:
-            logger.error("Cannot ask question: RAG chain is not created.")
-            return None
+            raise ChainInitializationError(
+                "RAG chain is not created. Load documents, set a retriever, "
+                "and call create_rag_chain() first."
+            )
 
         logger.info(
             f"Asking question (session: {session_id}): '{question[:100]}{'...' if len(question) > 100 else ''}'"
@@ -1150,7 +1152,9 @@ class Pipeline:
 
         except Exception as e:
             logger.error(f"Error during ask_question: {e}", exc_info=True)
-            return None
+            raise ChainExecutionError(
+                f"Failed to generate a response: {e}", original_exception=e
+            ) from e
 
     def ask_question_stream(
         self, question: str, session_id: str = "default", use_cache: bool = True
@@ -1170,10 +1174,18 @@ class Pipeline:
 
         Yields:
             str: Successive chunks of the answer.
+
+        Raises:
+            ChainInitializationError: If the RAG chain has not been created.
+            ChainExecutionError: If generation fails, including mid-stream —
+                callers must treat an exception after partial output as an
+                incomplete answer, not silence.
         """
         if not self._chain:
-            logger.error("Cannot ask question: RAG chain is not created.")
-            return
+            raise ChainInitializationError(
+                "RAG chain is not created. Load documents, set a retriever, "
+                "and call create_rag_chain() first."
+            )
 
         cache_enabled = _is_semantic_cache_enabled()
         if use_cache and cache_enabled:
@@ -1195,6 +1207,9 @@ class Pipeline:
                 _get_query_cache().cache_response(question, response, session_id)
         except Exception as e:
             logger.error(f"Error during ask_question_stream: {e}", exc_info=True)
+            raise ChainExecutionError(
+                f"Failed to generate a response: {e}", original_exception=e
+            ) from e
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """

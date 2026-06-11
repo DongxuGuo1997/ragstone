@@ -225,17 +225,21 @@ class StreamlitApp:
 
             # Build pipeline button (with state tracking to avoid unnecessary rebuilds)
             if st.button("🚀 Build Pipeline", type="primary"):
-                # Only rebuild if settings changed
+                # Only rebuild if settings OR data sources changed. The
+                # fingerprint must include the data sources, otherwise a
+                # newly uploaded file is silently ignored.
+                files_sig = ",".join(
+                    sorted(f"{f.name}:{f.size}" for f in (uploaded_files or []))
+                )
                 current_settings = (
                     f"{mode}|{model}|{use_ensemble}|{use_reranker}"
                     f"|{chain_type}|{temperature}"
+                    f"|{files_sig}|{','.join(page_urls or [])}|{wiki_query or ''}"
                 )
                 if (
                     not st.session_state.pipeline_built
                     or st.session_state.get("last_settings") != current_settings
                 ):
-
-                    st.session_state.last_settings = current_settings
                     logger.info(f"Building pipeline with settings: {current_settings}")
                     self._build_pipeline(
                         mode=mode,
@@ -247,6 +251,7 @@ class StreamlitApp:
                         use_reranker=use_reranker,
                         chain_type=chain_type,
                         temperature=temperature,
+                        settings_fingerprint=current_settings,
                     )
                 else:
                     st.info("✅ Pipeline already built with these settings!")
@@ -516,6 +521,7 @@ class StreamlitApp:
         use_reranker: bool,
         chain_type: str,
         temperature: float,
+        settings_fingerprint: str = "",
     ) -> None:
         """Build the RAG pipeline with the given configuration."""
         try:
@@ -554,9 +560,12 @@ class StreamlitApp:
                     # Create RAG chain
                     pipeline.create_rag_chain(chain_type=chain_type)
 
-                    # Store in session state
+                    # Store in session state. Record the settings fingerprint
+                    # only now, on success — a failed build must not block
+                    # retries with the same settings.
                     st.session_state.pipeline = pipeline
                     st.session_state.pipeline_built = True
+                    st.session_state.last_settings = settings_fingerprint
                     st.session_state.current_model = model
                     st.session_state.current_mode = mode
                     st.session_state.messages = [

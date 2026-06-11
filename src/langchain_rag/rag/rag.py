@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.documents import Document
@@ -39,6 +40,21 @@ class RagError(Exception):
 def format_docs(docs: List[Document]) -> str:
     """Formats a list of documents into a single string."""
     return "\n\n".join(doc.page_content for doc in docs)
+
+
+def parse_generated_queries(text: str) -> List[str]:
+    """Split LLM-generated search queries into a clean list.
+
+    Drops blank lines and strips list markers ("1.", "2)", "-", "*") that
+    models often prepend. Blank entries would otherwise reach the retriever
+    and crash embedding APIs that reject empty input.
+    """
+    queries = []
+    for line in text.split("\n"):
+        line = re.sub(r"^\s*(?:\d+[.)]\s*|[-*]\s+)", "", line).strip()
+        if line:
+            queries.append(line)
+    return queries
 
 
 class RagProxy:
@@ -138,7 +154,7 @@ class RagProxy:
             prompt_perspectives
             | self._llm
             | StrOutputParser()
-            | (lambda x: x.split("\n"))
+            | parse_generated_queries
         )
 
         # The input to retrieval_chain will be the original question,
@@ -168,10 +184,7 @@ class RagProxy:
         """
         prompt_rag_fusion = ChatPromptTemplate.from_template(self.FUSION_QUERY_TEMPLATE)
         generate_queries_runnable = (
-            prompt_rag_fusion
-            | self._llm
-            | StrOutputParser()
-            | (lambda x: x.split("\n"))
+            prompt_rag_fusion | self._llm | StrOutputParser() | parse_generated_queries
         )
 
         retrieval_chain = (

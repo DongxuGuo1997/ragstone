@@ -6,6 +6,7 @@ Usage: python -m langchain_rag.ui.chat_interface (or the rag-chat console script
 
 from langchain_rag.config.settings import get_config
 from langchain_rag.rag.pipeline import OllamaPipeline, OpenAIPipeline
+from langchain_rag.utils.exceptions import DocumentLoadingError
 
 
 class ChatInterface:
@@ -27,8 +28,11 @@ class ChatInterface:
         if self.texts:
             print(f"✅ Loaded {len(self.texts)} document chunks")
         else:
-            print("⚠️  No documents loaded. Add files to 'data/' directory")
-            return
+            # Fail here instead of entering a chat loop that can never answer.
+            raise DocumentLoadingError(
+                "No documents loaded. Add files to the 'data/' directory "
+                "before starting the chat."
+            )
 
         # Setup retriever
         print("🔍 Setting up retriever...")
