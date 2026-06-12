@@ -1,6 +1,31 @@
 # Ragstone
 
-A Retrieval-Augmented Generation (RAG) pipeline built with LangChain, supporting multiple LLM providers and a Streamlit web interface.
+**A foundation stone for grounded Q&A applications.**
+
+Ragstone is an efficient Retrieval-Augmented Generation (RAG) engine for
+smaller applications: one LLM call per answer, fully local operation with
+Ollama if you want it, and measurable answer quality via a built-in
+evaluation harness. Use it as a Python library, a Streamlit app, a CLI
+chat, or as an MCP tool that puts your documents in reach of any agent
+(Claude, Cursor, ...). Built with LangChain 1.x and LangGraph.
+
+## Why Ragstone?
+
+RAG didn't get replaced by agents — it became the primitive they stand on.
+Ragstone (a real building stone) leans into being that foundation:
+
+- **Efficient by design** — a fixed, deterministic pipeline: one retrieval,
+  one LLM call, predictable latency and cost. No agent loops unless you
+  build them on top.
+- **Local-first** — runs fully offline with Ollama, FAISS, and a local
+  cross-encoder reranker. No API key required.
+- **Measured, not vibes** — ships an eval harness (retrieval hit rate/MRR
+  plus an LLM judge for correctness and faithfulness) that fails the build
+  if quality regresses against the committed baseline.
+- **A tool for agents** — the bundled MCP server makes your documents a
+  first-class tool for Claude, Cursor, or any MCP-compatible client. In an
+  agentic world, the agent is the customer; Ragstone is the ground it
+  stands on.
 
 ## Features
 

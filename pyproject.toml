@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ragstone"
 version = "2.0.0"
-description = "RAG pipeline with OpenAI/Ollama backends, FAISS/Chroma vector stores, Streamlit UI, and MCP server integration"
+description = "Efficient RAG engine for grounded Q&A — OpenAI/Ollama backends, FAISS/Chroma stores, built-in eval harness, Streamlit UI, and MCP server"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
