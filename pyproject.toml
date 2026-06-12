@@ -138,12 +138,22 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = [
-    "chromadb.*",  
+    "chromadb.*",
     "faiss.*",
     "wikipedia.*",
     "streamlit.*",
 ]
 ignore_missing_imports = true
+
+# Type-checking ratchet: these modules still have LCEL-generics and legacy
+# typing debt. Fix a module, remove it from this list — never add to it.
+[[tool.mypy.overrides]]
+module = [
+    "ragstone.rag.rag",
+    "ragstone.rag.loader",
+    "ragstone.rag.vector_db",
+]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"

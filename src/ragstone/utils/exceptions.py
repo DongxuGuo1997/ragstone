@@ -442,12 +442,15 @@ def get_exception_class(error_type: str) -> type:
     """
 
     def _find_in_hierarchy(hierarchy: Dict, path: List[str]) -> type:
-        current = hierarchy
+        current: Any = hierarchy
         for part in path:
             if isinstance(current, dict) and part in current:
                 current = current[part]
             else:
                 raise ValueError(f"Exception type not found: {error_type}")
+        if not isinstance(current, type):
+            # Path resolved to a sub-hierarchy (e.g. "llm"), not a class.
+            raise ValueError(f"Exception type not found: {error_type}")
         return current
 
     path = error_type.split(".")

@@ -14,7 +14,7 @@ import os
 import sys
 import uuid
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import streamlit as st
 from streamlit.runtime.uploaded_file_manager import UploadedFile
@@ -95,7 +95,7 @@ class StreamlitApp:
     def _initialize_session_state(self) -> None:
         """Initialize Streamlit session state variables."""
         # Initialize session state variables only if not already set
-        defaults = {
+        defaults: Dict[str, Any] = {
             "messages": [],
             "pipeline": None,
             "uploaded_files": None,
@@ -179,10 +179,6 @@ class StreamlitApp:
 
             # Advanced settings
             with st.expander("🔧 Advanced Settings"):
-                st.info(
-                    "💡 Built-in 3-tier caching system is always enabled for optimal performance"
-                )
-
                 use_ensemble = st.checkbox(
                     "Use Ensemble Retriever (BM25 + Vector)",
                     value=True,
@@ -535,6 +531,7 @@ class StreamlitApp:
                     return
 
                 # Build pipeline
+                pipeline: Union[OpenAIPipeline, OllamaPipeline, None]
                 if mode == "online":
                     pipeline = self._build_openai_pipeline(
                         model, uploaded_files, page_urls, wiki_query, temperature
@@ -547,7 +544,7 @@ class StreamlitApp:
                 if pipeline:
                     # Set retriever
                     try:
-                        if mode == "online":
+                        if isinstance(pipeline, OpenAIPipeline):
                             pipeline.set_retriever_openai(
                                 use_ensemble=use_ensemble, use_reranker=use_reranker
                             )
@@ -597,6 +594,7 @@ class StreamlitApp:
         """Build OpenAI pipeline."""
         try:
             pipeline = OpenAIPipeline(model=model)
+            assert pipeline.LLM is not None  # set by the constructor
             pipeline.LLM.set_llm(model, temperature=temperature)
 
             # Load and split documents
@@ -634,6 +632,7 @@ class StreamlitApp:
         """Build Ollama pipeline."""
         try:
             pipeline = OllamaPipeline(model=model)
+            assert pipeline.LLM is not None  # set by the constructor
             pipeline.LLM.set_llm(model, temperature=temperature)
 
             # Load and split documents

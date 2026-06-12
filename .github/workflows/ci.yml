@@ -34,5 +34,8 @@ jobs:
           isort --check-only src/ tests/
           flake8 src/ tests/
 
+      - name: Type check (mypy)
+        run: mypy src/ragstone
+
       - name: Run tests
         run: pytest tests/ -v

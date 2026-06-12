@@ -1,8 +1,11 @@
+from typing import Optional
+
+from langgraph.graph.state import CompiledStateGraph
+
 from ..models.base_model import LLMProxy
 from ..rag.memory import MemoryProxy
 from ..rag.rag import RagProxy
-
-# Import utilities from centralized location
+from .exceptions import ChainInitializationError
 
 
 class FullChain:
@@ -24,7 +27,7 @@ class FullChain:
         self._llm = llm_proxy
         self._rag = rag_proxy
         self._memory = memory_proxy
-        self._chain = None
+        self._chain: Optional[CompiledStateGraph] = None
 
     def create_full_chain(self, chain_type: str = "simple"):
         """
@@ -34,6 +37,10 @@ class FullChain:
             chain_type (str): The type of chain to create. Defaults to "simple".
         """
         llm = self._llm.get_llm()
+        if llm is None:
+            raise ChainInitializationError(
+                "Cannot build the chain: the LLM proxy has no model set."
+            )
         match chain_type:
             case "simple":
                 rag_chain = self._rag.make_chain()
@@ -65,6 +72,10 @@ class FullChain:
         Returns:
             The response from the chain.
         """
+        if self._chain is None:
+            raise ChainInitializationError(
+                "Chain not built; call create_full_chain() first."
+            )
         result = self._chain.invoke(
             {"question": query},
             config={"configurable": {"thread_id": session_id}},
@@ -82,6 +93,10 @@ class FullChain:
         Yields:
             str: Successive chunks of the answer.
         """
+        if self._chain is None:
+            raise ChainInitializationError(
+                "Chain not built; call create_full_chain() first."
+            )
         for chunk in self._chain.stream(
             {"question": query},
             config={"configurable": {"thread_id": session_id}},

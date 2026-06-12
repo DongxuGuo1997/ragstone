@@ -9,7 +9,7 @@ from ..utils.exceptions import LLMInitializationError
 logger = logging.getLogger(__name__)
 
 # Import cache for heavy dependencies
-_model_cache = {}
+_model_cache: dict = {}
 
 
 def _get_cached_llm_import(provider: str):
@@ -37,12 +37,12 @@ class LLMProxy(ABC):
     """Abstract base class for LLM proxies with lazy loading."""
 
     def __init__(self):
-        self._llm: Optional = None
+        self._llm: Optional[Any] = None
         self._model_name: Optional[str] = None
         logger.info(f"{self.__class__.__name__} initialized.")
 
     @abstractmethod
-    def set_llm(self, model_name: str, **kwargs: Any) -> Optional:
+    def set_llm(self, model_name: str, **kwargs: Any) -> Optional[Any]:
         """
         Abstract method to set and configure the LLM instance.
 
@@ -56,7 +56,7 @@ class LLMProxy(ABC):
         pass
 
     @abstractmethod
-    def get_llm(self) -> Optional:
+    def get_llm(self) -> Optional[Any]:
         """
         Abstract method to get the LLM instance.
 
@@ -81,9 +81,9 @@ class OpenAIProxy(LLMProxy):
     def __init__(self):
         super().__init__()
         # Lazy-loaded LLM instance
-        self._llm: Optional = None
+        self._llm: Optional[Any] = None
 
-    def get_llm(self) -> Optional:
+    def get_llm(self) -> Optional[Any]:
         """Get the OpenAI LLM instance."""
         if not self._llm:
             logger.warning("OpenAI LLM instance requested but not set.")
@@ -91,7 +91,7 @@ class OpenAIProxy(LLMProxy):
 
     def set_llm(
         self, model_name: str, temperature: float = 0.0, **kwargs: Any
-    ) -> Optional:
+    ) -> Optional[Any]:
         """
         Set and configure the OpenAI LLM instance with lazy loading.
 
@@ -149,15 +149,15 @@ class OllamaProxy(LLMProxy):
     def __init__(self):
         super().__init__()
         # Lazy-loaded LLM instance
-        self._llm: Optional = None
+        self._llm: Optional[Any] = None
 
-    def get_llm(self) -> Optional:
+    def get_llm(self) -> Optional[Any]:
         """Get the Ollama LLM instance."""
         if not self._llm:
             logger.warning("Ollama LLM instance requested but not set.")
         return self._llm
 
-    def set_llm(self, model_name: str = "llama3", **kwargs: Any) -> Optional:
+    def set_llm(self, model_name: str = "llama3", **kwargs: Any) -> Optional[Any]:
         """
         Set and configure the Ollama LLM instance with lazy loading.
 

@@ -26,7 +26,7 @@ from .splitter import split_documents
 logger = logging.getLogger(__name__)
 
 # Import cache for heavy LangChain dependencies
-_pipeline_cache = {}
+_pipeline_cache: Dict[str, Any] = {}
 
 
 @dataclass
@@ -259,9 +259,9 @@ class Pipeline:
         self.vector_db = create_vector_store_proxy(vector_store_type)
 
         self.texts: Optional[List] = None
-        self._retriever: Optional = None
+        self._retriever: Optional[Any] = None
         self._chain: Optional[FullChain] = None
-        self.LLM: Optional = None
+        self.LLM: Optional[Any] = None
         self._last_question: Optional[str] = None
         self._vector_db_fingerprint: Optional[str] = None
 
@@ -325,7 +325,7 @@ class Pipeline:
 
     def _set_retriever(
         self,
-        embeddings: Optional = None,
+        embeddings: Optional[Any] = None,
         use_ensemble: bool = True,
         use_reranker: bool = False,
     ) -> None:
