@@ -4,9 +4,9 @@ Unit tests for the LangGraph-based conversation memory (no network required).
 
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
-from know_rag.rag.memory import MemoryProxy, SimpleTextRetriever
-from know_rag.rag.rag import RagProxy
-from know_rag.utils.full_chain import FullChain
+from ragstone.rag.memory import MemoryProxy, SimpleTextRetriever
+from ragstone.rag.rag import RagProxy
+from ragstone.utils.full_chain import FullChain
 
 
 class _CountingFakeChatModel(FakeListChatModel):

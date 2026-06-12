@@ -1,5 +1,5 @@
 """
-Main entry point for the Know-RAG Streamlit application.
+Main entry point for the Ragstone Streamlit application.
 
 This module provides a web interface for the RAG pipeline with support for:
 - Multiple LLM providers (OpenAI, Ollama)
@@ -19,15 +19,15 @@ from typing import List, Optional, Tuple
 import streamlit as st
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
-# Allow `streamlit run src/know_rag/ui/streamlit_app.py` without install
+# Allow `streamlit run src/ragstone/ui/streamlit_app.py` without install
 current_dir = Path(__file__).parent
 src_dir = current_dir.parent.parent.parent
 sys.path.insert(0, str(src_dir))
 
-from know_rag import get_package_info  # noqa: E402
-from know_rag.config.settings import Config, get_config  # noqa: E402
-from know_rag.rag.pipeline import OllamaPipeline, OpenAIPipeline  # noqa: E402
-from know_rag.utils import (  # noqa: E402
+from ragstone import get_package_info  # noqa: E402
+from ragstone.config.settings import Config, get_config  # noqa: E402
+from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline  # noqa: E402
+from ragstone.utils import (  # noqa: E402
     ConfigurationError,
     LLMInitializationError,
 )
@@ -266,7 +266,7 @@ class StreamlitApp:
     def _render_welcome_message(self) -> None:
         """Render welcome message when no pipeline is loaded."""
         st.markdown("""
-        ## 🚀 Welcome to the Know-RAG!
+        ## 🚀 Welcome to the Ragstone!
 
         ### 🔌 **Choose Your Mode:**
 
@@ -684,7 +684,7 @@ def main():
 
     # CRITICAL: Set page config as the absolute first Streamlit command
     st.set_page_config(
-        page_title="Know-RAG",
+        page_title="Ragstone",
         page_icon="🤖",
         layout="wide",
         initial_sidebar_state="expanded",

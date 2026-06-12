@@ -1,4 +1,4 @@
-# Know-RAG
+# Ragstone
 
 A Retrieval-Augmented Generation (RAG) pipeline built with LangChain, supporting multiple LLM providers and a Streamlit web interface.
 
@@ -50,8 +50,8 @@ A Retrieval-Augmented Generation (RAG) pipeline built with LangChain, supporting
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/DongxuGuo1997/know-rag.git
-   cd know-rag
+   git clone https://github.com/DongxuGuo1997/ragstone.git
+   cd ragstone
    ```
 
 2. **Create virtual environment**
@@ -73,7 +73,7 @@ A Retrieval-Augmented Generation (RAG) pipeline built with LangChain, supporting
 
 5. **Run the application**
    ```bash
-   streamlit run src/know_rag/ui/streamlit_app.py
+   streamlit run src/ragstone/ui/streamlit_app.py
    # Or: make run-streamlit
    ```
 
@@ -89,10 +89,10 @@ Expose the RAG pipeline as MCP tools for use in VS Code/Cursor and other MCP-com
    ./scripts/start_mcp_server.sh
 
    # Or the console script (after pip install -e .)
-   know-rag-mcp
+   ragstone-mcp
 
    # Or directly
-   python know_rag_mcp_server.py
+   python ragstone_mcp_server.py
    ```
 
 2. **Configure VS Code/Cursor**
@@ -101,10 +101,10 @@ Expose the RAG pipeline as MCP tools for use in VS Code/Cursor and other MCP-com
    ```json
    {
      "mcpServers": {
-       "know-rag": {
+       "ragstone": {
          "command": "python",
-         "args": ["know_rag_mcp_server.py"],
-         "cwd": "/path/to/know-rag"
+         "args": ["ragstone_mcp_server.py"],
+         "cwd": "/path/to/ragstone"
        }
      }
    }
@@ -112,9 +112,9 @@ Expose the RAG pipeline as MCP tools for use in VS Code/Cursor and other MCP-com
 
 3. **Use in your IDE**
    ```
-   @know-rag create_openai_pipeline with model "gpt-4"
-   @know-rag load_documents with data_dir "docs"
-   @know-rag ask_question "What is the main architecture?"
+   @ragstone create_openai_pipeline with model "gpt-4"
+   @ragstone load_documents with data_dir "docs"
+   @ragstone ask_question "What is the main architecture?"
    ```
 
 ### Available MCP Tools
@@ -133,8 +133,8 @@ Expose the RAG pipeline as MCP tools for use in VS Code/Cursor and other MCP-com
 ## Project Structure
 
 ```
-know-rag/
-├── src/know_rag/           # Core package
+ragstone/
+├── src/ragstone/           # Core package
 │   ├── config/                  # Configuration management
 │   │   └── settings.py          # Dataclass-based settings
 │   ├── models/                  # LLM abstraction layer
@@ -209,7 +209,7 @@ VECTOR_STORE_TYPE=faiss  # or chroma
 
 1. **Start the application**
    ```bash
-   streamlit run src/know_rag/ui/streamlit_app.py
+   streamlit run src/ragstone/ui/streamlit_app.py
    ```
 
 2. **Configure your pipeline**
@@ -225,7 +225,7 @@ VECTOR_STORE_TYPE=faiss  # or chroma
 ### Programmatic Usage
 
 ```python
-from know_rag import OpenAIPipeline, get_config
+from ragstone import OpenAIPipeline, get_config
 
 # Load configuration
 config = get_config()
@@ -254,7 +254,7 @@ print(response)
 ### Custom Configuration
 
 ```python
-from know_rag.config.settings import Config, DatabaseConfig, LLMConfig
+from ragstone.config.settings import Config, DatabaseConfig, LLMConfig
 
 # Create custom configuration
 config = Config(
@@ -274,8 +274,8 @@ config.to_file("my_config.json")
 ### Error Handling
 
 ```python
-from know_rag import OpenAIPipeline
-from know_rag.utils import PipelineError, LLMInitializationError
+from ragstone import OpenAIPipeline
+from ragstone.utils import PipelineError, LLMInitializationError
 
 try:
     pipeline = OpenAIPipeline(model="gpt-4")
@@ -290,7 +290,7 @@ except PipelineError as e:
 ### Custom Vector Stores
 
 ```python
-from know_rag.rag.vector_db import create_vector_store_proxy
+from ragstone.rag.vector_db import create_vector_store_proxy
 
 # Create Chroma vector store
 chroma_store = create_vector_store_proxy(
@@ -334,7 +334,7 @@ pip install -e ".[dev]"
 pytest tests/ -v
 
 # Run with coverage
-pytest tests/ --cov=know_rag --cov-report=html
+pytest tests/ --cov=ragstone --cov-report=html
 ```
 
 ## Evaluation
@@ -389,7 +389,7 @@ Contributions are welcome! To get started:
 3. Make your changes, keeping `make lint` and `make test` green
 4. Open a pull request with a clear description of the change
 
-Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/DongxuGuo1997/know-rag/issues).
+Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/DongxuGuo1997/ragstone/issues).
 
 ## License
 

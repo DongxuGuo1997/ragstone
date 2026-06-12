@@ -1,5 +1,5 @@
 """
-Custom exceptions for the Know-RAG.
+Custom exceptions for the Ragstone.
 
 This module defines a hierarchy of custom exceptions to provide better error
 handling and debugging capabilities throughout the application.

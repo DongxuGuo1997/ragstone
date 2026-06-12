@@ -1,4 +1,4 @@
-# Know-RAG MCP Server
+# Ragstone MCP Server
 
 This project provides a Model Context Protocol (MCP) server that exposes your LangChain RAG pipeline as tools that can be used in VS Code with Cursor or other MCP-compatible clients.
 
@@ -42,12 +42,12 @@ pip install -e .
 ```json
 {
   "mcpServers": {
-    "know-rag": {
+    "ragstone": {
       "command": "python",
-      "args": ["know_rag_mcp_server.py"],
-      "cwd": "/path/to/know-rag",
+      "args": ["ragstone_mcp_server.py"],
+      "cwd": "/path/to/ragstone",
       "env": {
-        "PYTHONPATH": "/path/to/know-rag/src",
+        "PYTHONPATH": "/path/to/ragstone/src",
         "OPENAI_API_KEY": "your-openai-api-key-if-using-openai"
       }
     }
@@ -62,11 +62,11 @@ Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "know-rag": {
+    "ragstone": {
       "command": "python",
-      "args": ["/path/to/know-rag/know_rag_mcp_server.py"],
+      "args": ["/path/to/ragstone/ragstone_mcp_server.py"],
       "env": {
-        "PYTHONPATH": "/path/to/know-rag/src"
+        "PYTHONPATH": "/path/to/ragstone/src"
       }
     }
   }
@@ -77,7 +77,7 @@ Add to your `claude_desktop_config.json`:
 
 ```bash
 # Test that the server starts without errors
-python know_rag_mcp_server.py
+python ragstone_mcp_server.py
 ```
 
 You should see logging output indicating the server is initializing successfully.
@@ -214,8 +214,8 @@ import asyncio
 import sys
 sys.path.insert(0, 'src')
 
-from know_rag.mcp.mcp_server_fastmcp import mcp, _pipelines
-from know_rag.rag.pipeline import OpenAIPipeline
+from ragstone.mcp.mcp_server_fastmcp import mcp, _pipelines
+from ragstone.rag.pipeline import OpenAIPipeline
 
 # Test pipeline creation
 pipeline = OpenAIPipeline(model="gpt-3.5-turbo")
@@ -228,7 +228,7 @@ print("✅ Pipeline created successfully")
 The server uses the same configuration system as the main application:
 - `config.example.json`: Configuration template (copy to create your own)
 - Environment variables for API keys
-- Logging configuration in `src/know_rag/config/settings.py`
+- Logging configuration in `src/ragstone/config/settings.py`
 
 ## 🚀 Integration with Development Workflow
 
@@ -252,11 +252,11 @@ Use the RAG pipeline to:
 
 ### In VS Code/Cursor:
 ```
-@know-rag create_openai_pipeline with model gpt-4 and pipeline_id "my_docs"
+@ragstone create_openai_pipeline with model gpt-4 and pipeline_id "my_docs"
 
-@know-rag load_documents with pipeline_id "my_docs" and data_dir "docs"
+@ragstone load_documents with pipeline_id "my_docs" and data_dir "docs"
 
-@know-rag ask_question "What is the main architecture pattern used in this project?" with pipeline_id "my_docs"
+@ragstone ask_question "What is the main architecture pattern used in this project?" with pipeline_id "my_docs"
 ```
 
 ### In Claude Desktop:
@@ -272,11 +272,11 @@ The tools will appear in Claude's interface and can be invoked naturally through
 ## 🤝 Contributing
 
 To extend the MCP server:
-1. Add new tools with the `@mcp.tool()` decorator in `src/know_rag/mcp/mcp_server_fastmcp.py`
+1. Add new tools with the `@mcp.tool()` decorator in `src/ragstone/mcp/mcp_server_fastmcp.py`
 2. Implement the tool function body
 3. Update documentation and examples
 4. Test with different MCP clients
 
 ## 📄 License
 
-This MCP server implementation follows the same license as the main Know-RAG project. 
+This MCP server implementation follows the same license as the main Ragstone project. 

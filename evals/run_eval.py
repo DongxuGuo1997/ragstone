@@ -58,7 +58,7 @@ def load_cases() -> list:
 
 
 def build_pipeline(args):
-    from know_rag import OllamaPipeline, OpenAIPipeline
+    from ragstone import OllamaPipeline, OpenAIPipeline
 
     if args.provider == "openai":
         pipeline = OpenAIPipeline(model=args.model)

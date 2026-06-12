@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from know_rag.config.settings import (
+from ragstone.config.settings import (
     Config,
     DatabaseConfig,
     LLMConfig,
     get_config,
     load_config,
 )
-from know_rag.utils.exceptions import ConfigurationError
+from ragstone.utils.exceptions import ConfigurationError
 
 
 class TestDatabaseConfig:

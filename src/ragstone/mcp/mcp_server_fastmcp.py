@@ -13,8 +13,8 @@ from typing import Dict, Union
 from anyio import to_thread
 from mcp.server.fastmcp import FastMCP
 
-from know_rag.config.settings import get_config
-from know_rag.rag.pipeline import OllamaPipeline, OpenAIPipeline
+from ragstone.config.settings import get_config
+from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline
 
 # Initialize configuration
 config = get_config()
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 _pipelines: Dict[str, Union[OpenAIPipeline, OllamaPipeline]] = {}
 
 # Initialize FastMCP server
-mcp = FastMCP("Know-RAG")
+mcp = FastMCP("Ragstone")
 
 
 @mcp.tool()
@@ -292,13 +292,13 @@ def delete_pipeline(pipeline_id: str) -> str:
 
 
 def main():
-    """Entry point for the MCP server (used by the know-rag-mcp console script)."""
+    """Entry point for the MCP server (used by the ragstone-mcp console script)."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    logger.info("Starting Know-RAG FastMCP Server...")
+    logger.info("Starting Ragstone FastMCP Server...")
     mcp.run()
 
 

@@ -1,4 +1,4 @@
-# 💬 How to Use Your Know-RAG in Chat
+# 💬 How to Use Your Ragstone in Chat
 
 You have several ways to directly chat with your RAG pipeline:
 
@@ -7,10 +7,10 @@ You have several ways to directly chat with your RAG pipeline:
 Use the MCP tools directly in Cursor's chat interface:
 
 ```
-@know-rag create_ollama_pipeline model="llama3" pipeline_id="my-chat"
-@know-rag load_documents pipeline_id="my-chat" data_dir="data"
-@know-rag setup_retriever pipeline_id="my-chat" use_ensemble=true chain_type="simple"
-@know-rag ask_question question="What is this project about?" pipeline_id="my-chat"
+@ragstone create_ollama_pipeline model="llama3" pipeline_id="my-chat"
+@ragstone load_documents pipeline_id="my-chat" data_dir="data"
+@ragstone setup_retriever pipeline_id="my-chat" use_ensemble=true chain_type="simple"
+@ragstone ask_question question="What is this project about?" pipeline_id="my-chat"
 ```
 
 **Advantages:**
@@ -24,9 +24,9 @@ Use the MCP tools directly in Cursor's chat interface:
 Run the interactive command-line chat:
 
 ```bash
-python -m know_rag.ui.chat_interface
+python -m ragstone.ui.chat_interface
 # or, after `pip install`:
-know-rag-chat
+ragstone-chat
 ```
 
 **Features:**
@@ -51,7 +51,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path.cwd() / "src"))
 
-from know_rag.rag.pipeline import OllamaPipeline
+from ragstone.rag.pipeline import OllamaPipeline
 
 # Initialize pipeline
 pipeline = OllamaPipeline(model="llama3")
@@ -72,15 +72,15 @@ print(response)
 
 ### Using MCP in Cursor:
 ```
-@know-rag create_ollama_pipeline
-@know-rag load_documents data_dir="data"
-@know-rag setup_retriever use_ensemble=true
-@know-rag ask_question question="Explain the main features"
+@ragstone create_ollama_pipeline
+@ragstone load_documents data_dir="data"
+@ragstone setup_retriever use_ensemble=true
+@ragstone ask_question question="Explain the main features"
 ```
 
 ### Using Command Line:
 ```bash
-python -m know_rag.ui.chat_interface
+python -m ragstone.ui.chat_interface
 # Choose: ollama
 # Model: llama3
 # Then start asking questions!

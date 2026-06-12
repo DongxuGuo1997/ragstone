@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-# Know-RAG - Environment Setup Script
+# Ragstone - Environment Setup Script
 # This script sets up the development environment for the project
 
-echo "Setting up Know-RAG Development Environment..."
+echo "Setting up Ragstone Development Environment..."
 
 # Check if we're in the right directory
 if [ ! -f "pyproject.toml" ]; then
@@ -55,7 +55,7 @@ mkdir -p data logs store vs_data
 if [ ! -f ".env" ]; then
     echo "Creating .env file template..."
     cat > .env << 'EOF'
-# Know-RAG Environment Configuration
+# Ragstone Environment Configuration
 
 # API Keys (required for OpenAI mode; not needed for Ollama-only use)
 OPENAI_API_KEY=your_openai_api_key_here
@@ -87,9 +87,9 @@ echo "Running basic verification tests..."
 python -c "
 import sys
 try:
-    from know_rag.rag.pipeline import Pipeline
-    from know_rag.config.settings import get_config
-    from know_rag.rag.vector_db import create_vector_store_proxy
+    from ragstone.rag.pipeline import Pipeline
+    from ragstone.config.settings import get_config
+    from ragstone.rag.vector_db import create_vector_store_proxy
     print('Pipeline import successful')
 
     # Test configuration loading

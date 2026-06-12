@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from know_rag.rag.pipeline import OllamaPipeline, OpenAIPipeline, Pipeline
+from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline, Pipeline
 
 
 class TestPipeline:
@@ -103,7 +103,7 @@ class TestPipelineDocumentLoading:
         pipeline.remote_loader = Mock()
         pipeline.remote_loader.get_documents.return_value = []
 
-        with patch("know_rag.rag.pipeline.split_documents") as mock_split:
+        with patch("ragstone.rag.pipeline.split_documents") as mock_split:
             mock_split.return_value = [Mock(page_content="split content")]
             result = pipeline.load_and_split(data_dir="test_data")
 

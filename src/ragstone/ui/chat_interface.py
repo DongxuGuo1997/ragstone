@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Simple Chat Interface for Know-RAG
-Usage: python -m know_rag.ui.chat_interface (or the know-rag-chat console script)
+Simple Chat Interface for Ragstone
+Usage: python -m ragstone.ui.chat_interface (or the ragstone-chat console script)
 """
 
-from know_rag.config.settings import get_config
-from know_rag.rag.pipeline import OllamaPipeline, OpenAIPipeline
-from know_rag.utils.exceptions import DocumentLoadingError
+from ragstone.config.settings import get_config
+from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline
+from ragstone.utils.exceptions import DocumentLoadingError
 
 
 class ChatInterface:
@@ -165,7 +165,7 @@ def select_model_interactive():
 
 def main():
     """Main function to run the chat interface."""
-    print("🌟 Know-RAG Chat Interface")
+    print("🌟 Ragstone Chat Interface")
     print("=" * 50)
 
     # Interactive model selection

@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
-MCP Server Entry Point for Know-RAG
+MCP Server Entry Point for Ragstone
 
 Convenience launcher for MCP clients (Cursor, VS Code, etc.) configured with a
-file path. Equivalent to running the installed `know-rag-mcp` console script.
+file path. Equivalent to running the installed `ragstone-mcp` console script.
 """
 
 import sys
 from pathlib import Path
 
 try:
-    from know_rag.mcp.mcp_server_fastmcp import main
+    from ragstone.mcp.mcp_server_fastmcp import main
 except ImportError:
     # Fall back to the in-repo sources when the package is not installed.
     sys.path.insert(0, str(Path(__file__).parent / "src"))
     try:
-        from know_rag.mcp.mcp_server_fastmcp import main
+        from ragstone.mcp.mcp_server_fastmcp import main
     except ImportError as e:
         print(f"Error importing MCP server: {e}")
         print("Install the package first: pip install -e .")

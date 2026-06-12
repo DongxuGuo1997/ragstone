@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for know-rag.
+Setup script for ragstone.
 
 This file is maintained for backward compatibility. 
 Modern Python packaging uses pyproject.toml.

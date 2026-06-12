@@ -4,15 +4,15 @@ Unit tests for the optional reranker (no model download required).
 
 import pytest
 
-from know_rag.rag.memory import SimpleTextRetriever
-from know_rag.rag.reranker import _INSTALL_HINT, wrap_with_reranker
+from ragstone.rag.memory import SimpleTextRetriever
+from ragstone.rag.reranker import _INSTALL_HINT, wrap_with_reranker
 
 
 def test_missing_extra_raises_helpful_error(monkeypatch):
     """Without sentence-transformers, the wrapper must fail with install help."""
     import builtins
 
-    from know_rag.rag import reranker
+    from ragstone.rag import reranker
 
     # A previously cached encoder would bypass construction entirely; clear
     # it so the simulated missing import is actually exercised.

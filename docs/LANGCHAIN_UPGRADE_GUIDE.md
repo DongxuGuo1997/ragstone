@@ -94,7 +94,7 @@ open https://github.com/langchain-ai/langchain/releases
 git checkout -b test/langchain-upgrade
 
 # Or if not using git, make a backup
-cp -r . ../know-rag-backup
+cp -r . ../ragstone-backup
 ```
 
 ### **Step 5: Upgrade to Latest PATCH Version**
@@ -144,14 +144,14 @@ pytest tests/unit/ -v
 pytest tests/integration/ -v
 
 # Start your application and test manually
-streamlit run src/know_rag/ui/streamlit_app.py
+streamlit run src/ragstone/ui/streamlit_app.py
 ```
 
 ### **Step 8: Test MCP Server**
 
 ```bash
 # Test MCP server
-python know_rag_mcp_server.py
+python ragstone_mcp_server.py
 
 # In another terminal, test the tools
 # (Your test procedure here)

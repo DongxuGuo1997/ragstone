@@ -1,5 +1,5 @@
 """
-Pytest configuration and shared fixtures for Know-RAG tests.
+Pytest configuration and shared fixtures for Ragstone tests.
 """
 
 import os

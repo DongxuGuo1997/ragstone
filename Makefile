@@ -23,7 +23,7 @@ test:
 	pytest tests/ -v
 
 test-cov:
-	pytest tests/ --cov=know_rag --cov-report=html --cov-report=term
+	pytest tests/ --cov=ragstone --cov-report=html --cov-report=term
 
 eval:
 	python evals/run_eval.py --mode full
@@ -56,13 +56,13 @@ dev-setup: clean install-dev
 	@echo "Development environment ready!"
 
 run-streamlit:
-	streamlit run src/know_rag/ui/streamlit_app.py
+	streamlit run src/ragstone/ui/streamlit_app.py
 
 run-mcp-server:
-	python -m know_rag.mcp.mcp_server_fastmcp
+	python -m ragstone.mcp.mcp_server_fastmcp
 
 run-chat:
-	python -m know_rag.ui.chat_interface
+	python -m ragstone.ui.chat_interface
 
 # Quality checks
 check: lint test
