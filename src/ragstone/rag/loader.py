@@ -403,43 +403,52 @@ class OptimizedLocalLoader(LocalLoader):
             f"OptimizedLocalLoader initialized: max_workers={max_workers}, cache_enabled={enable_cache}"
         )
 
-    def _get_file_hash(self, file_path: Path) -> str:
-        """Generate a cache key based on file path and modification time."""
+    def _get_file_stamp(self, file_path: Path) -> str:
+        """Validity stamp for a file (changes when the file changes)."""
         try:
             stat = file_path.stat()
-            return f"{file_path}:{stat.st_mtime}:{stat.st_size}"
+            return f"{stat.st_mtime}:{stat.st_size}"
         except OSError:
-            return f"{file_path}:unknown"
+            return "unknown"
 
     def _is_file_cached(self, file_path: Path) -> bool:
         """Check if file is in cache and hasn't been modified."""
         if not self.enable_cache:
             return False
 
-        file_hash = self._get_file_hash(file_path)
-        return file_hash in _document_cache
+        entry = _document_cache.get(str(file_path))
+        return entry is not None and entry[0] == self._get_file_stamp(file_path)
 
     def _get_cached_documents(self, file_path: Path) -> Optional[List]:
-        """Retrieve documents from cache if available."""
+        """Retrieve documents from cache if present and still valid."""
         if not self.enable_cache:
             return None
 
-        file_hash = self._get_file_hash(file_path)
-        if file_hash in _document_cache:
-            self._cache_hits += 1
-            logger.debug(f"Cache HIT: {file_path.name}")
-            return _document_cache[file_hash]
+        key = str(file_path)
+        entry = _document_cache.get(key)
+        if entry is not None:
+            stamp, documents = entry
+            if stamp == self._get_file_stamp(file_path):
+                self._cache_hits += 1
+                logger.debug(f"Cache HIT: {file_path.name}")
+                return documents
+            # File changed: drop the stale entry instead of keeping both —
+            # keying by path means edits replace entries rather than
+            # accumulating one per modification.
+            del _document_cache[key]
 
         self._cache_misses += 1
         return None
 
     def _cache_documents(self, file_path: Path, documents: List) -> None:
-        """Cache documents for future use."""
+        """Cache documents for future use, replacing any stale entry."""
         if not self.enable_cache:
             return
 
-        file_hash = self._get_file_hash(file_path)
-        _document_cache[file_hash] = documents
+        _document_cache[str(file_path)] = (
+            self._get_file_stamp(file_path),
+            documents,
+        )
         logger.debug(f"Cached {len(documents)} documents for {file_path.name}")
 
     def _scan_directory(self, data_dir: str) -> Dict[str, List[Path]]:

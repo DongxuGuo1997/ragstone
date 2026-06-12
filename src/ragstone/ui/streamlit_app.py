@@ -220,8 +220,11 @@ class StreamlitApp:
                     help="Cache answers to repeated identical questions (optional)",
                 )
 
-                # Update config with new value
-                self.config.cache.enable_response_cache = cache_enabled
+                # Apply only on change. Note: this writes the process-global
+                # config — fine for a single-user app; a multi-user
+                # deployment should move the flag into session state.
+                if cache_enabled != self.config.cache.enable_response_cache:
+                    self.config.cache.enable_response_cache = cache_enabled
 
             # Build pipeline button (with state tracking to avoid unnecessary rebuilds)
             if st.button("🚀 Build Pipeline", type="primary"):
@@ -691,13 +694,17 @@ def main():
     )
 
     try:
-        # Configure logging only once
-        configure_logging()
+        # Configure logging once per session — main() reruns on every
+        # interaction, and setup_logging() tears down and re-adds the root
+        # handlers (reopening the log file) each time it runs.
+        if not st.session_state.get("logging_configured"):
+            configure_logging()
+            st.session_state.logging_configured = True
 
-        # Log startup information once
-        package_info = get_package_info()
-        logger.info(f"Starting {package_info['name']} v{package_info['version']}")
-        logger.info(f"Environment: {config.environment}, Debug: {config.debug}")
+            # Log startup information once
+            package_info = get_package_info()
+            logger.info(f"Starting {package_info['name']} v{package_info['version']}")
+            logger.info(f"Environment: {config.environment}, Debug: {config.debug}")
 
         # Create and run the Streamlit app
         app = StreamlitApp()

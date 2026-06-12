@@ -244,14 +244,16 @@ class ChromaProxy(VectorStoreProxy):
                     ) from e
 
             # Use context manager for client
-            with self._ensure_client():
+            with self._ensure_client() as client:
                 try:
-                    # Create Chroma vector store
+                    # Reuse our PersistentClient instead of passing
+                    # persist_directory — otherwise LangChain opens a second
+                    # client on the same sqlite directory.
                     self._db = Chroma.from_documents(
                         documents=docs,
                         embedding=embeddings,
                         collection_name=collection_name,
-                        persist_directory=self.persist_directory,
+                        client=client,
                     )
 
                     self._is_initialized = True

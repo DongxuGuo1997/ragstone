@@ -162,3 +162,23 @@ class TestCrossEncoderCache:
         second = wrap_with_reranker(base)
 
         assert first.base_compressor.model is second.base_compressor.model
+
+
+class TestDocumentCacheReplacement:
+    def test_modified_file_replaces_entry_instead_of_accumulating(self, tmp_path):
+        from ragstone.rag.loader import OptimizedLocalLoader, _document_cache
+
+        loader = OptimizedLocalLoader(name="local")
+        f = tmp_path / "a.txt"
+        f.write_text("one")
+
+        loader._cache_documents(f, ["doc-v1"])
+        assert loader._get_cached_documents(f) == ["doc-v1"]
+
+        f.write_text("two — different size")  # invalidates the stamp
+        assert loader._get_cached_documents(f) is None  # stale entry dropped
+        loader._cache_documents(f, ["doc-v2"])
+
+        # One entry per path, not one per modification.
+        assert len([k for k in _document_cache if k == str(f)]) == 1
+        assert loader._get_cached_documents(f) == ["doc-v2"]
