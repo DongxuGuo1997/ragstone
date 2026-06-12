@@ -12,7 +12,11 @@ from langchain_core.retrievers import BaseRetriever
 
 from ..config.settings import get_config
 from ..models.base_model import OllamaProxy, OpenAIProxy
-from ..utils.exceptions import ChainExecutionError, ChainInitializationError
+from ..utils.exceptions import (
+    ChainExecutionError,
+    ChainInitializationError,
+    RetrieverInitializationError,
+)
 from ..utils.full_chain import FullChain
 from .memory import MemoryProxy
 from .rag import RagProxy
@@ -335,8 +339,10 @@ class Pipeline:
                 stage (requires the `rerank` extra). Defaults to False.
         """
         if not self.texts:
-            logger.error("Cannot set retriever: No texts have been loaded and split.")
-            return
+            raise RetrieverInitializationError(
+                "Cannot set retriever: no documents have been loaded. "
+                "Call load_and_split() with at least one data source first."
+            )
 
         logger.info(
             f"Setting retriever with timeout protection. Using ensemble: {use_ensemble}."
@@ -522,36 +528,42 @@ class Pipeline:
 
         Args:
             chain_type (str): The type of RAG chain to create (e.g., "simple", "multi_query", "fusion"). Defaults to "simple".
+
+        Raises:
+            ChainInitializationError: If the LLM or retriever is not set up,
+                or if chain construction fails.
         """
-        if not self.LLM:
-            logger.error("Cannot create RAG chain: LLM is not set.")
-            return
+        if not self.LLM or not self.LLM.get_llm():
+            raise ChainInitializationError(
+                "Cannot create RAG chain: LLM is not set. Construct the "
+                "pipeline with a model (or call LLM.set_llm) first.",
+                chain_type=chain_type,
+            )
         if not self._retriever:
-            logger.error("Cannot create RAG chain: Retriever is not set.")
-            return
+            raise ChainInitializationError(
+                "Cannot create RAG chain: retriever is not set. Call "
+                "set_retriever_openai() or set_retriever_ollama() first.",
+                chain_type=chain_type,
+            )
 
         logger.info(f"Creating RAG chain of type: {chain_type}")
-        llm_instance = self.LLM.get_llm()
-        if not llm_instance:
-            logger.error(
-                "Cannot create RAG chain: Failed to get LLM instance from proxy."
-            )
-            return
+        rag_proxy = RagProxy(model=self.LLM.get_llm(), retriever=self._retriever)
+        memory_proxy = MemoryProxy()
 
-        rag_proxy = RagProxy(model=llm_instance, retriever=self._retriever)
-        memory_proxy = MemoryProxy()  # Assuming default initialization is fine
-
-        self._chain = FullChain(
+        chain = FullChain(
             llm_proxy=self.LLM, rag_proxy=rag_proxy, memory_proxy=memory_proxy
         )
         try:
-            self._chain.create_full_chain(chain_type=chain_type)
-            logger.info(f"Successfully created RAG chain of type: {chain_type}")
+            chain.create_full_chain(chain_type=chain_type)
         except Exception as e:
-            logger.error(
-                f"Error creating RAG chain of type '{chain_type}': {e}", exc_info=True
-            )
-            self._chain = None  # Ensure chain is None if creation fails
+            self._chain = None
+            raise ChainInitializationError(
+                f"Error creating RAG chain of type '{chain_type}': {e}",
+                chain_type=chain_type,
+                original_exception=e,
+            ) from e
+        self._chain = chain
+        logger.info(f"Successfully created RAG chain of type: {chain_type}")
 
     def ask_question(
         self, question: str, session_id: str = "default", use_cache: bool = True
@@ -754,8 +766,11 @@ class OpenAIPipeline(Pipeline):
                 (requires the `rerank` extra). Defaults to False.
         """
         if not os.getenv("OPENAI_API_KEY"):
-            logger.error("OPENAI_API_KEY not found. Cannot create embeddings.")
-            return
+            raise RetrieverInitializationError(
+                "OPENAI_API_KEY not found — cannot create OpenAI embeddings. "
+                "Set it in your .env file, or use set_retriever_ollama() for "
+                "a fully local setup."
+            )
 
         logger.info("OpenAI Pipeline: Creating embeddings with timeout protection...")
 
@@ -837,14 +852,17 @@ class OllamaPipeline(Pipeline):
                 (requires the `rerank` extra). Defaults to False.
         """
         embeddings = self._get_smart_embeddings()
-        if embeddings:
-            self._set_retriever(
-                embeddings=embeddings,
-                use_ensemble=use_ensemble,
-                use_reranker=use_reranker,
+        if not embeddings:
+            raise RetrieverInitializationError(
+                "Failed to create any embeddings: no Ollama embedding model "
+                "responded and no OPENAI_API_KEY is set for fallback. "
+                "Is Ollama running? (ollama serve)"
             )
-        else:
-            logger.error("Failed to create any embeddings. Cannot set retriever.")
+        self._set_retriever(
+            embeddings=embeddings,
+            use_ensemble=use_ensemble,
+            use_reranker=use_reranker,
+        )
 
     def _get_smart_embeddings(self):
         """

@@ -178,11 +178,9 @@ ragstone/
 │   │   └── mcp_server_fastmcp.py
 │   └── utils/                   # Utilities and helpers
 │       ├── exceptions.py        # Custom exception hierarchy
-│       ├── common.py            # Helper functions
 │       └── full_chain.py        # Complete chain integration
 ├── tests/                       # Test suite
 ├── docs/                        # Documentation
-├── examples/                    # Example code
 ├── scripts/                     # Utility scripts
 ├── pyproject.toml               # Project configuration & dependencies
 ├── .env.example                 # Environment template

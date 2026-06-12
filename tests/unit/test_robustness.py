@@ -3,17 +3,22 @@ Unit tests for robustness fixes: generated-query parsing and error
 propagation from the ask paths (no network required).
 """
 
+import os
 from typing import List
 
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
+from ragstone.models.base_model import OpenAIProxy
 from ragstone.rag.memory import SimpleTextRetriever
 from ragstone.rag.pipeline import Pipeline
 from ragstone.rag.rag import RagProxy, parse_generated_queries
 from ragstone.utils.exceptions import (
     ChainExecutionError,
     ChainInitializationError,
+    LLMInitializationError,
+    RetrieverInitializationError,
+    ValidationError,
 )
 
 
@@ -94,3 +99,67 @@ class TestAskPathErrors:
             for chunk in pipeline.ask_question_stream("q", session_id="s"):
                 chunks.append(chunk)
         assert chunks == ["partial "]
+
+
+class TestSetupPathErrors:
+    """Setup failures must raise at the cause, not surface at ask time."""
+
+    def test_create_rag_chain_without_llm_raises(self):
+        with pytest.raises(ChainInitializationError, match="LLM is not set"):
+            Pipeline().create_rag_chain()
+
+    def test_set_retriever_without_documents_raises(self):
+        with pytest.raises(RetrieverInitializationError, match="load_and_split"):
+            Pipeline()._set_retriever(embeddings=None)
+
+    def test_set_retriever_openai_without_key_raises(self, monkeypatch):
+        pytest.importorskip("langchain_openai")
+        from ragstone.rag.pipeline import OpenAIPipeline
+
+        # Construct while the key is present, then remove it: the retriever
+        # setup must check the key at call time.
+        if not os.getenv("OPENAI_API_KEY"):
+            pytest.skip("OPENAI_API_KEY not set in test environment")
+        pipeline = OpenAIPipeline(model="gpt-4o-mini")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        with pytest.raises(RetrieverInitializationError, match="OPENAI_API_KEY"):
+            pipeline.set_retriever_openai()
+
+    def test_openai_set_llm_without_key_raises(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        with pytest.raises(LLMInitializationError, match="OPENAI_API_KEY"):
+            OpenAIProxy().set_llm("gpt-4o-mini")
+
+
+class _PromptCapturingFake(FakeListChatModel):
+    """Records the final prompt messages each LLM call receives."""
+
+    last_messages: List = []
+
+    def _generate(self, messages, **kwargs):
+        self.last_messages = list(messages)
+        return super()._generate(messages, **kwargs)
+
+
+class TestChainInputShapes:
+    def test_dict_input_is_extracted_not_rendered(self):
+        # A {"question": ...} input must put the question string into the
+        # prompt, not the dict's repr.
+        llm = _PromptCapturingFake(responses=["Paris."])
+        retriever = SimpleTextRetriever.from_texts(["Paris is the capital."])
+        chain = RagProxy(model=llm, retriever=retriever).make_chain()
+
+        answer = chain.invoke({"question": "capital?"})
+
+        assert answer == "Paris."
+        prompt_text = llm.last_messages[0].content
+        assert "capital?" in prompt_text
+        assert "{'question'" not in prompt_text
+
+    def test_empty_question_raises_validation_error(self):
+        llm = FakeListChatModel(responses=["x"])
+        retriever = SimpleTextRetriever.from_texts(["content"])
+        chain = RagProxy(model=llm, retriever=retriever).make_chain()
+
+        with pytest.raises(ValidationError):
+            chain.invoke("   ")

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 from ..config.settings import get_config
+from ..utils.exceptions import LLMInitializationError
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,10 @@ class OpenAIProxy(LLMProxy):
             **kwargs: Additional keyword arguments for ChatOpenAI.
 
         Returns:
-            Optional: The configured ChatOpenAI instance, or None if setup fails.
+            The configured ChatOpenAI instance.
+
+        Raises:
+            LLMInitializationError: If the API key is missing or setup fails.
         """
         logger.info(
             f"Attempting to set OpenAI LLM to model: {model_name}, temperature: {temperature}"
@@ -108,12 +112,12 @@ class OpenAIProxy(LLMProxy):
 
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            logger.error(
-                "OPENAI_API_KEY environment variable not found. Cannot initialize ChatOpenAI."
+            raise LLMInitializationError(
+                "OPENAI_API_KEY environment variable not found. Set it in your "
+                ".env file or environment to use OpenAI models.",
+                model_name=model_name,
+                provider="openai",
             )
-            self._llm = None
-            self._model_name = None
-            return None
 
         try:
             # Lazy import ChatOpenAI only when needed
@@ -129,13 +133,14 @@ class OpenAIProxy(LLMProxy):
             logger.info(f"Successfully set OpenAI LLM to model: {self._model_name}")
             return self._llm
         except Exception as e:
-            logger.error(
-                f"Failed to initialize ChatOpenAI with model {model_name}: {e}",
-                exc_info=True,
-            )
             self._llm = None
             self._model_name = None
-            return None
+            raise LLMInitializationError(
+                f"Failed to initialize ChatOpenAI with model {model_name}: {e}",
+                model_name=model_name,
+                provider="openai",
+                original_exception=e,
+            ) from e
 
 
 class OllamaProxy(LLMProxy):
@@ -161,7 +166,10 @@ class OllamaProxy(LLMProxy):
             **kwargs: Additional keyword arguments for ChatOllama.
 
         Returns:
-            Optional: The configured ChatOllama instance, or None if setup fails.
+            The configured ChatOllama instance.
+
+        Raises:
+            LLMInitializationError: If Ollama setup fails.
         """
         logger.info(f"Attempting to set Ollama LLM to model: {model_name}")
         try:
@@ -176,10 +184,12 @@ class OllamaProxy(LLMProxy):
             logger.info(f"Successfully set Ollama LLM to model: {self._model_name}")
             return self._llm
         except Exception as e:
-            logger.error(
-                f"Failed to initialize ChatOllama with model {model_name}: {e}",
-                exc_info=True,
-            )
             self._llm = None
             self._model_name = None
-            return None
+            raise LLMInitializationError(
+                f"Failed to initialize ChatOllama with model {model_name}: {e}. "
+                "Is Ollama running? (ollama serve)",
+                model_name=model_name,
+                provider="ollama",
+                original_exception=e,
+            ) from e

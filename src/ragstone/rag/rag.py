@@ -8,12 +8,10 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages.base import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import BasePromptTemplate, ChatPromptTemplate
-from langchain_core.runnables import (
-    RunnableLambda,
-    RunnablePassthrough,
-    RunnableSequence,
-)
+from langchain_core.runnables import RunnableLambda, RunnableSequence
 from langchain_core.vectorstores import VectorStoreRetriever
+
+from ..utils.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +26,6 @@ DEFAULT_RAG_PROMPT_TEMPLATE = (
     "Context: {context} \n"
     "Answer:"
 )
-
-
-# Local exception definitions
-class RagError(Exception):
-    """Base class for RAG errors."""
-
-    pass
 
 
 def format_docs(docs: List[Document]) -> str:
@@ -96,32 +87,33 @@ class RagProxy:
             logger.info("Using bundled default RAG prompt.")
         else:
             self._rag_prompt = rag_prompt
-        self._history_aware_retriever: Optional[VectorStoreRetriever] = None
 
     def get_retriever(self) -> VectorStoreRetriever:
         """Returns the base retriever."""
         return self._retriever
 
-    def set_history_aware_retriever(self, retriever: VectorStoreRetriever) -> None:
-        """Sets a history-aware retriever (currently not used in default chain methods)."""
-        self._history_aware_retriever = retriever
-        logger.info("History-aware retriever has been set.")
+    def _get_question(self, inputs: Any) -> str:
+        """Extract the question from supported input shapes.
 
-    def _get_question(self, inputs: Any) -> Optional[str]:
-        """Extracts the question from various input types."""
-        if not inputs:
-            return None
+        Raises:
+            ValidationError: If the input is empty or of an unsupported type
+                — failing here gives a clear error instead of an opaque
+                failure deep inside the retriever.
+        """
         if isinstance(inputs, str):
-            return inputs
-        if isinstance(inputs, dict) and "question" in inputs:
-            return inputs["question"]
-        if isinstance(inputs, BaseMessage):  # Handle chat messages if passed directly
-            return inputs.content
-        logger.warning(
-            f"Unexpected input type for question extraction: {type(inputs)}. Returning as is or None."
-        )
-        # Fallback or raise error depending on strictness needed
-        return str(inputs) if inputs else None
+            question = inputs
+        elif isinstance(inputs, dict) and "question" in inputs:
+            question = inputs["question"]
+        elif isinstance(inputs, BaseMessage):
+            question = inputs.content
+        else:
+            raise ValidationError(
+                "Chain input must be a question string, a {'question': ...} "
+                f"dict, or a message; got {type(inputs).__name__}."
+            )
+        if not isinstance(question, str) or not question.strip():
+            raise ValidationError("Question must be a non-empty string.")
+        return question
 
     def make_chain(self) -> RunnableSequence:
         """
@@ -133,7 +125,9 @@ class RagProxy:
                 "context": RunnableLambda(self._get_question)
                 | self._retriever
                 | format_docs,
-                "question": RunnablePassthrough(),  # Passes the original input (question) through
+                # Extract here too: a {"question": ...} dict input must not
+                # be rendered verbatim into the prompt.
+                "question": RunnableLambda(self._get_question),
             }
             | self._rag_prompt
             | self._llm
@@ -168,7 +162,7 @@ class RagProxy:
                 "context": RunnableLambda(self._get_question)
                 | retrieval_chain
                 | format_docs,  # Apply retrieval_chain to the extracted question
-                "question": RunnablePassthrough(),  # Pass the original question through
+                "question": RunnableLambda(self._get_question),
             }
             | self._rag_prompt
             | self._llm
@@ -201,7 +195,7 @@ class RagProxy:
                 "context": RunnableLambda(self._get_question)
                 | retrieval_chain
                 | format_docs,
-                "question": RunnablePassthrough(),
+                "question": RunnableLambda(self._get_question),
             }
             | self._rag_prompt
             | self._llm

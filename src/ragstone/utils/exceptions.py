@@ -40,19 +40,10 @@ class PipelineError(Exception):
         self.error_code = error_code or self.__class__.__name__.upper()
         self.context = context or {}
         self.original_exception = original_exception
-
-        # Log the error when it's created
-        self._log_error()
-
-    def _log_error(self) -> None:
-        """Log the error with appropriate details."""
-        log_msg = f"[{self.error_code}] {self.message}"
-        if self.context:
-            log_msg += f" | Context: {self.context}"
-        if self.original_exception:
-            log_msg += f" | Original: {self.original_exception}"
-
-        logger.error(log_msg, exc_info=self.original_exception is not None)
+        # Deliberately no logging here: whether a raised exception is an
+        # error is the catcher's call, not the constructor's. Logging on
+        # construction caused double logging and ERROR noise for failures
+        # that were handled gracefully.
 
     def to_dict(self) -> Dict[str, Any]:
         """
