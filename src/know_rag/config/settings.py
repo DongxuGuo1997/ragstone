@@ -1,5 +1,5 @@
 """
-Configuration management for the LangChain RAG Pipeline.
+Configuration management for the Know-RAG.
 
 This module provides centralized configuration management with environment variable
 support, validation, and type safety.
@@ -178,7 +178,7 @@ class LoggingConfig:
 class UIConfig:
     """Configuration for the user interface."""
 
-    title: str = "LangChain RAG Pipeline"
+    title: str = "Know-RAG"
     page_icon: str = "🤖"
     layout: str = "wide"
     initial_sidebar_state: str = "expanded"
@@ -439,7 +439,7 @@ class Config:
 
 # Global configuration instance, created on first use. Deferring this means
 # a bad environment variable surfaces as a clear ConfigurationError from the
-# first get_config() call instead of crashing `import langchain_rag` itself.
+# first get_config() call instead of crashing `import know_rag` itself.
 config: Optional[Config] = None
 
 

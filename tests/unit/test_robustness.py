@@ -8,10 +8,10 @@ from typing import List
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
-from langchain_rag.rag.memory import SimpleTextRetriever
-from langchain_rag.rag.pipeline import Pipeline
-from langchain_rag.rag.rag import RagProxy, parse_generated_queries
-from langchain_rag.utils.exceptions import (
+from know_rag.rag.memory import SimpleTextRetriever
+from know_rag.rag.pipeline import Pipeline
+from know_rag.rag.rag import RagProxy, parse_generated_queries
+from know_rag.utils.exceptions import (
     ChainExecutionError,
     ChainInitializationError,
 )

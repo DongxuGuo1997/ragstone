@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for langchain-rag-pipeline.
+Setup script for know-rag.
 
 This file is maintained for backward compatibility. 
 Modern Python packaging uses pyproject.toml.

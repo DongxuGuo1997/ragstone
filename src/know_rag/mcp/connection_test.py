@@ -16,7 +16,7 @@ async def test_mcp_connection():
 
     try:
         # Import the MCP server from the correct location
-        from langchain_rag.mcp.mcp_server_fastmcp import mcp
+        from know_rag.mcp.mcp_server_fastmcp import mcp
 
         print("✅ MCP server imported successfully")
         print(f"   Server name: {mcp.name}")
@@ -46,12 +46,12 @@ async def test_tool_call():
     print("=" * 40)
 
     try:
-        from langchain_rag.mcp.mcp_server_fastmcp import list_pipelines  # noqa: F401
+        from know_rag.mcp.mcp_server_fastmcp import list_pipelines  # noqa: F401
 
         print("✅ Tool functions imported successfully")
 
         # Test the actual MCP protocol
-        from langchain_rag.mcp.mcp_server_fastmcp import mcp
+        from know_rag.mcp.mcp_server_fastmcp import mcp
 
         # Simulate MCP tool call
         print("🔄 Simulating MCP tool call...")

@@ -5,11 +5,11 @@ Unit tests for source citations and streaming (no network required).
 from langchain_core.documents import Document
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
-from langchain_rag.rag.memory import MemoryProxy, SimpleTextRetriever
-from langchain_rag.rag.pipeline import Pipeline
-from langchain_rag.rag.rag import RagProxy
-from langchain_rag.rag.splitter import split_documents
-from langchain_rag.utils.full_chain import FullChain
+from know_rag.rag.memory import MemoryProxy, SimpleTextRetriever
+from know_rag.rag.pipeline import Pipeline
+from know_rag.rag.rag import RagProxy
+from know_rag.rag.splitter import split_documents
+from know_rag.utils.full_chain import FullChain
 
 
 class TestSplitterMetadata:

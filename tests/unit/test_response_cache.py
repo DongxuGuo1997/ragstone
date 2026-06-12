@@ -2,7 +2,7 @@
 Unit tests for the exact-match response cache (no network required).
 """
 
-from langchain_rag.rag.pipeline import QueryResultCache
+from know_rag.rag.pipeline import QueryResultCache
 
 
 class TestQueryResultCache:

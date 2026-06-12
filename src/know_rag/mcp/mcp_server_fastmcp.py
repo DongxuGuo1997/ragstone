@@ -13,8 +13,8 @@ from typing import Dict, Union
 from anyio import to_thread
 from mcp.server.fastmcp import FastMCP
 
-from langchain_rag.config.settings import get_config
-from langchain_rag.rag.pipeline import OllamaPipeline, OpenAIPipeline
+from know_rag.config.settings import get_config
+from know_rag.rag.pipeline import OllamaPipeline, OpenAIPipeline
 
 # Initialize configuration
 config = get_config()
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 _pipelines: Dict[str, Union[OpenAIPipeline, OllamaPipeline]] = {}
 
 # Initialize FastMCP server
-mcp = FastMCP("LangChain RAG Pipeline")
+mcp = FastMCP("Know-RAG")
 
 
 @mcp.tool()
@@ -292,13 +292,13 @@ def delete_pipeline(pipeline_id: str) -> str:
 
 
 def main():
-    """Entry point for the MCP server (used by the rag-mcp-server console script)."""
+    """Entry point for the MCP server (used by the know-rag-mcp console script)."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    logger.info("Starting LangChain RAG Pipeline FastMCP Server...")
+    logger.info("Starting Know-RAG FastMCP Server...")
     mcp.run()
 
 

@@ -1,5 +1,5 @@
 """
-LangChain RAG Pipeline - A RAG system with multiple LLM backends.
+Know-RAG - A RAG system with multiple LLM backends.
 
 This package provides a complete RAG (Retrieval-Augmented Generation) pipeline
 with support for OpenAI and Ollama models, multiple vector stores, and MCP server integration.
@@ -67,7 +67,7 @@ __all__ = [
 
 # Package metadata
 PACKAGE_INFO = {
-    "name": "langchain-rag-pipeline",
+    "name": "know-rag",
     "version": __version__,
     "description": "RAG pipeline with multiple LLM backends",
     "author": __author__,

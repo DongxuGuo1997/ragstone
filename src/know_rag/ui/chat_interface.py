@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Simple Chat Interface for LangChain RAG Pipeline
-Usage: python -m langchain_rag.ui.chat_interface (or the rag-chat console script)
+Simple Chat Interface for Know-RAG
+Usage: python -m know_rag.ui.chat_interface (or the know-rag-chat console script)
 """
 
-from langchain_rag.config.settings import get_config
-from langchain_rag.rag.pipeline import OllamaPipeline, OpenAIPipeline
-from langchain_rag.utils.exceptions import DocumentLoadingError
+from know_rag.config.settings import get_config
+from know_rag.rag.pipeline import OllamaPipeline, OpenAIPipeline
+from know_rag.utils.exceptions import DocumentLoadingError
 
 
 class ChatInterface:
@@ -165,7 +165,7 @@ def select_model_interactive():
 
 def main():
     """Main function to run the chat interface."""
-    print("🌟 LangChain RAG Pipeline Chat Interface")
+    print("🌟 Know-RAG Chat Interface")
     print("=" * 50)
 
     # Interactive model selection

@@ -1,5 +1,5 @@
 """
-Pytest configuration and shared fixtures for LangChain RAG Pipeline tests.
+Pytest configuration and shared fixtures for Know-RAG tests.
 """
 
 import os

@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# LangChain RAG Pipeline MCP Server Startup Script (FastMCP)
+# Know-RAG MCP Server Startup Script (FastMCP)
 
-echo "Starting LangChain RAG Pipeline MCP Server (FastMCP)..."
+echo "Starting Know-RAG MCP Server (FastMCP)..."
 
 # Check if we're in the project directory
-if [ ! -f "src/langchain_rag/mcp/mcp_server_fastmcp.py" ]; then
-    echo "Error: src/langchain_rag/mcp/mcp_server_fastmcp.py not found. Please run from project root."
+if [ ! -f "src/know_rag/mcp/mcp_server_fastmcp.py" ]; then
+    echo "Error: src/know_rag/mcp/mcp_server_fastmcp.py not found. Please run from project root."
     exit 1
 fi
 
@@ -34,8 +34,8 @@ echo "Configure your MCP client to connect to this server"
 echo ""
 echo "Cursor Configuration:"
 echo "  File: .cursor/settings.json"
-echo "  Server: langchain-rag-pipeline"
+echo "  Server: know-rag"
 echo ""
 
 # Run the FastMCP server
-python -m langchain_rag.mcp.mcp_server_fastmcp
+python -m know_rag.mcp.mcp_server_fastmcp

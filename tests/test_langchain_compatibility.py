@@ -280,7 +280,7 @@ class TestUtilities:
 
     def test_bundled_rag_prompt(self):
         """The default RAG prompt is bundled locally (no hub/network needed)."""
-        from langchain_rag.rag.rag import DEFAULT_RAG_PROMPT_TEMPLATE
+        from know_rag.rag.rag import DEFAULT_RAG_PROMPT_TEMPLATE
 
         assert "{question}" in DEFAULT_RAG_PROMPT_TEMPLATE
         assert "{context}" in DEFAULT_RAG_PROMPT_TEMPLATE

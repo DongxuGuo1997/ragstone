@@ -1,5 +1,5 @@
 # 🔧 Complete Debug & Troubleshooting Guide
-## LangChain RAG Pipeline MCP Server for Cursor
+## Know-RAG MCP Server for Cursor
 
 ---
 
@@ -12,7 +12,7 @@ Before diving into detailed troubleshooting, run these quick checks:
 ps aux | grep mcp_rag_server
 
 # 2. Test server connection
-python -m langchain_rag.mcp.connection_test
+python -m know_rag.mcp.connection_test
 
 # 3. Verify configuration exists
 ls -la ~/.cursor/mcp.json .cursor/mcp.json
@@ -31,8 +31,8 @@ python -c "from mcp.server.fastmcp import FastMCP; print('✅ MCP OK')"
 ### **Issue 1: "0 tools enabled" in Cursor**
 
 **Symptoms:**
-- Cursor shows "langchain-rag-pipeline" but "0 tools enabled"
-- `@langchain-rag-pipeline` doesn't work in chat
+- Cursor shows "know-rag" but "0 tools enabled"
+- `@know-rag` doesn't work in chat
 
 **Solutions (in order of likelihood):**
 
@@ -41,7 +41,7 @@ python -c "from mcp.server.fastmcp import FastMCP; print('✅ MCP OK')"
 # 1. Quit Cursor completely (Cmd+Q on Mac)
 # 2. Wait 5 seconds
 # 3. Restart Cursor
-# 4. Try: @langchain-rag-pipeline list_pipelines
+# 4. Try: @know-rag list_pipelines
 ```
 
 #### **🔧 Solution B: Fix MCP Configuration**
@@ -50,12 +50,12 @@ python -c "from mcp.server.fastmcp import FastMCP; print('✅ MCP OK')"
 cat > ~/.cursor/mcp.json << 'EOF'
 {
   "mcpServers": {
-    "langchain-rag-pipeline": {
-      "command": "/path/to/langchain-rag-pipeline/venv/bin/python",
-      "args": ["/path/to/langchain-rag-pipeline/mcp_rag_server_fastmcp.py"],
-      "cwd": "/path/to/langchain-rag-pipeline",
+    "know-rag": {
+      "command": "/path/to/know-rag/venv/bin/python",
+      "args": ["/path/to/know-rag/know_rag_mcp_server.py"],
+      "cwd": "/path/to/know-rag",
       "env": {
-        "PYTHONPATH": "/path/to/langchain-rag-pipeline/src",
+        "PYTHONPATH": "/path/to/know-rag/src",
         "USER_AGENT": "Cursor-MCP-Client/1.0"
       }
     }
@@ -70,7 +70,7 @@ rm -f .cursor/mcp.json
 #### **🐍 Solution C: Fix Python Environment**
 ```bash
 # Use absolute path to Python in venv
-which python  # Should show: /path/to/langchain-rag-pipeline/venv/bin/python
+which python  # Should show: /path/to/know-rag/venv/bin/python
 
 # If not, activate venv first
 source venv/bin/activate
@@ -102,10 +102,10 @@ python -c "from mcp.server.fastmcp import FastMCP; print('✅ FastMCP OK')"
 ```bash
 # Run server with debug output
 export MCP_LOG_LEVEL=DEBUG
-python mcp_rag_server_fastmcp.py
+python know_rag_mcp_server.py
 
 # Check for specific errors
-python mcp_rag_server_fastmcp.py 2>&1 | head -20
+python know_rag_mcp_server.py 2>&1 | head -20
 ```
 
 #### **🌍 Fix Environment Variables**
@@ -115,14 +115,14 @@ export PYTHONPATH="$(pwd)/src"
 export USER_AGENT="Cursor-MCP-Client/1.0"
 
 # Test with environment
-env PYTHONPATH="$(pwd)/src" python mcp_rag_server_fastmcp.py
+env PYTHONPATH="$(pwd)/src" python know_rag_mcp_server.py
 ```
 
 ### **Issue 3: Tools Not Appearing in Cursor**
 
 **Symptoms:**
 - Server runs but tools don't show in Cursor
-- No `@langchain-rag-pipeline` autocomplete
+- No `@know-rag` autocomplete
 
 **Solutions:**
 
@@ -130,7 +130,7 @@ env PYTHONPATH="$(pwd)/src" python mcp_rag_server_fastmcp.py
 1. Open Cursor Settings (Cmd+,)
 2. Search for "MCP" 
 3. Look for "Model Context Protocol" section
-4. Verify "langchain-rag-pipeline" is listed and enabled
+4. Verify "know-rag" is listed and enabled
 5. If not listed, add manually with the configuration above
 
 #### **🧹 Clear Cursor Cache**
@@ -144,7 +144,7 @@ rm -rf ~/.cursor/CachedData/
 
 #### **🔄 Refresh MCP Connection**
 1. In Cursor Settings → Extensions → MCP
-2. Disable "langchain-rag-pipeline" server
+2. Disable "know-rag" server
 3. Re-enable it
 4. Restart Cursor
 
@@ -178,16 +178,16 @@ ls -la ~/.cursor/mcp.json
 
 ```bash
 # Test 1: Basic server start
-python mcp_rag_server_fastmcp.py
-# Should output: "Starting LangChain RAG Pipeline FastMCP Server..."
+python know_rag_mcp_server.py
+# Should output: "Starting Know-RAG FastMCP Server..."
 
 # Test 2: Connection test
-python -m langchain_rag.mcp.connection_test
+python -m know_rag.mcp.connection_test
 # Should show: "✅ All 8 tools found and working correctly!"
 
 # Test 3: Manual tool test
 python -c "
-from mcp_rag_server_fastmcp import mcp
+from know_rag_mcp_server import mcp
 print('FastMCP server loaded:', mcp.name)
 "
 ```
@@ -199,22 +199,22 @@ print('FastMCP server loaded:', mcp.name)
 python -c "import json, os; json.load(open(os.path.expanduser('~/.cursor/mcp.json')))"
 
 # Verify paths exist
-ls -la /path/to/langchain-rag-pipeline/venv/bin/python
-ls -la /path/to/langchain-rag-pipeline/mcp_rag_server_fastmcp.py
-ls -la /path/to/langchain-rag-pipeline/src/
+ls -la /path/to/know-rag/venv/bin/python
+ls -la /path/to/know-rag/know_rag_mcp_server.py
+ls -la /path/to/know-rag/src/
 ```
 
 ### **Step 3: Test Cursor Integration**
 
 ```bash
 # In Cursor, try these commands one by one:
-@langchain-rag-pipeline list_pipelines
+@know-rag list_pipelines
 # Expected: "📝 No pipelines created yet..."
 
-@langchain-rag-pipeline create_openai_pipeline model="gpt-3.5-turbo" pipeline_id="test"
+@know-rag create_openai_pipeline model="gpt-3.5-turbo" pipeline_id="test"
 # Expected: Pipeline creation success message
 
-@langchain-rag-pipeline list_pipelines
+@know-rag list_pipelines
 # Expected: Shows "test" pipeline
 ```
 
@@ -228,7 +228,7 @@ ls -la /path/to/langchain-rag-pipeline/src/
 # Run server with maximum verbosity
 export MCP_LOG_LEVEL=DEBUG
 export PYTHONPATH="$(pwd)/src"
-python mcp_rag_server_fastmcp.py --verbose 2>&1 | tee server_debug.log
+python know_rag_mcp_server.py --verbose 2>&1 | tee server_debug.log
 
 # Check server logs
 tail -f server_debug.log
@@ -255,7 +255,7 @@ cat > test_mcp.json << 'EOF'
     "test-server": {
       "command": "python",
       "args": ["-c", "from mcp.server.fastmcp import FastMCP; app=FastMCP('test'); app.run()"],
-      "cwd": "/path/to/langchain-rag-pipeline"
+      "cwd": "/path/to/know-rag"
     }
   }
 }
@@ -268,7 +268,7 @@ EOF
 
 ### **Server Startup**
 ```
-Starting LangChain RAG Pipeline FastMCP Server...
+Starting Know-RAG FastMCP Server...
 Server initialized with 8 tools:
 - create_openai_pipeline
 - create_ollama_pipeline  
@@ -281,14 +281,14 @@ Server initialized with 8 tools:
 ```
 
 ### **Cursor Integration**
-- `@langchain-rag-pipeline` appears in autocomplete
+- `@know-rag` appears in autocomplete
 - All 8 tools are available
 - Commands execute without errors
 - Pipeline operations work correctly
 
 ### **Tool Test Results**
 ```bash
-python -m langchain_rag.mcp.connection_test
+python -m know_rag.mcp.connection_test
 ```
 Should output:
 ```
@@ -329,12 +329,12 @@ pip install -e .
 cat > ~/.cursor/mcp.json << 'EOF'
 {
   "mcpServers": {
-    "langchain-rag-pipeline": {
-      "command": "/path/to/langchain-rag-pipeline/venv/bin/python",
-      "args": ["/path/to/langchain-rag-pipeline/mcp_rag_server_fastmcp.py"],
-      "cwd": "/path/to/langchain-rag-pipeline",
+    "know-rag": {
+      "command": "/path/to/know-rag/venv/bin/python",
+      "args": ["/path/to/know-rag/know_rag_mcp_server.py"],
+      "cwd": "/path/to/know-rag",
       "env": {
-        "PYTHONPATH": "/path/to/langchain-rag-pipeline/src",
+        "PYTHONPATH": "/path/to/know-rag/src",
         "USER_AGENT": "Cursor-MCP-Client/1.0"
       }
     }
@@ -343,10 +343,10 @@ cat > ~/.cursor/mcp.json << 'EOF'
 EOF
 
 # 6. Test server
-python -m langchain_rag.mcp.connection_test
+python -m know_rag.mcp.connection_test
 
 # 7. Start Cursor and test
-# Try: @langchain-rag-pipeline list_pipelines
+# Try: @know-rag list_pipelines
 ```
 
 ---
@@ -366,10 +366,10 @@ python -m langchain_rag.mcp.connection_test
 ### **Essential Commands**
 ```bash
 # Test server
-python -m langchain_rag.mcp.connection_test
+python -m know_rag.mcp.connection_test
 
 # Start server manually
-python mcp_rag_server_fastmcp.py
+python know_rag_mcp_server.py
 
 # Check processes
 ps aux | grep mcp_rag_server
@@ -378,14 +378,14 @@ ps aux | grep mcp_rag_server
 cat ~/.cursor/mcp.json
 
 # Test in Cursor
-@langchain-rag-pipeline list_pipelines
+@know-rag list_pipelines
 ```
 
 ### **Key File Locations**
 - **Global Config**: `~/.cursor/mcp.json` ✅ (Use this)
 - **Project Config**: `.cursor/mcp.json` ❌ (Remove this)
-- **Server Script**: `mcp_rag_server_fastmcp.py`
-- **Test Script**: `src/langchain_rag/mcp/connection_test.py`
+- **Server Script**: `know_rag_mcp_server.py`
+- **Test Script**: `src/know_rag/mcp/connection_test.py`
 - **Startup Script**: `scripts/start_mcp_server.sh`
 
 ---

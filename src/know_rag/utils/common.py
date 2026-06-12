@@ -1,5 +1,5 @@
 """
-Common utilities and functions used across the LangChain RAG Pipeline.
+Common utilities and functions used across the Know-RAG.
 
 This module provides centralized implementations of commonly used functions
 to avoid code duplication and ensure consistency across the codebase.

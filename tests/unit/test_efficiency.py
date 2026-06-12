@@ -11,14 +11,14 @@ import pytest
 from langchain_core.documents import Document
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
-from langchain_rag.rag.memory import (
+from know_rag.rag.memory import (
     MAX_REPHRASE_HISTORY,
     MemoryProxy,
     SimpleTextRetriever,
 )
-from langchain_rag.rag.pipeline import Pipeline, _SourceRecordingRetriever
-from langchain_rag.rag.rag import RagProxy
-from langchain_rag.utils.full_chain import FullChain
+from know_rag.rag.pipeline import Pipeline, _SourceRecordingRetriever
+from know_rag.rag.rag import RagProxy
+from know_rag.utils.full_chain import FullChain
 
 
 class _CountingRetriever(SimpleTextRetriever):
@@ -155,7 +155,7 @@ class TestRephraseHistoryWindow:
 class TestCrossEncoderCache:
     def test_cross_encoder_loaded_once_per_model(self):
         pytest.importorskip("sentence_transformers")
-        from langchain_rag.rag.reranker import wrap_with_reranker
+        from know_rag.rag.reranker import wrap_with_reranker
 
         base = SimpleTextRetriever.from_texts(["a"])
         first = wrap_with_reranker(base)

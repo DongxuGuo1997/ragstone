@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from langchain_rag.config.settings import (
+from know_rag.config.settings import (
     Config,
     DatabaseConfig,
     LLMConfig,
     get_config,
     load_config,
 )
-from langchain_rag.utils.exceptions import ConfigurationError
+from know_rag.utils.exceptions import ConfigurationError
 
 
 class TestDatabaseConfig:

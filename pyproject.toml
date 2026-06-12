@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "langchain-rag-pipeline"
+name = "know-rag"
 version = "2.0.0"
 description = "RAG pipeline with OpenAI/Ollama backends, FAISS/Chroma vector stores, Streamlit UI, and MCP server integration"
 readme = "README.md"
@@ -91,15 +91,15 @@ dev = [
     "ipykernel>=6.25.0",
 ]
 [project.urls]
-Homepage = "https://github.com/DongxuGuo1997/langchain-rag-pipeline"
-Documentation = "https://github.com/DongxuGuo1997/langchain-rag-pipeline#readme"
-Repository = "https://github.com/DongxuGuo1997/langchain-rag-pipeline.git"
-Issues = "https://github.com/DongxuGuo1997/langchain-rag-pipeline/issues"
+Homepage = "https://github.com/DongxuGuo1997/know-rag"
+Documentation = "https://github.com/DongxuGuo1997/know-rag#readme"
+Repository = "https://github.com/DongxuGuo1997/know-rag.git"
+Issues = "https://github.com/DongxuGuo1997/know-rag/issues"
 
 [project.scripts]
-langchain-rag = "langchain_rag.ui.streamlit_app:main"
-rag-mcp-server = "langchain_rag.mcp.mcp_server_fastmcp:main"
-rag-chat = "langchain_rag.ui.chat_interface:main"
+know-rag = "know_rag.ui.streamlit_app:main"
+know-rag-mcp = "know_rag.mcp.mcp_server_fastmcp:main"
+know-rag-chat = "know_rag.ui.chat_interface:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -127,7 +127,7 @@ extend-exclude = '''
 profile = "black"
 multi_line_output = 3
 line_length = 88
-known_first_party = ["langchain_rag"]
+known_first_party = ["know_rag"]
 
 [tool.mypy]
 python_version = "3.10"

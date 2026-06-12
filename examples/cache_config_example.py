@@ -15,8 +15,8 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from langchain_rag.config.settings import get_config
-from langchain_rag.rag.pipeline import OpenAIPipeline
+from know_rag.config.settings import get_config
+from know_rag.rag.pipeline import OpenAIPipeline
 
 
 def example_cache_configuration():
