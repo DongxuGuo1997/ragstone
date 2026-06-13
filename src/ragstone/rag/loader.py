@@ -17,14 +17,14 @@ try:
 
     STREAMLIT_AVAILABLE = True
 except ImportError:
-    UploadedFile = None
+    UploadedFile = None  # type: ignore[assignment, misc]
     STREAMLIT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 # Import cache for heavy document loaders
-_loader_cache = {}
-_document_cache = {}  # Cache for loaded documents
+_loader_cache: Dict[str, Any] = {}
+_document_cache: Dict[str, Any] = {}  # Cache for loaded documents
 
 
 def _get_cached_loader(loader_type: str):
@@ -386,7 +386,7 @@ class OptimizedLocalLoader(LocalLoader):
         super().__init__(name)
         self.max_workers = max_workers
         self.enable_cache = enable_cache
-        self._file_stats = {}
+        self._file_stats: Dict[str, Any] = {}
         self._cache_hits = 0
         self._cache_misses = 0
 
@@ -456,7 +456,7 @@ class OptimizedLocalLoader(LocalLoader):
         Single directory traversal to categorize all files by type.
         Much more efficient than multiple glob operations.
         """
-        files_by_type = {
+        files_by_type: Dict[str, List] = {
             file_type: [] for file_type in self._file_type_mapping.values()
         }
         files_by_type["unknown"] = []
@@ -503,7 +503,7 @@ class OptimizedLocalLoader(LocalLoader):
 
             # Get the appropriate loader
             loader_cls = _get_cached_loader(file_type)
-            loader_kwargs = {}
+            loader_kwargs: Dict[str, Any] = {}
 
             # Special handling for CSV files
             if file_type == "csv":
@@ -538,7 +538,7 @@ class OptimizedLocalLoader(LocalLoader):
         import time
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        all_documents = []
+        all_documents: List = []
         total_files = sum(len(paths) for paths in files_by_type.values() if paths)
 
         if total_files == 0:

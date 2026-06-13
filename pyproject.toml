@@ -150,7 +150,6 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "ragstone.rag.rag",
-    "ragstone.rag.loader",
     "ragstone.rag.vector_db",
 ]
 ignore_errors = true
