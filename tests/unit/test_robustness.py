@@ -163,3 +163,20 @@ class TestChainInputShapes:
 
         with pytest.raises(ValidationError):
             chain.invoke("   ")
+
+
+class TestChainTypesRun:
+    """All three chain types build and run end to end (fakes, no network)."""
+
+    def test_multi_query_chain_answers(self):
+        llm = FakeListChatModel(responses=["1. alpha\n2. beta", "Paris."])
+        retriever = SimpleTextRetriever.from_texts(["Paris is the capital."])
+        chain = RagProxy(model=llm, retriever=retriever).make_multi_query_chain()
+        assert chain.invoke("capital?") == "Paris."
+
+    def test_fusion_chain_answers(self):
+        # Exercises _reciprocal_rank_fusion -> _docs_from_fusion -> format.
+        llm = FakeListChatModel(responses=["1. alpha\n2. beta", "Paris."])
+        retriever = SimpleTextRetriever.from_texts(["Paris is the capital."])
+        chain = RagProxy(model=llm, retriever=retriever).make_fusion_chain()
+        assert chain.invoke("capital?") == "Paris."

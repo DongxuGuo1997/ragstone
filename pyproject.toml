@@ -145,14 +145,6 @@ module = [
 ]
 ignore_missing_imports = true
 
-# Type-checking ratchet: these modules still have LCEL-generics and legacy
-# typing debt. Fix a module, remove it from this list — never add to it.
-[[tool.mypy.overrides]]
-module = [
-    "ragstone.rag.rag",
-]
-ignore_errors = true
-
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --strict-markers"

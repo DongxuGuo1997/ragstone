@@ -8,7 +8,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages.base import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import BasePromptTemplate, ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda, RunnableSequence
+from langchain_core.runnables import Runnable, RunnableLambda
 from langchain_core.vectorstores import VectorStoreRetriever
 
 from ..utils.exceptions import ValidationError
@@ -48,6 +48,11 @@ def parse_generated_queries(text: str) -> List[str]:
     return queries
 
 
+def _docs_from_fusion(ranked: List[Tuple[Document, float]]) -> List[Document]:
+    """Extract the documents from reciprocal-rank-fusion (doc, score) pairs."""
+    return [doc for doc, _score in ranked]
+
+
 class RagProxy:
     """
     A proxy class for creating and managing RAG (Retrieval Augmented Generation) chains.
@@ -81,7 +86,7 @@ class RagProxy:
         self._llm = model
         self._retriever = retriever
         if rag_prompt is None:
-            self._rag_prompt = ChatPromptTemplate.from_template(
+            self._rag_prompt: BasePromptTemplate = ChatPromptTemplate.from_template(
                 DEFAULT_RAG_PROMPT_TEMPLATE
             )
             logger.info("Using bundled default RAG prompt.")
@@ -100,6 +105,7 @@ class RagProxy:
                 — failing here gives a clear error instead of an opaque
                 failure deep inside the retriever.
         """
+        question: Any
         if isinstance(inputs, str):
             question = inputs
         elif isinstance(inputs, dict) and "question" in inputs:
@@ -115,7 +121,7 @@ class RagProxy:
             raise ValidationError("Question must be a non-empty string.")
         return question
 
-    def make_chain(self) -> RunnableSequence:
+    def make_chain(self) -> Runnable:
         """
         Creates a basic RAG chain.
         The input to this chain is expected to be the question string or a dict {"question": "..."}.
@@ -136,7 +142,7 @@ class RagProxy:
         logger.info("Basic RAG chain created.")
         return rag_chain
 
-    def make_multi_query_chain(self) -> RunnableSequence:
+    def make_multi_query_chain(self) -> Runnable:
         """
         Creates a RAG chain that uses multi-query retrieval.
         The input to this chain is expected to be the question string or a dict {"question": "..."}.
@@ -153,7 +159,7 @@ class RagProxy:
 
         # The input to retrieval_chain will be the original question,
         # which is then transformed by generate_queries_runnable.
-        retrieval_chain = (
+        retrieval_chain: Runnable = (
             generate_queries_runnable | self._retriever.map() | self._get_unique_union
         )
 
@@ -171,7 +177,7 @@ class RagProxy:
         logger.info("Multi-query RAG chain created.")
         return final_rag_chain
 
-    def make_fusion_chain(self) -> RunnableSequence:
+    def make_fusion_chain(self) -> Runnable:
         """
         Creates a RAG chain that uses reciprocal rank fusion for retrieved documents.
         The input to this chain is expected to be the question string or a dict {"question": "..."}.
@@ -181,13 +187,11 @@ class RagProxy:
             prompt_rag_fusion | self._llm | StrOutputParser() | parse_generated_queries
         )
 
-        retrieval_chain = (
+        retrieval_chain: Runnable = (
             generate_queries_runnable
             | self._retriever.map()
             | self._reciprocal_rank_fusion
-            | RunnableLambda(
-                lambda reranked_results: [doc for doc, score in reranked_results]
-            )
+            | RunnableLambda(_docs_from_fusion)
         )
 
         final_rag_chain = (
