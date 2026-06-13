@@ -366,7 +366,7 @@ class LocalLoader(Loader):
 
 class OptimizedLocalLoader(LocalLoader):
     """
-    🚀 OPTIMIZED document loader with parallel processing, smart caching, and efficiency improvements.
+    OPTIMIZED document loader with parallel processing, smart caching, and efficiency improvements.
 
     Key optimizations:
     - Single directory traversal instead of 5 separate ones
@@ -467,7 +467,7 @@ class OptimizedLocalLoader(LocalLoader):
             )
             return files_by_type
 
-        logger.info(f"🔍 Scanning directory: {data_dir}")
+        logger.info(f"Scanning directory: {data_dir}")
         total_files = 0
 
         # Single recursive directory walk
@@ -483,7 +483,7 @@ class OptimizedLocalLoader(LocalLoader):
                     files_by_type["unknown"].append(file_path)
 
         # Log scan results
-        logger.info(f"📊 Directory scan complete: {total_files} total files found")
+        logger.info(f"Directory scan complete: {total_files} total files found")
         for file_type, paths in files_by_type.items():
             if paths:
                 logger.info(f"   {file_type}: {len(paths)} files")
@@ -546,7 +546,7 @@ class OptimizedLocalLoader(LocalLoader):
             return all_documents
 
         logger.info(
-            f"🚀 Starting parallel loading of {total_files} files with {self.max_workers} workers"
+            f"Starting parallel loading of {total_files} files with {self.max_workers} workers"
         )
         start_time = time.time()
 
@@ -579,9 +579,7 @@ class OptimizedLocalLoader(LocalLoader):
                     if docs:
                         all_documents.extend(docs)
                         loaded_count += 1
-                        logger.debug(
-                            f"✅ Loaded {len(docs)} docs from {file_path.name}"
-                        )
+                        logger.debug(f"Loaded {len(docs)} docs from {file_path.name}")
                     else:
                         failed_count += 1
 
@@ -589,26 +587,26 @@ class OptimizedLocalLoader(LocalLoader):
                     if (loaded_count + failed_count) % 10 == 0:
                         progress = (loaded_count + failed_count) / len(tasks) * 100
                         logger.info(
-                            f"📈 Progress: {progress:.1f}% ({loaded_count + failed_count}/{len(tasks)} files)"
+                            f"Progress: {progress:.1f}% ({loaded_count + failed_count}/{len(tasks)} files)"
                         )
 
                 except Exception as e:
-                    logger.error(f"❌ Failed to load {file_path}: {e}")
+                    logger.error(f"Failed to load {file_path}: {e}")
                     failed_count += 1
 
         end_time = time.time()
         duration = end_time - start_time
 
         # Performance summary
-        logger.info("✅ Parallel loading complete!")
-        logger.info(f"   📄 Total documents: {len(all_documents)}")
-        logger.info(f"   ✅ Successful files: {loaded_count}")
-        logger.info(f"   ❌ Failed files: {failed_count}")
-        logger.info(f"   ⏱️  Duration: {duration:.2f}s")
-        logger.info(f"   🚀 Speed: {len(all_documents)/duration:.1f} docs/sec")
+        logger.info("Parallel loading complete!")
+        logger.info(f"   Total documents: {len(all_documents)}")
+        logger.info(f"   Successful files: {loaded_count}")
+        logger.info(f"   Failed files: {failed_count}")
+        logger.info(f"    Duration: {duration:.2f}s")
+        logger.info(f"   Speed: {len(all_documents)/duration:.1f} docs/sec")
         if self.enable_cache:
             logger.info(
-                f"   💾 Cache: {self._cache_hits} hits, {self._cache_misses} misses"
+                f"   Cache: {self._cache_hits} hits, {self._cache_misses} misses"
             )
 
         return all_documents
@@ -624,7 +622,7 @@ class OptimizedLocalLoader(LocalLoader):
             uploaded_files (Optional[List]): A list of files uploaded by the user.
         """
         loaded_docs: List = []
-        logger.info(f"🚀 Starting OPTIMIZED loading from data_dir: '{data_dir}'")
+        logger.info(f"Starting OPTIMIZED loading from data_dir: '{data_dir}'")
 
         if data_dir:
             try:
@@ -657,9 +655,7 @@ class OptimizedLocalLoader(LocalLoader):
         # Store all loaded documents
         self._documents = loaded_docs
         total_docs = len(loaded_docs)
-        logger.info(
-            f"✨ OPTIMIZED loading complete. Total documents loaded: {total_docs}"
-        )
+        logger.info(f"OPTIMIZED loading complete. Total documents loaded: {total_docs}")
 
     def clear_cache(self) -> None:
         """Clear the document cache."""
@@ -667,7 +663,7 @@ class OptimizedLocalLoader(LocalLoader):
         _document_cache.clear()
         self._cache_hits = 0
         self._cache_misses = 0
-        logger.info(f"🗑️  Cache cleared: {cache_size} entries removed")
+        logger.info(f"Cache cleared: {cache_size} entries removed")
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache performance statistics."""

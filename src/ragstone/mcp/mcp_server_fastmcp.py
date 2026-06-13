@@ -43,10 +43,12 @@ def create_openai_pipeline(
     try:
         pipeline = OpenAIPipeline(model=model)
         _pipelines[pipeline_id] = pipeline
-        return f"✅ OpenAI pipeline '{pipeline_id}' created successfully with model {model}"
+        return (
+            f"OpenAI pipeline '{pipeline_id}' created successfully with model {model}"
+        )
     except Exception as e:
         logger.error(f"Failed to create OpenAI pipeline: {e}")
-        return f"❌ Failed to create OpenAI pipeline: {str(e)}"
+        return f"Failed to create OpenAI pipeline: {str(e)}"
 
 
 @mcp.tool()
@@ -65,10 +67,12 @@ def create_ollama_pipeline(
     try:
         pipeline = OllamaPipeline(model=model)
         _pipelines[pipeline_id] = pipeline
-        return f"✅ Ollama pipeline '{pipeline_id}' created successfully with model {model}"
+        return (
+            f"Ollama pipeline '{pipeline_id}' created successfully with model {model}"
+        )
     except Exception as e:
         logger.error(f"Failed to create Ollama pipeline: {e}")
-        return f"❌ Failed to create Ollama pipeline: {str(e)}"
+        return f"Failed to create Ollama pipeline: {str(e)}"
 
 
 @mcp.tool()
@@ -87,7 +91,7 @@ async def load_documents(
         Success message with document count
     """
     if pipeline_id not in _pipelines:
-        return f"❌ Pipeline '{pipeline_id}' not found. Create it first."
+        return f"Pipeline '{pipeline_id}' not found. Create it first."
 
     try:
         pipeline = _pipelines[pipeline_id]
@@ -113,13 +117,13 @@ async def load_documents(
 
         if texts:
             doc_count = len(texts)
-            return f"✅ Loaded and split {doc_count} document chunks into pipeline '{pipeline_id}'"
+            return f"Loaded and split {doc_count} document chunks into pipeline '{pipeline_id}'"
         else:
-            return "⚠️ No documents were loaded. Check your data sources."
+            return "No documents were loaded. Check your data sources."
 
     except Exception as e:
         logger.error(f"Failed to load documents: {e}")
-        return f"❌ Failed to load documents: {str(e)}"
+        return f"Failed to load documents: {str(e)}"
 
 
 @mcp.tool()
@@ -141,7 +145,7 @@ async def setup_retriever(
         Success message with configuration details
     """
     if pipeline_id not in _pipelines:
-        return f"❌ Pipeline '{pipeline_id}' not found. Create it first."
+        return f"Pipeline '{pipeline_id}' not found. Create it first."
 
     try:
         pipeline = _pipelines[pipeline_id]
@@ -164,11 +168,11 @@ async def setup_retriever(
         retriever_type = "Ensemble (BM25 + Vector)" if use_ensemble else "Vector only"
         if use_reranker:
             retriever_type += " + Reranker"
-        return f"✅ Pipeline '{pipeline_id}' configured with {retriever_type} retriever and {chain_type} RAG chain"
+        return f"Pipeline '{pipeline_id}' configured with {retriever_type} retriever and {chain_type} RAG chain"
 
     except Exception as e:
         logger.error(f"Failed to setup retriever: {e}")
-        return f"❌ Failed to setup retriever: {str(e)}"
+        return f"Failed to setup retriever: {str(e)}"
 
 
 @mcp.tool()
@@ -186,7 +190,7 @@ async def ask_question(
         Answer from the RAG pipeline
     """
     if pipeline_id not in _pipelines:
-        return f"❌ Pipeline '{pipeline_id}' not found. Create it first."
+        return f"Pipeline '{pipeline_id}' not found. Create it first."
 
     try:
         pipeline = _pipelines[pipeline_id]
@@ -197,13 +201,13 @@ async def ask_question(
         )
 
         if response:
-            return f"🤖 **Answer:** {response}"
+            return f"**Answer:** {response}"
         else:
-            return "❌ Sorry, I couldn't generate a response. Please try again."
+            return "Sorry, I couldn't generate a response. Please try again."
 
     except Exception as e:
         logger.error(f"Failed to ask question: {e}")
-        return f"❌ Error generating response: {str(e)}"
+        return f"Error generating response: {str(e)}"
 
 
 @mcp.tool()
@@ -214,9 +218,9 @@ def list_pipelines() -> str:
         Formatted list of all pipelines with their details
     """
     if not _pipelines:
-        return "📝 No pipelines created yet. Use create_openai_pipeline or create_ollama_pipeline first."
+        return "No pipelines created yet. Use create_openai_pipeline or create_ollama_pipeline first."
 
-    result = "📋 **Available Pipelines:**\n\n"
+    result = "**Available Pipelines:**\n\n"
     for pipeline_id, pipeline in _pipelines.items():
         pipeline_type = "OpenAI" if isinstance(pipeline, OpenAIPipeline) else "Ollama"
         model = pipeline.LLM.get_model_name() if pipeline.LLM else "Not set"
@@ -243,7 +247,7 @@ def get_pipeline_info(pipeline_id: str) -> str:
         Detailed information about the pipeline
     """
     if pipeline_id not in _pipelines:
-        return f"❌ Pipeline '{pipeline_id}' not found."
+        return f"Pipeline '{pipeline_id}' not found."
 
     pipeline = _pipelines[pipeline_id]
     pipeline_type = "OpenAI" if isinstance(pipeline, OpenAIPipeline) else "Ollama"
@@ -251,7 +255,7 @@ def get_pipeline_info(pipeline_id: str) -> str:
     doc_count = len(pipeline.texts) if pipeline.texts else 0
     has_chain = pipeline.get_chain() is not None
 
-    result = f"📊 **Pipeline Info: {pipeline_id}**\n\n"
+    result = f"**Pipeline Info: {pipeline_id}**\n\n"
     result += f"**Type:** {pipeline_type}\n"
     result += f"**Model:** {model}\n"
     result += f"**Document chunks:** {doc_count}\n"
@@ -275,7 +279,7 @@ def delete_pipeline(pipeline_id: str) -> str:
         Success or error message
     """
     if pipeline_id not in _pipelines:
-        return f"❌ Pipeline '{pipeline_id}' not found."
+        return f"Pipeline '{pipeline_id}' not found."
 
     try:
         # Clean up resources if available
@@ -284,11 +288,11 @@ def delete_pipeline(pipeline_id: str) -> str:
             pipeline.vector_db.cleanup()
 
         del _pipelines[pipeline_id]
-        return f"✅ Pipeline '{pipeline_id}' deleted successfully"
+        return f"Pipeline '{pipeline_id}' deleted successfully"
 
     except Exception as e:
         logger.error(f"Failed to delete pipeline: {e}")
-        return f"❌ Failed to delete pipeline: {str(e)}"
+        return f"Failed to delete pipeline: {str(e)}"
 
 
 def main():

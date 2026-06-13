@@ -17,16 +17,16 @@ class ChatInterface:
         # Create pipeline
         if pipeline_type.lower() == "ollama":
             self.pipeline = OllamaPipeline(model=model)
-            print(f"🦙 Initialized Ollama pipeline with {model}")
+            print(f"Initialized Ollama pipeline with {model}")
         else:
             self.pipeline = OpenAIPipeline(model=model)
-            print(f"🤖 Initialized OpenAI pipeline with {model}")
+            print(f"Initialized OpenAI pipeline with {model}")
 
         # Load documents
-        print("📚 Loading documents...")
+        print("Loading documents...")
         self.texts = self.pipeline.load_and_split(data_dir="data")
         if self.texts:
-            print(f"✅ Loaded {len(self.texts)} document chunks")
+            print(f"Loaded {len(self.texts)} document chunks")
         else:
             # Fail here instead of entering a chat loop that can never answer.
             raise DocumentLoadingError(
@@ -35,17 +35,17 @@ class ChatInterface:
             )
 
         # Setup retriever
-        print("🔍 Setting up retriever...")
+        print("Setting up retriever...")
         if pipeline_type.lower() == "ollama":
             self.pipeline.set_retriever_ollama(use_ensemble=True)
         else:
             self.pipeline.set_retriever_openai(use_ensemble=True)
 
         # Create RAG chain
-        print("⛓️  Creating RAG chain...")
+        print("Creating RAG chain...")
         self.pipeline.create_rag_chain(chain_type="simple")
 
-        print("🚀 Chat interface ready! Type 'quit' to exit.\n")
+        print("Chat interface ready! Type 'quit' to exit.\n")
 
     def chat(self):
         """Start the interactive chat loop."""
@@ -54,29 +54,29 @@ class ChatInterface:
         while True:
             try:
                 # Get user input
-                question = input("\n💬 You: ").strip()
+                question = input("\nYou: ").strip()
 
                 if question.lower() in ["quit", "exit", "q"]:
-                    print("👋 Goodbye!")
+                    print("Goodbye!")
                     break
 
                 if not question:
                     continue
 
                 # Get response from RAG pipeline
-                print("🤔 Thinking...")
+                print("Thinking...")
                 response = self.pipeline.ask_question(question, session_id=session_id)
 
                 if response:
-                    print(f"🤖 Assistant: {response}")
+                    print(f"Assistant: {response}")
                 else:
-                    print("❌ Sorry, I couldn't generate a response.")
+                    print("Sorry, I couldn't generate a response.")
 
             except KeyboardInterrupt:
-                print("\n👋 Goodbye!")
+                print("\nGoodbye!")
                 break
             except Exception as e:
-                print(f"❌ Error: {e}")
+                print(f"Error: {e}")
 
 
 def get_available_ollama_models():
@@ -96,7 +96,7 @@ def get_available_ollama_models():
 
 def select_model_interactive():
     """Interactive model selection."""
-    print("\n🔌 Select Pipeline Type:")
+    print("\nSelect Pipeline Type:")
     print("1. Ollama (Local models)")
     print("2. OpenAI (Cloud models)")
 
@@ -104,11 +104,11 @@ def select_model_interactive():
         choice = input("\nEnter choice (1-2) [1]: ").strip() or "1"
         if choice in ["1", "2"]:
             break
-        print("❌ Invalid choice. Please enter 1 or 2.")
+        print("Invalid choice. Please enter 1 or 2.")
 
     if choice == "1":
         pipeline_type = "ollama"
-        print("\n🦙 Ollama Models:")
+        print("\nOllama Models:")
 
         # Get available models
         available_models = get_available_ollama_models()
@@ -132,15 +132,15 @@ def select_model_interactive():
                     model = model_choice
                     break
                 else:
-                    print("❌ Please enter a valid choice or model name.")
+                    print("Please enter a valid choice or model name.")
         else:
-            print("⚠️  Ollama not running or no models found")
+            print("Ollama not running or no models found")
             print("Common models: llama3, phi4, deepseek-r1, mixtral")
             model = input("Enter model name [llama3]: ").strip() or "llama3"
 
     else:
         pipeline_type = "openai"
-        print("\n🤖 OpenAI Models:")
+        print("\nOpenAI Models:")
         openai_models = ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o"]
 
         for i, model in enumerate(openai_models, 1):
@@ -158,14 +158,14 @@ def select_model_interactive():
                 model = model_choice
                 break
             else:
-                print("❌ Please enter a valid choice or model name.")
+                print("Please enter a valid choice or model name.")
 
     return pipeline_type, model
 
 
 def main():
     """Main function to run the chat interface."""
-    print("🌟 Ragstone Chat Interface")
+    print("Ragstone Chat Interface")
     print("=" * 50)
 
     # Interactive model selection
@@ -179,7 +179,7 @@ def main():
         chat_interface.chat()
 
     except Exception as e:
-        print(f"❌ Failed to initialize chat interface: {e}")
+        print(f"Failed to initialize chat interface: {e}")
         print("Make sure:")
         print("- Ollama is running (for Ollama models)")
         print("- OpenAI API key is set (for OpenAI models)")

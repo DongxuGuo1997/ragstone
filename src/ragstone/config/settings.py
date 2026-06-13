@@ -179,7 +179,7 @@ class UIConfig:
     """Configuration for the user interface."""
 
     title: str = "Ragstone"
-    page_icon: str = "🤖"
+    page_icon: str = ""
     layout: str = "wide"
     initial_sidebar_state: str = "expanded"
     theme_primary_color: str = "#FF6B6B"

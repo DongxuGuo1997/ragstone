@@ -241,7 +241,7 @@ class Pipeline:
             self.local_loader = LocalLoader(
                 name="optimized_local", max_workers=max_workers, enable_cache=True
             )
-            logger.info(f"🚀 Using OptimizedLocalLoader with {max_workers} workers")
+            logger.info(f"Using OptimizedLocalLoader with {max_workers} workers")
         else:
             LocalLoader = _get_cached_pipeline_import("local_loader")
             self.local_loader = LocalLoader(name="local")
@@ -599,7 +599,7 @@ class Pipeline:
         if use_cache and cache_enabled:
             cached_response = _get_query_cache().get_response(question, session_id)
             if cached_response:
-                logger.info("⚡ Cache hit! Returning cached response.")
+                logger.info("Cache hit! Returning cached response.")
                 return cached_response
 
         # Cache miss - generate new response
@@ -612,21 +612,19 @@ class Pipeline:
                 _get_query_cache().cache_response(question, response, session_id)
 
                 generation_time = time.time() - start_time
-                logger.info(
-                    f"✅ Generated and cached response in {generation_time:.2f}s"
-                )
+                logger.info(f"Generated and cached response in {generation_time:.2f}s")
 
                 # Log cache statistics periodically
                 if _get_query_cache().stats.total_queries % 10 == 0:
                     stats = _get_query_cache().get_stats()
                     logger.info(
-                        f"📊 Cache stats: {stats['hit_rate']} hit rate "
+                        f"Cache stats: {stats['hit_rate']} hit rate "
                         f"({stats['hits']} hits / {stats['misses']} misses)"
                     )
             elif response and not cache_enabled:
                 generation_time = time.time() - start_time
                 logger.info(
-                    f"✅ Generated response in {generation_time:.2f}s (cache disabled)"
+                    f"Generated response in {generation_time:.2f}s (cache disabled)"
                 )
 
             logger.info("Received response from RAG chain.")
@@ -674,7 +672,7 @@ class Pipeline:
         if use_cache and cache_enabled:
             cached_response = _get_query_cache().get_response(question, session_id)
             if cached_response:
-                logger.info("⚡ Cache hit! Streaming cached response.")
+                logger.info("Cache hit! Streaming cached response.")
                 yield cached_response
                 return
 
@@ -793,7 +791,7 @@ class OpenAIPipeline(Pipeline):
             # first real embedding request moments later, so a paid "test"
             # embed per setup buys nothing.
             logger.info(
-                f"✅ OpenAI embeddings created successfully (model: {embeddings.model})"
+                f"OpenAI embeddings created successfully (model: {embeddings.model})"
             )
             self._set_retriever(
                 embeddings=embeddings,
@@ -802,7 +800,7 @@ class OpenAIPipeline(Pipeline):
             )
 
         except Exception as e:
-            logger.error(f"❌ Failed to create OpenAI embeddings: {e}")
+            logger.error(f"Failed to create OpenAI embeddings: {e}")
             raise
 
 
@@ -894,7 +892,7 @@ class OllamaPipeline(Pipeline):
         if config.llm.prefer_ollama_embeddings:
 
             # STRATEGY 1: Try dedicated embedding models first (MUCH FASTER!)
-            logger.info("🚀 Trying dedicated embedding models for optimal speed...")
+            logger.info("Trying dedicated embedding models for optimal speed...")
             dedicated_models = [
                 "nomic-embed-text:latest",
                 "nomic-embed-text",
@@ -906,12 +904,10 @@ class OllamaPipeline(Pipeline):
 
             for model in dedicated_models:
                 try:
-                    logger.info(f"⚡ Testing fast embedding model: {model}")
+                    logger.info(f"Testing fast embedding model: {model}")
                     embeddings = self._try_embedding_model(model)
                     if embeddings:
-                        logger.info(
-                            f"✅ SUCCESS: Using fast embedding model '{model}'!"
-                        )
+                        logger.info(f"SUCCESS: Using fast embedding model '{model}'!")
                         return embeddings
                 except Exception as e:
                     logger.debug(f"Embedding model '{model}' not available: {e}")
@@ -921,7 +917,7 @@ class OllamaPipeline(Pipeline):
             llm_model = self.LLM.get_model_name() if self.LLM else None
             if llm_model:
                 logger.info(
-                    f"🔄 Trying model-specific embedding preferences for {llm_model}..."
+                    f"Trying model-specific embedding preferences for {llm_model}..."
                 )
                 embedding_models = self._get_embedding_models_for_llm(llm_model, config)
 
@@ -950,12 +946,12 @@ class OllamaPipeline(Pipeline):
             # STRATEGY 3: Try LLM model directly as last resort (SLOWEST!)
             if llm_model:
                 logger.warning(
-                    f"⚠️ Trying LLM model '{llm_model}' directly as embedding model (will be SLOW)"
+                    f"Trying LLM model '{llm_model}' directly as embedding model (will be SLOW)"
                 )
                 ollama_embeddings = self._try_direct_llm_embeddings(llm_model)
                 if ollama_embeddings:
                     logger.warning(
-                        f"⚠️ Using LLM model '{llm_model}' for embeddings - this will be slow!"
+                        f"Using LLM model '{llm_model}' for embeddings - this will be slow!"
                     )
                     return ollama_embeddings
 
@@ -995,7 +991,7 @@ class OllamaPipeline(Pipeline):
 
         try:
             logger.debug(
-                f"🚀 Creating OllamaEmbeddings with embedding model: {model_name}"
+                f"Creating OllamaEmbeddings with embedding model: {model_name}"
             )
             embeddings = OllamaEmbeddings(model=model_name)
 
@@ -1004,12 +1000,12 @@ class OllamaPipeline(Pipeline):
             if test_result:
                 dimensions = len(test_result)
                 logger.info(
-                    f"✅ Embedding model '{model_name}' works! Dimensions: {dimensions}"
+                    f"Embedding model '{model_name}' works! Dimensions: {dimensions}"
                 )
                 return embeddings
 
         except Exception as e:
-            logger.debug(f"❌ Embedding model '{model_name}' failed: {e}")
+            logger.debug(f"Embedding model '{model_name}' failed: {e}")
 
         return None
 
@@ -1027,7 +1023,7 @@ class OllamaPipeline(Pipeline):
         OllamaEmbeddings = _get_cached_pipeline_import("ollama_embeddings")
 
         try:
-            logger.info(f"🚀 Creating OllamaEmbeddings with LLM model: {model_name}")
+            logger.info(f"Creating OllamaEmbeddings with LLM model: {model_name}")
             embeddings = OllamaEmbeddings(model=model_name)
 
             # Test the embeddings with a simple query to verify it works
@@ -1035,14 +1031,12 @@ class OllamaPipeline(Pipeline):
             if test_result:
                 dimensions = len(test_result)
                 logger.info(
-                    f"✅ LLM model '{model_name}' works as embedding model! Dimensions: {dimensions}"
+                    f"LLM model '{model_name}' works as embedding model! Dimensions: {dimensions}"
                 )
                 return embeddings
 
         except Exception as e:
-            logger.warning(
-                f"❌ LLM model '{model_name}' failed as embedding model: {e}"
-            )
+            logger.warning(f"LLM model '{model_name}' failed as embedding model: {e}")
 
         return None
 
