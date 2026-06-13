@@ -1,11 +1,8 @@
 import hashlib
 import logging
 import os
-import threading
 import time
-from collections import OrderedDict
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.retrievers import BaseRetriever
@@ -18,129 +15,18 @@ from ..utils.exceptions import (
     RetrieverInitializationError,
 )
 from ..utils.full_chain import FullChain
+from .cache import QueryResultCache  # noqa: F401  re-exported; tests import here
+from .cache import get_query_cache as _get_query_cache
+from .cache import is_response_cache_enabled as _is_response_cache_enabled
+from .embeddings import get_smart_embeddings, make_openai_embeddings
 from .memory import MemoryProxy
 from .rag import RagProxy
 from .splitter import split_documents
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# Import cache for heavy LangChain dependencies
+# Cache of heavy lazy imports (Document, retrievers, loaders, vector stores).
 _pipeline_cache: Dict[str, Any] = {}
-
-
-@dataclass
-class CacheStats:
-    """Counters for the response cache."""
-
-    hits: int = 0
-    misses: int = 0
-
-    @property
-    def total_queries(self) -> int:
-        return self.hits + self.misses
-
-    @property
-    def hit_rate(self) -> float:
-        total = self.total_queries
-        return self.hits / total if total > 0 else 0.0
-
-
-class QueryResultCache:
-    """Exact-match response cache with TTL and LRU eviction.
-
-    Entries are keyed by (question, context_hash) so answers never leak
-    across sessions or document sets. Deliberately simple: earlier versions
-    had normalized and semantic-similarity tiers, but those could return a
-    cached answer for a materially different question, and the semantic
-    tier spent embedding API calls just to probe the cache. Exact matching
-    is cheap, thread-safe, and can't be wrong.
-    """
-
-    def __init__(self, max_size: int = 100, ttl_seconds: int = 3600):
-        self.max_size = max_size
-        self.ttl_seconds = ttl_seconds
-        self._entries: "OrderedDict[Tuple[str, str], Tuple[float, str]]" = OrderedDict()
-        self._lock = threading.Lock()
-        self.stats = CacheStats()
-
-    @staticmethod
-    def _key(question: str, context_hash: str = "") -> Tuple[str, str]:
-        return question.strip(), context_hash or ""
-
-    def get_response(self, question: str, context_hash: str = "") -> Optional[str]:
-        """Return the cached response for this exact question, or None."""
-        key = self._key(question, context_hash)
-        with self._lock:
-            entry = self._entries.get(key)
-            if entry is None:
-                self.stats.misses += 1
-                return None
-            timestamp, response = entry
-            if time.time() - timestamp > self.ttl_seconds:
-                del self._entries[key]
-                self.stats.misses += 1
-                return None
-            self._entries.move_to_end(key)  # refresh LRU position
-            self.stats.hits += 1
-            return response
-
-    def cache_response(
-        self, question: str, response: str, context_hash: str = ""
-    ) -> None:
-        """Store a response, evicting least-recently-used entries if full."""
-        key = self._key(question, context_hash)
-        with self._lock:
-            self._entries[key] = (time.time(), response)
-            self._entries.move_to_end(key)
-            while len(self._entries) > self.max_size:
-                self._entries.popitem(last=False)
-
-    def get_stats(self) -> Dict[str, Any]:
-        """Return cache size and hit/miss counters."""
-        with self._lock:
-            return {
-                "entries": len(self._entries),
-                "hits": self.stats.hits,
-                "misses": self.stats.misses,
-                "hit_rate": f"{self.stats.hit_rate:.1%}",
-            }
-
-    def clear_cache(self) -> None:
-        """Drop all cached responses."""
-        with self._lock:
-            count = len(self._entries)
-            self._entries.clear()
-        if count:
-            logger.info(f"Cleared {count} cached responses")
-
-
-# Global cache instance
-_query_cache = None
-_query_cache_lock = threading.Lock()
-
-
-def _get_query_cache() -> QueryResultCache:
-    """Get or create the global response cache using configuration."""
-    global _query_cache
-    if _query_cache is None:
-        with _query_cache_lock:
-            if _query_cache is None:
-                from ..config.settings import get_config
-
-                config = get_config()
-                _query_cache = QueryResultCache(
-                    max_size=config.cache.response_cache_size,
-                    ttl_seconds=config.cache.response_cache_ttl,
-                )
-    return _query_cache
-
-
-def _is_response_cache_enabled() -> bool:
-    """Check if the response cache is enabled in configuration."""
-    from ..config.settings import get_config
-
-    return get_config().cache.enable_response_cache
 
 
 def _get_cached_pipeline_import(import_type: str):
@@ -159,14 +45,6 @@ def _get_cached_pipeline_import(import_type: str):
                 from langchain_community.retrievers import BM25Retriever
 
                 _pipeline_cache[import_type] = BM25Retriever
-            elif import_type == "ollama_embeddings":
-                from langchain_ollama import OllamaEmbeddings
-
-                _pipeline_cache[import_type] = OllamaEmbeddings
-            elif import_type == "openai_embeddings":
-                from langchain_openai import OpenAIEmbeddings
-
-                _pipeline_cache[import_type] = OpenAIEmbeddings
             elif import_type == "local_loader":
                 from .loader import LocalLoader
 
@@ -190,11 +68,6 @@ def _get_cached_pipeline_import(import_type: str):
             raise
 
     return _pipeline_cache[import_type]
-
-
-# Embedding selection is expensive (probes several Ollama models with real
-# requests); remember the working choice per LLM model for the process.
-_smart_embeddings_cache: Dict[str, Any] = {}
 
 
 class _SourceRecordingRetriever(BaseRetriever):
@@ -770,38 +643,13 @@ class OpenAIPipeline(Pipeline):
                 "a fully local setup."
             )
 
-        logger.info("OpenAI Pipeline: Creating embeddings with timeout protection...")
-
-        try:
-            # Use standard LangChain OpenAI embeddings with clean configuration
-            OpenAIEmbeddings = _get_cached_pipeline_import("openai_embeddings")
-
-            # Create embeddings with explicit parameters and timeout handling
-            embeddings = OpenAIEmbeddings(
-                openai_api_key=os.getenv("OPENAI_API_KEY"),
-                # Explicitly exclude organization to prevent "your_org_id_here" error
-                openai_organization=None,
-                model=get_config().llm.openai_embedding_model,
-                # Add timeout and retry settings
-                request_timeout=30,  # 30 second timeout
-                max_retries=2,  # Retry up to 2 times
-            )
-
-            # No probe call here: auth/connectivity failures surface on the
-            # first real embedding request moments later, so a paid "test"
-            # embed per setup buys nothing.
-            logger.info(
-                f"OpenAI embeddings created successfully (model: {embeddings.model})"
-            )
-            self._set_retriever(
-                embeddings=embeddings,
-                use_ensemble=use_ensemble,
-                use_reranker=use_reranker,
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to create OpenAI embeddings: {e}")
-            raise
+        logger.info("Creating OpenAI embeddings...")
+        embeddings = make_openai_embeddings()
+        self._set_retriever(
+            embeddings=embeddings,
+            use_ensemble=use_ensemble,
+            use_reranker=use_reranker,
+        )
 
 
 class OllamaPipeline(Pipeline):
@@ -849,7 +697,9 @@ class OllamaPipeline(Pipeline):
             use_reranker (bool): Add a cross-encoder reranking stage
                 (requires the `rerank` extra). Defaults to False.
         """
-        embeddings = self._get_smart_embeddings()
+        embeddings = get_smart_embeddings(
+            self.LLM.get_model_name() if self.LLM else None
+        )
         if not embeddings:
             raise RetrieverInitializationError(
                 "Failed to create any embeddings: no Ollama embedding model "
@@ -861,277 +711,3 @@ class OllamaPipeline(Pipeline):
             use_ensemble=use_ensemble,
             use_reranker=use_reranker,
         )
-
-    def _get_smart_embeddings(self):
-        """
-        Get embeddings with intelligent model-aware selection, memoized.
-
-        The model probing (several Ollama round trips) runs once per LLM
-        model per process; later retriever setups reuse the result.
-
-        Returns:
-            Embeddings instance or None if all attempts fail.
-        """
-        cache_key = self.LLM.get_model_name() if self.LLM else "default"
-        if cache_key in _smart_embeddings_cache:
-            logger.info(f"Reusing embeddings selected earlier for '{cache_key}'")
-            return _smart_embeddings_cache[cache_key]
-
-        embeddings = self._select_smart_embeddings()
-        if embeddings is not None:
-            _smart_embeddings_cache[cache_key] = embeddings
-        return embeddings
-
-    def _select_smart_embeddings(self):
-        """Probe embedding options in speed order (uncached)."""
-        from ..config.settings import get_config
-
-        config = get_config()
-
-        # Try Ollama embeddings first if preferred
-        if config.llm.prefer_ollama_embeddings:
-
-            # STRATEGY 1: Try dedicated embedding models first (MUCH FASTER!)
-            logger.info("Trying dedicated embedding models for optimal speed...")
-            dedicated_models = [
-                "nomic-embed-text:latest",
-                "nomic-embed-text",
-                "all-minilm:latest",
-                "all-minilm",
-                "mxbai-embed-large:latest",
-                "mxbai-embed-large",
-            ]
-
-            for model in dedicated_models:
-                try:
-                    logger.info(f"Testing fast embedding model: {model}")
-                    embeddings = self._try_embedding_model(model)
-                    if embeddings:
-                        logger.info(f"SUCCESS: Using fast embedding model '{model}'!")
-                        return embeddings
-                except Exception as e:
-                    logger.debug(f"Embedding model '{model}' not available: {e}")
-                    continue
-
-            # STRATEGY 2: Try model-specific preferences
-            llm_model = self.LLM.get_model_name() if self.LLM else None
-            if llm_model:
-                logger.info(
-                    f"Trying model-specific embedding preferences for {llm_model}..."
-                )
-                embedding_models = self._get_embedding_models_for_llm(llm_model, config)
-
-                # Filter to only available models if auto-detection is enabled
-                if config.llm.auto_detect_available_models:
-                    available_models = self._get_available_ollama_models()
-                    embedding_models = [
-                        model for model in embedding_models if model in available_models
-                    ]
-                    if embedding_models:
-                        logger.info(
-                            f"Found {len(embedding_models)} available embedding models for {llm_model}: {embedding_models}"
-                        )
-                    else:
-                        logger.warning(
-                            f"No embedding models available for {llm_model}, using fallback list"
-                        )
-                        embedding_models = self._get_embedding_models_for_llm(
-                            llm_model, config
-                        )
-
-                ollama_embeddings = self._try_ollama_embeddings(embedding_models)
-                if ollama_embeddings:
-                    return ollama_embeddings
-
-            # STRATEGY 3: Try LLM model directly as last resort (SLOWEST!)
-            if llm_model:
-                logger.warning(
-                    f"Trying LLM model '{llm_model}' directly as embedding model (will be SLOW)"
-                )
-                ollama_embeddings = self._try_direct_llm_embeddings(llm_model)
-                if ollama_embeddings:
-                    logger.warning(
-                        f"Using LLM model '{llm_model}' for embeddings - this will be slow!"
-                    )
-                    return ollama_embeddings
-
-            logger.warning(
-                "All Ollama embedding strategies failed, falling back to OpenAI embeddings"
-            )
-
-        # Fallback to OpenAI embeddings
-        if os.getenv("OPENAI_API_KEY"):
-            try:
-                logger.info("Using standard LangChain OpenAI embeddings as fallback")
-                OpenAIEmbeddings = _get_cached_pipeline_import("openai_embeddings")
-                # Use clean configuration to avoid organization issues
-                return OpenAIEmbeddings(
-                    openai_api_key=os.getenv("OPENAI_API_KEY"),
-                    openai_organization=None,
-                    model=get_config().llm.openai_embedding_model,
-                )
-            except Exception as e:
-                logger.error(f"Failed to create OpenAI embeddings: {e}")
-        else:
-            logger.error("No OpenAI API key available for fallback embeddings")
-
-        return None
-
-    def _try_embedding_model(self, model_name: str):
-        """
-        Try to use a dedicated embedding model.
-
-        Args:
-            model_name: The embedding model name to try
-
-        Returns:
-            OllamaEmbeddings instance or None if it fails
-        """
-        OllamaEmbeddings = _get_cached_pipeline_import("ollama_embeddings")
-
-        try:
-            logger.debug(
-                f"Creating OllamaEmbeddings with embedding model: {model_name}"
-            )
-            embeddings = OllamaEmbeddings(model=model_name)
-
-            # Test the embeddings with a simple query to verify it works
-            test_result = embeddings.embed_query("test")
-            if test_result:
-                dimensions = len(test_result)
-                logger.info(
-                    f"Embedding model '{model_name}' works! Dimensions: {dimensions}"
-                )
-                return embeddings
-
-        except Exception as e:
-            logger.debug(f"Embedding model '{model_name}' failed: {e}")
-
-        return None
-
-    def _try_direct_llm_embeddings(self, model_name: str):
-        """
-        Try to use the LLM model directly as an embedding model.
-        This is the new simplified approach based on LangChain's capability.
-
-        Args:
-            model_name: The LLM model name to try as embedding model
-
-        Returns:
-            OllamaEmbeddings instance or None if it fails
-        """
-        OllamaEmbeddings = _get_cached_pipeline_import("ollama_embeddings")
-
-        try:
-            logger.info(f"Creating OllamaEmbeddings with LLM model: {model_name}")
-            embeddings = OllamaEmbeddings(model=model_name)
-
-            # Test the embeddings with a simple query to verify it works
-            test_result = embeddings.embed_query("test")
-            if test_result:
-                dimensions = len(test_result)
-                logger.info(
-                    f"LLM model '{model_name}' works as embedding model! Dimensions: {dimensions}"
-                )
-                return embeddings
-
-        except Exception as e:
-            logger.warning(f"LLM model '{model_name}' failed as embedding model: {e}")
-
-        return None
-
-    def _get_embedding_models_for_llm(
-        self, llm_model: Optional[str], config
-    ) -> List[str]:
-        """
-        Get embedding models based on the LLM model selected.
-
-        Args:
-            llm_model: The LLM model name (e.g., "llama3", "phi4")
-            config: Configuration object
-
-        Returns:
-            List of embedding models to try, in order of preference
-        """
-        if not llm_model:
-            return config.llm.model_embedding_preferences.get("ollama_default", [])
-
-        # Normalize model name (remove version suffixes for matching)
-        base_model = llm_model.split(":")[0]  # "deepseek-r1:8b" -> "deepseek-r1"
-
-        # Try exact match first
-        if llm_model in config.llm.model_embedding_preferences:
-            logger.info(
-                f"Using embedding preferences for exact model match: {llm_model}"
-            )
-            return config.llm.model_embedding_preferences[llm_model]
-
-        # Try base model match
-        if base_model in config.llm.model_embedding_preferences:
-            logger.info(
-                f"Using embedding preferences for base model match: {base_model}"
-            )
-            return config.llm.model_embedding_preferences[base_model]
-
-        # Fallback to default
-        logger.info(f"No specific embedding preferences for {llm_model}, using default")
-        return config.llm.model_embedding_preferences.get("ollama_default", [])
-
-    def _get_available_ollama_models(self) -> List[str]:
-        """
-        Query Ollama to get list of available models.
-
-        Returns:
-            List of available model names
-        """
-        try:
-            import requests
-
-            from ..config.settings import get_config
-
-            config = get_config()
-
-            response = requests.get(f"{config.api.ollama_base_url}/api/tags", timeout=5)
-            if response.status_code == 200:
-                models_data = response.json()
-                available_models = [
-                    model["name"] for model in models_data.get("models", [])
-                ]
-                logger.debug(f"Available Ollama models: {available_models}")
-                return available_models
-            else:
-                logger.warning(f"Failed to query Ollama models: {response.status_code}")
-                return []
-        except Exception as e:
-            logger.warning(f"Could not detect available Ollama models: {e}")
-            return []
-
-    def _try_ollama_embeddings(self, embedding_models: List[str]):
-        """
-        Try to create Ollama embeddings with multiple model options.
-
-        Args:
-            embedding_models: List of embedding models to try.
-
-        Returns:
-            OllamaEmbeddings instance or None if all models fail.
-        """
-        OllamaEmbeddings = _get_cached_pipeline_import("ollama_embeddings")
-
-        for model in embedding_models:
-            try:
-                logger.info(f"Attempting to use Ollama embedding model: {model}")
-                embeddings = OllamaEmbeddings(model=model)
-
-                # Test the embeddings with a simple query to verify the model works
-                test_result = embeddings.embed_query("test")
-                if test_result:
-                    logger.info(f"Successfully using Ollama embedding model: {model}")
-                    return embeddings
-
-            except Exception as e:
-                logger.warning(f"Ollama embedding model '{model}' failed: {e}")
-                continue
-
-        logger.warning("All Ollama embedding models failed")
-        return None

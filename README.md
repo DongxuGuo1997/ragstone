@@ -165,11 +165,13 @@ ragstone/
 │   ├── models/                  # LLM abstraction layer
 │   │   └── base_model.py        # OpenAI/Ollama proxy classes
 │   ├── rag/                     # Core RAG implementation
-│   │   ├── pipeline.py          # Main orchestration
+│   │   ├── pipeline.py          # Orchestration (load → retrieve → answer)
 │   │   ├── rag.py               # RAG chain creation
+│   │   ├── cache.py             # Exact-match response cache
+│   │   ├── embeddings.py        # OpenAI / Ollama embedding selection
 │   │   ├── loader.py            # Document loading utilities
 │   │   ├── vector_db.py         # Vector store implementations
-│   │   ├── memory.py            # Conversation memory
+│   │   ├── memory.py            # Conversation memory (LangGraph)
 │   │   └── splitter.py          # Document chunking
 │   ├── ui/                      # User interfaces
 │   │   ├── streamlit_app.py     # Web interface
