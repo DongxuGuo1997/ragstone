@@ -392,6 +392,37 @@ failed runs, not silent drift. After an intentional behavior change, accept
 new scores with `python evals/run_eval.py --update-baseline` and commit the
 file. A per-case report with judge reasons is written to `evals/report.md`.
 
+### Benchmark Results
+
+Every default in Ragstone was chosen by measurement, not intuition. The
+numbers below come from the harness above on the bundled corpus (38 cases);
+the full hypothesis → method → decision log is in
+[EXPERIMENTS.md](EXPERIMENTS.md). Single corpus — read these as direction and
+magnitude, not decimal places.
+
+**Retrieval (Layer 1, deterministic).** Reranking is the largest ranking
+lever; `text-embedding-3-small` gives full coverage at ~5× lower cost than
+ada-002; `k=4` is the coverage knee (k=2 loses answers, k=6 adds nothing).
+
+| Configuration (k=4)                       | hit_rate | MRR   |
+|-------------------------------------------|---------:|------:|
+| ada-002, ensemble                         | 0.971    | 0.902 |
+| text-embedding-3-small, ensemble          | 1.000    | 0.895 |
+| text-embedding-3-small, ensemble + rerank | 1.000    | **0.964** |
+
+**Generation (Layer 2, LLM-judged).** The headline finding is a *negative*
+one, and it drives the default: multi-query and fusion add ~2× the LLM calls
+and 3–4× the retrievals per question, but deliver **no measurable correctness
+gain** over plain RAG on this corpus (every gap below is a single case out of
+38 — noise). So `simple` is the default; the others stay available for corpora
+where question phrasing is genuinely ambiguous.
+
+| Chain type   | correct_rate | faithful_rate | relative cost        |
+|--------------|-------------:|--------------:|----------------------|
+| **simple**   | 0.947        | 0.947         | 1× (baseline)        |
+| multi_query  | 0.947        | 0.974         | ~2× calls, ~3× reads |
+| fusion       | 0.974        | 0.921         | ~2× calls, ~4× reads |
+
 ## Logging
 
 The application includes basic logging with the standard levels (DEBUG, INFO, WARNING, ERROR, CRITICAL). Configure the level and file output via the `logging` section of `config.json` (see Configuration above).
