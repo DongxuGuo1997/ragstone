@@ -2,7 +2,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..config.settings import get_config
 from ..utils import (
@@ -20,10 +20,10 @@ DEFAULT_SIMILARITY_K = 4
 MAX_QUERY_LENGTH = 10000  # Prevent excessive query lengths
 
 # Import cache to avoid repeated imports
-_import_cache = {}
+_import_cache: Dict[str, Any] = {}
 
 
-def _get_cached_import(module_name: str, attr_name: str = None):
+def _get_cached_import(module_name: str, attr_name: Optional[str] = None):
     """Get cached import or import and cache it."""
     cache_key = f"{module_name}.{attr_name}" if attr_name else module_name
 
@@ -92,7 +92,7 @@ class VectorStoreProxy(ABC):
         pass
 
     @abstractmethod
-    def create_db(self, docs: List, embeddings: Optional = None, **kwargs) -> None:
+    def create_db(self, docs: List, embeddings: Optional[Any] = None, **kwargs) -> None:
         """Create the vector database from documents."""
         pass
 
@@ -164,7 +164,7 @@ class ChromaProxy(VectorStoreProxy):
     def __init__(self, persist_directory: str = DEFAULT_CHROMA_PERSIST_DIR) -> None:
         """Initialize ChromaProxy with lazy loading."""
         self.persist_directory = persist_directory
-        self._db = None
+        self._db: Optional[Any] = None
         self._client = None
         self._is_initialized = False
 
@@ -202,11 +202,11 @@ class ChromaProxy(VectorStoreProxy):
             logger.error(f"ChromaDB client error: {e}")
             raise
 
-    def create_db(
+    def create_db(  # type: ignore[override]  # chroma adds collection_name
         self,
         docs: List,
         collection_name: str = "default_chroma_collection",
-        embeddings: Optional = None,
+        embeddings: Optional[Any] = None,
     ) -> None:
         """
         Create ChromaDB database from documents with lazy loading.
@@ -274,7 +274,7 @@ class ChromaProxy(VectorStoreProxy):
             self._is_initialized = False
             raise
 
-    def find_similar(
+    def find_similar(  # type: ignore[override]  # chroma adds collection_name
         self,
         query: str,
         k: int = DEFAULT_SIMILARITY_K,
@@ -304,6 +304,7 @@ class ChromaProxy(VectorStoreProxy):
                 )
 
             # Perform similarity search
+            assert self._db is not None  # guaranteed by is_initialized
             results = self._db.similarity_search(query, k=k)
             logger.info(f"Found {len(results)} similar documents for query")
             return results
@@ -352,7 +353,8 @@ class ChromaProxy(VectorStoreProxy):
 
                 # Reset state if we deleted the current collection
                 if (
-                    hasattr(self._db, "_collection")
+                    self._db is not None
+                    and hasattr(self._db, "_collection")
                     and self._db._collection.name == collection_name
                 ):
                     self._db = None
@@ -384,7 +386,7 @@ class FaissProxy(VectorStoreProxy):
 
     def __init__(self) -> None:
         """Initialize FaissProxy with lazy loading."""
-        self._db = None
+        self._db: Optional[Any] = None
         self._is_initialized = False
         logger.info("FaissProxy initialized")
 
@@ -403,7 +405,7 @@ class FaissProxy(VectorStoreProxy):
         """Check if the vector store is properly initialized."""
         return self._is_initialized and self._db is not None
 
-    def create_db(self, docs: List, embeddings: Optional = None, **kwargs) -> None:
+    def create_db(self, docs: List, embeddings: Optional[Any] = None, **kwargs) -> None:
         """
         Create FAISS database from documents with lazy loading.
 
@@ -482,6 +484,7 @@ class FaissProxy(VectorStoreProxy):
                 )
 
             # Choose search method based on use_mmr flag
+            assert self._db is not None  # guaranteed by is_initialized
             if use_mmr:
                 results = self._db.max_marginal_relevance_search(query, k=k, **kwargs)
                 logger.info(f"Found {len(results)} diverse documents using MMR")
@@ -520,6 +523,7 @@ class FaissProxy(VectorStoreProxy):
             os.makedirs(folder_path, exist_ok=True)
 
             # Save FAISS index
+            assert self._db is not None  # guaranteed by is_initialized
             self._db.save_local(folder_path, index_name)
             logger.info(f"Successfully saved FAISS index to {folder_path}/{index_name}")
 
@@ -530,7 +534,7 @@ class FaissProxy(VectorStoreProxy):
     def load_local(
         self,
         folder_path: str,
-        embeddings: Optional = None,
+        embeddings: Optional[Any] = None,
         index_name: str = DEFAULT_FAISS_INDEX_NAME,
         allow_dangerous_deserialization: bool = False,
     ) -> None:
