@@ -154,6 +154,39 @@ class TestPipelineRequestLogging:
         assert metrics.session_id == "m2"
         assert metrics.latency_ms >= 0
 
+    def test_progress_events_pass_through_but_are_never_cached(
+        self, caplog, monkeypatch
+    ):
+        import ragstone.rag.pipeline as pl
+
+        cached = {}
+
+        class _RecordingCache:
+            def get_response(self, question, session_id):
+                return None
+
+            def cache_response(self, question, response, session_id):
+                cached[question] = response
+
+        monkeypatch.setattr(pl, "_is_response_cache_enabled", lambda: True)
+        monkeypatch.setattr(pl, "_get_query_cache", lambda: _RecordingCache())
+
+        pipeline = OpenAIPipeline(model="gpt-4o-mini")
+        pipeline._chain_type = "agent"
+
+        class _EventingChain:
+            def stream_question(self, query, session_id):
+                yield {"event": "search", "query": "refined"}
+                yield "the "
+                yield "answer"
+
+        pipeline._chain = _EventingChain()
+        with caplog.at_level(logging.INFO, logger=REQUEST_LOGGER):
+            received = list(pipeline.ask_question_stream("q?", session_id="ev1"))
+
+        assert {"event": "search", "query": "refined"} in received
+        assert cached == {"q?": "the answer"}  # text only, no event noise
+
     def test_failure_is_visible_in_request_line(self, caplog):
         pipeline = OpenAIPipeline(model="gpt-4o-mini")
         pipeline._chain_type = "simple"

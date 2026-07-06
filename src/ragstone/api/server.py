@@ -19,6 +19,7 @@ Run it:
     ragstone-api                       # binds 127.0.0.1:8000 by default
 """
 
+import json
 import logging
 import os
 import threading
@@ -282,7 +283,13 @@ def _sse_stream(pipeline, body: AskRequest, ask_slots) -> Iterator[str]:
         for chunk in pipeline.ask_question_stream(
             body.question, session_id=body.session_id, use_cache=body.use_cache
         ):
-            yield f"data: {chunk}\n\n"
+            if isinstance(chunk, dict):
+                # Progress events (e.g. the agent chain's live searches)
+                # become named SSE events, distinct from answer data.
+                name = chunk.get("event", "progress")
+                yield f"event: {name}\ndata: {json.dumps(chunk)}\n\n"
+            else:
+                yield f"data: {chunk}\n\n"
         yield "data: [DONE]\n\n"
     except PipelineError as exc:
         # Mid-stream failures can't change the status code anymore; emit a

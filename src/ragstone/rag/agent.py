@@ -17,7 +17,7 @@ and compare quality and efficiency in evals/report.md.
 """
 
 import logging
-from typing import Any, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, Union
 
 from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -25,6 +25,7 @@ from langchain_core.messages import AIMessageChunk, HumanMessage
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.tools import tool
+from langgraph.config import get_stream_writer
 
 from .rag import extract_question, format_docs
 
@@ -71,6 +72,10 @@ class AgentRagChain(Runnable[Any, str]):
         @tool
         def search_documents(query: str) -> str:
             """Search the document collection and return relevant passages."""
+            # Surface the search live so UIs can show the agent thinking.
+            # get_stream_writer() is a no-op under .invoke(), so this costs
+            # nothing on the non-streaming path.
+            get_stream_writer()({"event": "search", "query": query})
             docs = retriever.invoke(query)
             return format_docs(docs) or "No matching passages found."
 
@@ -93,16 +98,40 @@ class AgentRagChain(Runnable[Any, str]):
     ) -> Iterator[str]:
         """Yield answer-text tokens as the agent produces them.
 
-        Tool-call chunks and tool results are filtered out — only the
-        model's answer text reaches the caller, matching the streaming
-        behavior of the fixed chains.
+        Tool activity is filtered out — only the model's answer text
+        reaches the caller, honoring the Runnable[..., str] contract.
+        Consumers that want live search events too should use
+        :meth:`stream_with_events`.
+        """
+        for item in self.stream_with_events(input, config=config):
+            if isinstance(item, str):
+                yield item
+
+    def stream_with_events(
+        self, input: Any, config: Optional[RunnableConfig] = None
+    ) -> Iterator[Union[str, Dict[str, Any]]]:
+        """Yield answer-text tokens interleaved with progress events.
+
+        Events are dicts (e.g. {"event": "search", "query": ...}) emitted
+        by the search tool as the agent works; text chunks are the final
+        answer. The memory graph prefers this method when present, so
+        events reach the UI/API stream while only text becomes the answer.
         """
         question = extract_question(input)
-        for msg, _meta in self._agent.stream(
+        for item in self._agent.stream(
             {"messages": [HumanMessage(question)]},
             config=config,
-            stream_mode="messages",
+            stream_mode=["custom", "messages"],
         ):
+            # With a list of stream modes, items are (mode, chunk) pairs.
+            if not (isinstance(item, tuple) and len(item) == 2):
+                continue
+            mode, chunk = item
+            if mode == "custom":
+                if isinstance(chunk, dict):
+                    yield chunk
+                continue
+            msg, _meta = chunk
             if (
                 isinstance(msg, AIMessageChunk)
                 and msg.content

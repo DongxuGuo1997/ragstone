@@ -370,6 +370,35 @@ class StreamlitApp:
                     st.markdown(f"**{src['source']}**")
                     st.caption(src["snippet"])
 
+    def _stream_answer(self, prompt: str) -> str:
+        """Stream the answer, rendering agent progress events live.
+
+        Text chunks accumulate into the answer; dict events (the agent
+        chain's live searches) render as status lines above it, so the
+        user watches the agent think before the answer streams in.
+        """
+        status = None
+        placeholder = st.empty()
+        parts: List[str] = []
+
+        for chunk in st.session_state.pipeline.ask_question_stream(
+            prompt, session_id=st.session_state.chat_session_id
+        ):
+            if isinstance(chunk, dict):
+                if chunk.get("event") == "search":
+                    if status is None:
+                        status = st.status("🤖 Agent researching…", expanded=True)
+                    status.write(f'🔍 Searching: "{chunk.get("query", "")}"')
+            elif chunk:
+                parts.append(chunk)
+                placeholder.markdown("".join(parts) + "▌")
+
+        if status is not None:
+            status.update(label="🤖 Agent research", state="complete", expanded=False)
+        answer = "".join(parts)
+        placeholder.markdown(answer)
+        return answer
+
     def _render_chat_interface(self) -> None:
         """Render the chat interface."""
         # Display chat messages (with their glass-box traces, if recorded)
@@ -389,11 +418,7 @@ class StreamlitApp:
             # Generate response
             with st.chat_message("assistant"):
                 try:
-                    response = st.write_stream(
-                        st.session_state.pipeline.ask_question_stream(
-                            prompt, session_id=st.session_state.chat_session_id
-                        )
-                    )
+                    response = self._stream_answer(prompt)
 
                     if response:
                         trace = self._collect_trace(prompt)

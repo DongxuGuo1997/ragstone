@@ -550,7 +550,11 @@ class Pipeline:
             use_cache (bool): Whether to use the response cache.
 
         Yields:
-            str: Successive chunks of the answer.
+            str: Successive chunks of the answer text.
+            dict: Progress events (e.g. {"event": "search", "query": ...}
+                from the agent chain's live searches). Events are not part
+                of the answer text and are never cached — consumers that
+                only want text can skip non-str chunks.
 
         Raises:
             ChainInitializationError: If the RAG chain has not been created.
@@ -581,7 +585,10 @@ class Pipeline:
                 for chunk in self._chain.stream_question(
                     query=question, session_id=session_id
                 ):
-                    parts.append(chunk)
+                    # Progress events pass through to the consumer but are
+                    # not part of the answer text (and must not be cached).
+                    if isinstance(chunk, str):
+                        parts.append(chunk)
                     yield chunk
                 response = "".join(parts)
                 if response and use_cache and cache_enabled:

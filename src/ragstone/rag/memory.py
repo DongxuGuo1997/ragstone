@@ -176,9 +176,15 @@ class MemoryProxy:
             # implementation serves both invoke and custom-mode streaming.
             writer = get_stream_writer()
             question = state.get("standalone_question") or state["question"]
+            # Chains that expose progress events (the agent's live searches)
+            # provide stream_with_events; events are forwarded to the outer
+            # stream but only text chunks become part of the answer.
+            stream_fn = getattr(base_chain, "stream_with_events", base_chain.stream)
             parts: List[str] = []
-            for chunk in base_chain.stream(question):
-                if chunk:
+            for chunk in stream_fn(question):
+                if isinstance(chunk, dict):
+                    writer(chunk)
+                elif chunk:
                     writer(chunk)
                     parts.append(chunk)
             text = "".join(parts)

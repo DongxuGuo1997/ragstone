@@ -137,6 +137,24 @@ class TestStreaming:
         assert "data: answer\n\n" in response.text
         assert response.text.endswith("data: [DONE]\n\n")
 
+    def test_progress_events_become_named_sse_events(self, client):
+        _create_ready_pipeline(client)
+        pipeline = registry.get_pipeline("p1")
+
+        def _eventing_stream(question, session_id=None, use_cache=True):
+            yield {"event": "search", "query": "refined query"}
+            yield "answer text"
+
+        pipeline.ask_question_stream = _eventing_stream
+        response = client.post(
+            "/pipelines/p1/ask", json={"question": "q", "stream": True}
+        )
+        assert 'event: search\ndata: {"event": "search", "query": "refined query"}' in (
+            response.text
+        )
+        assert "data: answer text\n\n" in response.text
+        assert response.text.endswith("data: [DONE]\n\n")
+
     def test_stream_releases_concurrency_slot(self, client):
         _create_ready_pipeline(client)
         for _ in range(5):  # more requests than the cap of 2
