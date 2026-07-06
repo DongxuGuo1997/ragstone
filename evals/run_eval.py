@@ -105,7 +105,10 @@ def eval_retrieval(pipeline, cases, k):
     retriever = pipeline.get_retriever()
     rows = []
     for case in cases:
-        if case["category"] == "unanswerable":
+        # multi_turn final questions ("How long is its warranty?") are not
+        # retrievable without the rephrase step, so they only make sense in
+        # the full-pipeline layer below.
+        if case["category"] in ("unanswerable", "multi_turn"):
             continue
         docs = with_retries(retriever.invoke, case["question"])[:k]
         rank = find_hit_rank(case, docs)
@@ -127,17 +130,31 @@ def eval_generation(pipeline, cases, args):
     retriever = pipeline.get_retriever()
     rows = []
     for case in cases:
-        question = case["question"]
-        # Efficiency is scoped to the pipeline call only (not the judge):
-        # wall-clock latency plus token usage across every LLM call the
-        # answer needed — this is what makes chain types comparable
-        # (e.g. --chain-type simple vs --chain-type agent).
+        # multi_turn cases script a conversation: warm-up turns build the
+        # history, and the FINAL turn — unresolvable without it — is what
+        # gets judged. This is the only place the rephrase step is
+        # exercised and measured.
+        turns = case.get("turns") or [case["question"]]
+        question = turns[-1]
+        session_id = f"eval_{case['id']}"
+        for warm_turn in turns[:-1]:
+            with_retries(
+                pipeline.ask_question,
+                warm_turn,
+                session_id=session_id,
+                use_cache=False,
+            )
+        # Efficiency is scoped to the FINAL pipeline call only (not the
+        # judge, not warm-up turns): wall-clock latency plus token usage
+        # across every LLM call the answer needed — this is what makes
+        # chain types comparable, and for multi_turn it includes the
+        # rephrase round-trip by design.
         start = time.perf_counter()
         with get_usage_metadata_callback() as usage_cb:
             answer = with_retries(
                 pipeline.ask_question,
                 question,
-                session_id=f"eval_{case['id']}",
+                session_id=session_id,
                 use_cache=False,
             )
         latency_s = round(time.perf_counter() - start, 2)
@@ -162,9 +179,20 @@ def eval_generation(pipeline, cases, args):
             print(f"  [{case['id']}] NO ANSWER")
             continue
 
-        context = "\n\n".join(
-            d.page_content for d in with_retries(retriever.invoke, question)[: args.k]
-        )
+        if case["category"] == "multi_turn":
+            # The raw final turn ("How long is its warranty?") retrieves the
+            # wrong context; judge faithfulness against the documents the
+            # pipeline ACTUALLY used (post-rephrase). Single-turn keeps the
+            # direct retrieval so scores stay comparable with old baselines.
+            context = "\n\n".join(
+                d.page_content
+                for d in pipeline.get_last_retrieved_documents()[: args.k]
+            )
+        else:
+            context = "\n\n".join(
+                d.page_content
+                for d in with_retries(retriever.invoke, question)[: args.k]
+            )
         correct = with_retries(
             judge.judge_correctness,
             question,
@@ -196,23 +224,34 @@ def eval_generation(pipeline, cases, args):
             f"faithful={faithful['verdict']:<4} "
             f"{latency_s:>5.1f}s {tokens:>5} tok  {question[:50]}"
         )
-    n = len(rows)
-    metrics = {
-        "correct_rate": (
-            round(sum(r["correct"]["verdict"] == "pass" for r in rows) / n, 3)
-            if n
-            else 0.0
-        ),
-        "faithful_rate": (
-            round(sum(r["faithful"]["verdict"] == "pass" for r in rows) / n, 3)
-            if n
-            else 0.0
-        ),
-    }
+
+    def _rates(subset, prefix=""):
+        n = len(subset)
+        if not n:
+            return {}
+        return {
+            f"{prefix}correct_rate": round(
+                sum(r["correct"]["verdict"] == "pass" for r in subset) / n, 3
+            ),
+            f"{prefix}faithful_rate": round(
+                sum(r["faithful"]["verdict"] == "pass" for r in subset) / n, 3
+            ),
+        }
+
+    # Multi-turn cases get their own metrics: correct_rate keeps meaning
+    # "single-turn quality" so committed baselines stay comparable, and the
+    # rephrase step gets a number of its own to gate changes against.
+    single_rows = [r for r in rows if r["case"]["category"] != "multi_turn"]
+    multi_rows = [r for r in rows if r["case"]["category"] == "multi_turn"]
+    metrics = {}
+    metrics.update(_rates(single_rows))
+    metrics.update(_rates(multi_rows, prefix="multi_turn_"))
     # Informational only — latency and token cost vary run to run, so they
     # are reported for comparison but never gated against the baseline.
     efficiency = {
-        "avg_latency_s": round(sum(r["latency_s"] for r in rows) / n, 2) if n else 0.0,
+        "avg_latency_s": (
+            round(sum(r["latency_s"] for r in rows) / len(rows), 2) if rows else 0.0
+        ),
         "total_tokens": sum(r["tokens"] for r in rows),
     }
     return metrics, rows, efficiency

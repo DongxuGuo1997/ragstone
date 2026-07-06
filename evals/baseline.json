@@ -4,9 +4,11 @@
       "hit_rate": 1.0,
       "mrr": 0.895,
       "correct_rate": 0.947,
-      "faithful_rate": 0.947
+      "faithful_rate": 0.947,
+      "multi_turn_correct_rate": 0.8,
+      "multi_turn_faithful_rate": 0.8
     },
-    "date": "2026-06-12"
+    "date": "2026-07-07"
   },
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=retrieval": {
     "metrics": {

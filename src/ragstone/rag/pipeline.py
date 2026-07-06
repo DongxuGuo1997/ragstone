@@ -641,6 +641,18 @@ class Pipeline:
                     f"Failed to generate a response: {e}", original_exception=e
                 ) from e
 
+    def get_last_retrieved_documents(self) -> List[Any]:
+        """Documents retrieved while answering the most recent question.
+
+        This is the ACTUAL context the answer was grounded in — including
+        the effect of the rephrase step on follow-up turns, which a fresh
+        ``retriever.invoke(raw_question)`` would miss. Empty before the
+        first ask or when no recording retriever is configured.
+        """
+        if isinstance(self._retriever, _SourceRecordingRetriever):
+            return list(self._retriever.record)
+        return []
+
     @property
     def last_metrics(self) -> Optional[RequestMetrics]:
         """Metrics of the most recent ask (latency, tokens, cache hit).
