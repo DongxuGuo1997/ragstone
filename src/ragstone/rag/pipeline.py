@@ -2,7 +2,7 @@ import hashlib
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.retrievers import BaseRetriever
@@ -139,7 +139,6 @@ class Pipeline:
         self.LLM: Optional[Any] = None
         self._last_question: Optional[str] = None
         self._last_metrics: Optional[RequestMetrics] = None
-        self._suggested_questions: Optional[Tuple[str, List[str]]] = None
         self._vector_db_fingerprint: Optional[str] = None
 
         logger.info(
@@ -641,50 +640,6 @@ class Pipeline:
                 raise ChainExecutionError(
                     f"Failed to generate a response: {e}", original_exception=e
                 ) from e
-
-    def suggest_questions(self, n: int = 3) -> List[str]:
-        """Generate starter questions the loaded corpus can answer.
-
-        Costs one LLM call per corpus; the result is cached against a hash
-        of the chunk contents, so repeated calls (UI reruns, retriever
-        rebuilds over the same documents) are free. Returns an empty list
-        when no documents or no LLM are available — callers can simply
-        hide the feature.
-
-        Args:
-            n (int): How many questions to generate. Defaults to 3.
-        """
-        if not self.texts or not self.LLM or not self.LLM.get_llm():
-            return []
-
-        # Sample chunks spread across the corpus, not just the first file.
-        step = max(1, len(self.texts) // 4)
-        excerpts = [doc.page_content[:500] for doc in self.texts[::step][:4]]
-        corpus_key = hashlib.sha256("\x00".join(excerpts).encode("utf-8")).hexdigest()
-        if self._suggested_questions and self._suggested_questions[0] == corpus_key:
-            return self._suggested_questions[1][:n]
-
-        prompt = (
-            "Here are excerpts from a document collection:\n\n"
-            + "\n---\n".join(excerpts)
-            + f"\n\nGenerate {n} short, diverse questions that this "
-            "collection can answer. Cover different excerpts where "
-            "possible. One question per line, no numbering."
-        )
-        try:
-            from langchain_core.output_parsers import StrOutputParser
-
-            from .rag import parse_generated_queries
-
-            text = (self.LLM.get_llm() | StrOutputParser()).invoke(prompt)
-            questions = parse_generated_queries(text)[:n]
-        except Exception as e:
-            # Suggestions are a convenience — never let them break the app.
-            logger.warning(f"Could not generate suggested questions: {e}")
-            return []
-
-        self._suggested_questions = (corpus_key, questions)
-        return questions
 
     @property
     def last_metrics(self) -> Optional[RequestMetrics]:

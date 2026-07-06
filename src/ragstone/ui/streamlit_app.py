@@ -587,28 +587,8 @@ class StreamlitApp:
                 "Same corpus, same question — the quality difference is yours to judge."
             )
 
-    def _render_suggested_questions(self) -> None:
-        """Offer clickable starter questions for a fresh chat.
-
-        Generation costs one LLM call per corpus (cached in the pipeline),
-        and suggest_questions() degrades to an empty list on any failure,
-        so this never blocks or breaks the chat.
-        """
-        suggestions = st.session_state.pipeline.suggest_questions()
-        if not suggestions:
-            return
-        st.markdown("💡 **Try asking:**")
-        for i, question in enumerate(suggestions):
-            if st.button(question, key=f"suggested_q_{i}"):
-                st.session_state.queued_question = question
-                st.rerun()
-
     def _render_chat_interface(self) -> None:
         """Render the chat interface."""
-        # Starter questions, only while the chat is still empty
-        if not st.session_state.messages:
-            self._render_suggested_questions()
-
         # Display chat messages (with their glass-box traces, if recorded)
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
@@ -616,11 +596,8 @@ class StreamlitApp:
                 if message.get("trace"):
                     self._render_trace(message["trace"])
 
-        # Chat input; a clicked suggestion arrives via the queued slot
-        prompt = st.chat_input("Ask your question here...")
-        if not prompt:
-            prompt = st.session_state.pop("queued_question", None)
-        if prompt:
+        # Chat input
+        if prompt := st.chat_input("Ask your question here..."):
             # Add user message
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
