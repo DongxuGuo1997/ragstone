@@ -34,6 +34,11 @@ class DatabaseConfig:
     batch_size: int = 100
     similarity_k: int = 4
     max_query_length: int = 10000
+    # BM25's share in the ensemble retriever; the vector store gets the
+    # rest. The default was validated by the eval harness (EXPERIMENTS.md).
+    ensemble_bm25_weight: float = field(
+        default_factory=lambda: float(os.getenv("RAGSTONE_BM25_WEIGHT", "0.4"))
+    )
 
     def __post_init__(self):
         """Validate database configuration."""
@@ -47,6 +52,8 @@ class DatabaseConfig:
             raise ConfigurationError("Batch size must be positive")
         if self.similarity_k <= 0:
             raise ConfigurationError("Similarity k must be positive")
+        if not (0.0 <= self.ensemble_bm25_weight <= 1.0):
+            raise ConfigurationError("Ensemble BM25 weight must be within [0, 1]")
 
 
 @dataclass

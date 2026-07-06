@@ -177,6 +177,54 @@ the entire point of having the harness.
 
 ---
 
+## Experiment 5 — Chunk size (the splitting knob nobody re-examines)
+
+**Hypothesis:** the `chunk_size=1000 / chunk_overlap=200` defaults were
+inherited, not chosen — smaller chunks might sharpen retrieval precision.
+
+**Method:** retrieval layer only (deterministic, no judge), sweeping
+size/overlap with `python evals/run_eval.py --mode retrieval --chunk-size N
+--chunk-overlap M --no-baseline-check`.
+
+| chunk_size / overlap | chunks | hit_rate | MRR   |
+|----------------------|--------|----------|-------|
+| 500 / 100            | 36     | 0.914    | 0.788 |
+| 800 / 160            | 22     | 0.943    | 0.850 |
+| **1000 / 200**       | **16** | **1.0**  | **0.895** |
+| 1500 / 300           | 12     | 1.0      | 0.914 |
+
+**Decision.** Keep **1000/200**. The hypothesis was wrong — smaller chunks
+*hurt* on this corpus (facts get split away from their subjects, and BM25
+loses term co-occurrence). 1500's MRR edge is a single-case rank shift on a
+12-chunk corpus (k=4 retrieves a third of it — easy mode) and costs ~50%
+more context tokens per answer. Re-run this sweep on any real corpus; the
+knee will move with document structure.
+
+---
+
+## Experiment 6 — Ensemble weights (BM25 vs vector)
+
+**Hypothesis:** the `[0.4, 0.6]` BM25/vector split was a guess; maybe the
+lexical side deserves more weight.
+
+**Method:** retrieval layer, `--bm25-weight W --no-baseline-check`
+(vector weight is `1 − W`).
+
+| BM25 weight | hit_rate | MRR   |
+|-------------|----------|-------|
+| 0.2         | 1.0      | 0.886 |
+| **0.4**     | **1.0**  | **0.898** |
+| 0.6         | 0.914    | 0.852 |
+| 0.8         | 0.914    | 0.821 |
+
+**Decision.** Keep **0.4**. The guess survives measurement — and the sweep
+shows the failure direction clearly: leaning on BM25 costs coverage
+(hit_rate drops when lexical matching outvotes semantics on paraphrased
+questions). Now configurable via `RAGSTONE_BM25_WEIGHT` for per-corpus
+tuning.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |
@@ -186,6 +234,8 @@ the entire point of having the harness.
 | Retrieval depth   | `k=4`                        | Experiment 3 | the coverage knee — minimum k for hit_rate 1.0 |
 | Reranking         | optional (`[rerank]` extra)  | Experiment 2 | biggest ranking lever (MRR +0.07), but a knob  |
 | Chain type        | `simple`                     | Experiment 4 | expansion adds cost, not quality, on this data |
+| Chunking          | `1000 / 200`                 | Experiment 5 | smaller chunks split facts from their subjects |
+| Ensemble weights  | BM25 `0.4` / vector `0.6`    | Experiment 6 | more BM25 costs coverage on paraphrases        |
 
 Every one of these will be re-examined the moment the corpus changes — which
 is the point: the harness makes "should this default change?" a measurable

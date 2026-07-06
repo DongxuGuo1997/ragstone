@@ -290,8 +290,10 @@ class Pipeline:
                     # source metadata for citations.
                     bm25_retriever = BM25Retriever.from_documents(docs_for_bm25)
                     bm25_retriever.k = stage_one_k
+                    bm25_weight = get_config().database.ensemble_bm25_weight
                     self._retriever = EnsembleRetriever(
-                        retrievers=[bm25_retriever, vs_retriever], weights=[0.4, 0.6]
+                        retrievers=[bm25_retriever, vs_retriever],
+                        weights=[bm25_weight, 1.0 - bm25_weight],
                     )
                     logger.info(
                         "Ensemble retriever created with BM25 and vector store retriever."

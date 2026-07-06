@@ -59,6 +59,19 @@ def load_cases() -> list:
 
 def build_pipeline(args):
     from ragstone import OllamaPipeline, OpenAIPipeline
+    from ragstone.config.settings import get_config
+
+    # Experiment overrides (chunking, ensemble weights) applied to the
+    # process-wide config before anything is loaded or embedded. Use with
+    # --no-baseline-check: results for non-default knobs are for
+    # comparison, not for gating.
+    config = get_config()
+    if args.chunk_size is not None:
+        config.loader.chunk_size = args.chunk_size
+    if args.chunk_overlap is not None:
+        config.loader.chunk_overlap = args.chunk_overlap
+    if args.bm25_weight is not None:
+        config.database.ensemble_bm25_weight = args.bm25_weight
 
     if args.provider == "openai":
         pipeline = OpenAIPipeline(model=args.model)
@@ -397,6 +410,10 @@ def main():
     )
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--no-baseline-check", action="store_true")
+    # Experiment knobs (pair with --no-baseline-check for sweeps):
+    parser.add_argument("--chunk-size", type=int, default=None)
+    parser.add_argument("--chunk-overlap", type=int, default=None)
+    parser.add_argument("--bm25-weight", type=float, default=None)
     args = parser.parse_args()
 
     cases = load_cases()
