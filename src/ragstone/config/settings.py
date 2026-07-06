@@ -31,7 +31,14 @@ class DatabaseConfig:
     )
     chroma_persist_dir: str = "store/chroma_db"
     faiss_index_name: str = "faiss_index"
-    batch_size: int = 100
+    # Texts per embedding request during ingestion; batches are issued
+    # concurrently by embed_workers threads (see rag/embeddings.py).
+    batch_size: int = field(
+        default_factory=lambda: int(os.getenv("RAGSTONE_EMBED_BATCH_SIZE", "500"))
+    )
+    embed_workers: int = field(
+        default_factory=lambda: int(os.getenv("RAGSTONE_EMBED_WORKERS", "4"))
+    )
     similarity_k: int = 4
     max_query_length: int = 10000
     # BM25's share in the ensemble retriever; the vector store gets the
@@ -50,6 +57,8 @@ class DatabaseConfig:
             )
         if self.batch_size <= 0:
             raise ConfigurationError("Batch size must be positive")
+        if self.embed_workers <= 0:
+            raise ConfigurationError("Embed workers must be positive")
         if self.similarity_k <= 0:
             raise ConfigurationError("Similarity k must be positive")
         if not (0.0 <= self.ensemble_bm25_weight <= 1.0):

@@ -27,7 +27,8 @@ class TestDatabaseConfig:
         assert config.default_type == "faiss"
         assert config.chroma_persist_dir == "store/chroma_db"
         assert config.faiss_index_name == "faiss_index"
-        assert config.batch_size == 100
+        assert config.batch_size == 500  # texts per embedding request
+        assert config.embed_workers == 4  # concurrent embedding batches
         assert config.similarity_k == 4
 
     def test_database_config_validation_valid_type(self):

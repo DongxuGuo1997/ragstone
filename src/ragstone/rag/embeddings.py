@@ -42,6 +42,46 @@ def _ollama_embeddings_cls() -> Any:
     return OllamaEmbeddings
 
 
+def embed_texts_parallel(
+    embeddings: Any,
+    texts: List[str],
+    batch_size: int,
+    max_workers: int,
+) -> List[List[float]]:
+    """Embed texts in concurrent batches, preserving input order.
+
+    Embedding a large corpus is network-bound: the provider slices it into
+    batches but sends them one HTTP request at a time. Issuing batches from
+    a small thread pool overlaps those round-trips (threads are the right
+    tool — the GIL is released while waiting on the network), which is the
+    dominant ingestion cost for big corpora.
+
+    A single batch (or max_workers <= 1) falls through to a plain
+    embed_documents call. Any batch failure fails the whole operation —
+    a partially embedded corpus must never be indexed silently.
+    """
+    batches = [texts[i : i + batch_size] for i in range(0, len(texts), batch_size)]
+    if len(batches) <= 1 or max_workers <= 1:
+        return embeddings.embed_documents(texts)
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    logger.info(
+        f"Embedding {len(texts)} texts in {len(batches)} batches "
+        f"({max_workers} workers)"
+    )
+    results: List[Optional[List[List[float]]]] = [None] * len(batches)
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(batches))) as executor:
+        future_to_index = {
+            executor.submit(embeddings.embed_documents, batch): i
+            for i, batch in enumerate(batches)
+        }
+        for future in as_completed(future_to_index):
+            results[future_to_index[future]] = future.result()  # raises on failure
+
+    return [vector for batch in results if batch for vector in batch]
+
+
 def make_openai_embeddings() -> Any:
     """Construct OpenAI embeddings from configuration.
 

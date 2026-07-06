@@ -441,10 +441,25 @@ class FaissProxy(VectorStoreProxy):
                         f"Failed to initialize default embeddings: {e}"
                     ) from e
 
-            # Create FAISS vector store with progress logging
+            # Create FAISS vector store. Embedding is done here (in
+            # concurrent batches — the dominant ingestion cost for big
+            # corpora is serial embedding round-trips) and the index is
+            # built from the precomputed vectors; `embeddings` stays
+            # attached for query-time embedding, exactly as from_documents
+            # would have done.
             logger.info(f"Creating FAISS vector store from {len(docs)} documents...")
-            self._db = FAISS.from_documents(
-                documents=docs, embedding=embeddings, **kwargs
+            from .embeddings import embed_texts_parallel
+
+            db_cfg = get_config().database
+            texts = [doc.page_content for doc in docs]
+            vectors = embed_texts_parallel(
+                embeddings, texts, db_cfg.batch_size, db_cfg.embed_workers
+            )
+            self._db = FAISS.from_embeddings(
+                text_embeddings=list(zip(texts, vectors)),
+                embedding=embeddings,
+                metadatas=[doc.metadata for doc in docs],
+                **kwargs,
             )
             self._is_initialized = True
             logger.info(

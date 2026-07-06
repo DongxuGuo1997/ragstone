@@ -144,6 +144,8 @@ class Pipeline:
         self._last_question: Optional[str] = None
         self._last_metrics: Optional[RequestMetrics] = None
         self._vector_db_fingerprint: Optional[str] = None
+        self._bm25_retriever: Optional[Any] = None
+        self._bm25_texts: Optional[List] = None  # identity marker for reuse
 
         logger.info(
             f"Pipeline initialized with loader: {loader_name}, vector store: {vector_store_type or 'default'}, optimization: {optimize_loading}"
@@ -286,9 +288,23 @@ class Pipeline:
                     )
                     self._retriever = vs_retriever
                 else:
-                    # from_documents (not from_texts) so chunks keep their
-                    # source metadata for citations.
-                    bm25_retriever = BM25Retriever.from_documents(docs_for_bm25)
+                    # Reuse the BM25 index when the corpus object is
+                    # unchanged (e.g. toggling the reranker): tokenizing a
+                    # large corpus takes real seconds, and `k` is a
+                    # retrieval-time attribute, not part of the index.
+                    if (
+                        self._bm25_retriever is None
+                        or self._bm25_texts is not self.texts
+                    ):
+                        # from_documents (not from_texts) so chunks keep
+                        # their source metadata for citations.
+                        self._bm25_retriever = BM25Retriever.from_documents(
+                            docs_for_bm25
+                        )
+                        self._bm25_texts = self.texts
+                    else:
+                        logger.info("Corpus unchanged; reusing BM25 index.")
+                    bm25_retriever = self._bm25_retriever
                     bm25_retriever.k = stage_one_k
                     bm25_weight = get_config().database.ensemble_bm25_weight
                     self._retriever = EnsembleRetriever(

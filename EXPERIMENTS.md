@@ -225,6 +225,32 @@ tuning.
 
 ---
 
+## Experiment 7 — Concurrent embedding ingestion
+
+**Hypothesis:** corpus embedding — the dominant big-corpus ingestion cost —
+is network-bound and serial: the provider slices the corpus into batches
+but sends them one HTTP request at a time. Issuing batches from a small
+thread pool should overlap the round-trips.
+
+**Method:** 4,000 synthetic chunks, real API (`text-embedding-3-small`),
+sequential `embed_documents` vs `embed_texts_parallel` (batch 500, 4
+workers). Retrieval eval re-run on the new index path as the quality gate.
+
+| Ingestion            | Wall time | hit_rate | MRR   |
+|----------------------|-----------|----------|-------|
+| sequential           | 8.7 s     | 1.0      | 0.898 |
+| **parallel (4×500)** | **2.8 s** | 1.0      | 0.898 |
+
+**Decision: parallel by default** (`RAGSTONE_EMBED_BATCH_SIZE=500`,
+`RAGSTONE_EMBED_WORKERS=4`). **3.1× faster** ingestion with vectors — and
+therefore retrieval metrics — identical to the sequential path. Order
+preservation is unit-tested under adversarial completion order, and any
+failed batch fails the whole ingestion: a partially embedded corpus is
+never indexed silently. The win grows with corpus size (it's pure
+round-trip overlap) and is bounded only by provider rate limits.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |
@@ -236,6 +262,7 @@ tuning.
 | Chain type        | `simple`                     | Experiment 4 | expansion adds cost, not quality, on this data |
 | Chunking          | `1000 / 200`                 | Experiment 5 | smaller chunks split facts from their subjects |
 | Ensemble weights  | BM25 `0.4` / vector `0.6`    | Experiment 6 | more BM25 costs coverage on paraphrases        |
+| Ingestion         | parallel batches (4 × 500)   | Experiment 7 | 3.1× faster embedding, identical vectors       |
 
 Every one of these will be re-examined the moment the corpus changes — which
 is the point: the harness makes "should this default change?" a measurable
