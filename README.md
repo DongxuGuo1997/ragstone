@@ -406,6 +406,32 @@ Each conversation is checkpointed per `session_id`, so after a restart a
 session picks up exactly where it left off — follow-up questions still
 resolve references against the earlier turns.
 
+### Observability
+
+Every `ask_question` / `ask_question_stream` call emits one structured log
+line on the `ragstone.requests` logger:
+
+```
+request=1f2e3d4c session=web-42 chain=simple cache_hit=False latency_ms=1440 tokens=1031
+```
+
+`request` is a correlation id for tying together all log lines from one
+call; `tokens` aggregates every LLM call the request needed (rephrase,
+agent searches, answer), which makes per-request cost visible. Point your
+log processor at these lines for p95 latency and cost-per-session — the
+data is guaranteed to exist.
+
+For deep tracing (every prompt, retrieval, and token), Ragstone works with
+LangSmith out of the box — LangChain honors these env vars automatically:
+
+```bash
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=your_key
+LANGSMITH_PROJECT=ragstone  # optional
+```
+
+No code changes needed; unset `LANGSMITH_TRACING` and the overhead is gone.
+
 ## Testing
 
 Run the test suite:

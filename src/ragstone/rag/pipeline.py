@@ -15,6 +15,7 @@ from ..utils.exceptions import (
     RetrieverInitializationError,
 )
 from ..utils.full_chain import FullChain
+from ..utils.observability import track_request
 from .cache import QueryResultCache  # noqa: F401  re-exported; tests import here
 from .cache import get_query_cache as _get_query_cache
 from .cache import is_response_cache_enabled as _is_response_cache_enabled
@@ -134,6 +135,7 @@ class Pipeline:
         self.texts: Optional[List] = None
         self._retriever: Optional[Any] = None
         self._chain: Optional[FullChain] = None
+        self._chain_type: Optional[str] = None
         self.LLM: Optional[Any] = None
         self._last_question: Optional[str] = None
         self._vector_db_fingerprint: Optional[str] = None
@@ -446,6 +448,7 @@ class Pipeline:
                 original_exception=e,
             ) from e
         self._chain = chain
+        self._chain_type = chain_type  # recorded in per-request log lines
         logger.info(f"Successfully created RAG chain of type: {chain_type}")
 
     def ask_question(
@@ -478,46 +481,52 @@ class Pipeline:
             f"Asking question (session: {session_id}): '{question[:100]}{'...' if len(question) > 100 else ''}'"
         )
 
-        cache_enabled = _is_response_cache_enabled()
-        if use_cache and cache_enabled:
-            cached_response = _get_query_cache().get_response(question, session_id)
-            if cached_response:
-                logger.info("Cache hit! Returning cached response.")
-                return cached_response
+        with track_request(session_id, chain_type=self._chain_type) as metrics:
+            cache_enabled = _is_response_cache_enabled()
+            if use_cache and cache_enabled:
+                cached_response = _get_query_cache().get_response(question, session_id)
+                if cached_response:
+                    logger.info("Cache hit! Returning cached response.")
+                    metrics.cache_hit = True
+                    return cached_response
 
-        # Cache miss - generate new response
-        try:
-            start_time = time.time()
-            response = self._chain.ask_question(query=question, session_id=session_id)
-
-            if response and use_cache and cache_enabled:
-                # Cache the successful response
-                _get_query_cache().cache_response(question, response, session_id)
-
-                generation_time = time.time() - start_time
-                logger.info(f"Generated and cached response in {generation_time:.2f}s")
-
-                # Log cache statistics periodically
-                if _get_query_cache().stats.total_queries % 10 == 0:
-                    stats = _get_query_cache().get_stats()
-                    logger.info(
-                        f"Cache stats: {stats['hit_rate']} hit rate "
-                        f"({stats['hits']} hits / {stats['misses']} misses)"
-                    )
-            elif response and not cache_enabled:
-                generation_time = time.time() - start_time
-                logger.info(
-                    f"Generated response in {generation_time:.2f}s (cache disabled)"
+            # Cache miss - generate new response
+            try:
+                start_time = time.time()
+                response = self._chain.ask_question(
+                    query=question, session_id=session_id
                 )
 
-            logger.info("Received response from RAG chain.")
-            return response
+                if response and use_cache and cache_enabled:
+                    # Cache the successful response
+                    _get_query_cache().cache_response(question, response, session_id)
 
-        except Exception as e:
-            logger.error(f"Error during ask_question: {e}", exc_info=True)
-            raise ChainExecutionError(
-                f"Failed to generate a response: {e}", original_exception=e
-            ) from e
+                    generation_time = time.time() - start_time
+                    logger.info(
+                        f"Generated and cached response in {generation_time:.2f}s"
+                    )
+
+                    # Log cache statistics periodically
+                    if _get_query_cache().stats.total_queries % 10 == 0:
+                        stats = _get_query_cache().get_stats()
+                        logger.info(
+                            f"Cache stats: {stats['hit_rate']} hit rate "
+                            f"({stats['hits']} hits / {stats['misses']} misses)"
+                        )
+                elif response and not cache_enabled:
+                    generation_time = time.time() - start_time
+                    logger.info(
+                        f"Generated response in {generation_time:.2f}s (cache disabled)"
+                    )
+
+                logger.info("Received response from RAG chain.")
+                return response
+
+            except Exception as e:
+                logger.error(f"Error during ask_question: {e}", exc_info=True)
+                raise ChainExecutionError(
+                    f"Failed to generate a response: {e}", original_exception=e
+                ) from e
 
     def ask_question_stream(
         self, question: str, session_id: str = "default", use_cache: bool = True
@@ -551,29 +560,31 @@ class Pipeline:
             )
 
         self._begin_ask(question)
-        cache_enabled = _is_response_cache_enabled()
-        if use_cache and cache_enabled:
-            cached_response = _get_query_cache().get_response(question, session_id)
-            if cached_response:
-                logger.info("Cache hit! Streaming cached response.")
-                yield cached_response
-                return
+        with track_request(session_id, chain_type=self._chain_type) as metrics:
+            cache_enabled = _is_response_cache_enabled()
+            if use_cache and cache_enabled:
+                cached_response = _get_query_cache().get_response(question, session_id)
+                if cached_response:
+                    logger.info("Cache hit! Streaming cached response.")
+                    metrics.cache_hit = True
+                    yield cached_response
+                    return
 
-        try:
-            parts = []
-            for chunk in self._chain.stream_question(
-                query=question, session_id=session_id
-            ):
-                parts.append(chunk)
-                yield chunk
-            response = "".join(parts)
-            if response and use_cache and cache_enabled:
-                _get_query_cache().cache_response(question, response, session_id)
-        except Exception as e:
-            logger.error(f"Error during ask_question_stream: {e}", exc_info=True)
-            raise ChainExecutionError(
-                f"Failed to generate a response: {e}", original_exception=e
-            ) from e
+            try:
+                parts = []
+                for chunk in self._chain.stream_question(
+                    query=question, session_id=session_id
+                ):
+                    parts.append(chunk)
+                    yield chunk
+                response = "".join(parts)
+                if response and use_cache and cache_enabled:
+                    _get_query_cache().cache_response(question, response, session_id)
+            except Exception as e:
+                logger.error(f"Error during ask_question_stream: {e}", exc_info=True)
+                raise ChainExecutionError(
+                    f"Failed to generate a response: {e}", original_exception=e
+                ) from e
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """
