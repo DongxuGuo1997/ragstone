@@ -159,6 +159,10 @@ def eval_generation(pipeline, cases, args):
             )
         latency_s = round(time.perf_counter() - start, 2)
         tokens = sum(u.get("total_tokens", 0) for u in usage_cb.usage_metadata.values())
+        # Stage decomposition (rephrase/retrieval), when the pipeline
+        # recorded it — shows WHERE latency lives, per case.
+        last_metrics = getattr(pipeline, "last_metrics", None)
+        stage_ms = dict(last_metrics.stage_ms) if last_metrics else {}
         if not answer:
             rows.append(
                 {
@@ -166,6 +170,7 @@ def eval_generation(pipeline, cases, args):
                     "answer": "",
                     "latency_s": latency_s,
                     "tokens": tokens,
+                    "stage_ms": stage_ms,
                     "correct": {
                         "verdict": "fail",
                         "reason": "pipeline returned no answer",
@@ -215,6 +220,7 @@ def eval_generation(pipeline, cases, args):
                 "answer": answer,
                 "latency_s": latency_s,
                 "tokens": tokens,
+                "stage_ms": stage_ms,
                 "correct": correct,
                 "faithful": faithful,
             }
@@ -254,6 +260,14 @@ def eval_generation(pipeline, cases, args):
         ),
         "total_tokens": sum(r["tokens"] for r in rows),
     }
+    # Average per-stage cost over the cases where the stage ran — e.g.
+    # rephrase only runs on multi_turn follow-ups, so averaging over all
+    # rows would dilute the number that matters.
+    for stage in sorted({s for r in rows for s in r.get("stage_ms", {})}):
+        stage_rows = [r["stage_ms"][stage] for r in rows if stage in r["stage_ms"]]
+        efficiency[f"avg_{stage}_ms (n={len(stage_rows)})"] = round(
+            sum(stage_rows) / len(stage_rows)
+        )
     return metrics, rows, efficiency
 
 

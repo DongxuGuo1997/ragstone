@@ -22,12 +22,45 @@ import logging
 import time
 import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass
-from typing import Iterator, Optional
+from contextvars import ContextVar
+from dataclasses import dataclass, field
+from typing import Dict, Iterator, Optional
 
 from langchain_core.callbacks import get_usage_metadata_callback
 
 logger = logging.getLogger("ragstone.requests")
+
+# The metrics object for the request currently executing on this thread of
+# control. Contextvars propagate into LangGraph node execution (nodes run
+# under contextvars.copy_context), so stages recorded inside graph nodes
+# land on the right request — the same mechanism the token-usage callback
+# relies on.
+_current_metrics: ContextVar[Optional["RequestMetrics"]] = ContextVar(
+    "ragstone_request_metrics", default=None
+)
+
+
+def record_stage(stage: str, elapsed_ms: int) -> None:
+    """Attribute elapsed time to a named stage of the current request.
+
+    A no-op when no request is being tracked (e.g. direct chain use in
+    tests or scripts), so instrumented components never need guards.
+    Repeated stages accumulate — e.g. the agent chain's multiple
+    retrievals sum into one "retrieval" figure.
+    """
+    metrics = _current_metrics.get()
+    if metrics is not None:
+        metrics.stage_ms[stage] = metrics.stage_ms.get(stage, 0) + elapsed_ms
+
+
+@contextmanager
+def time_stage(stage: str) -> Iterator[None]:
+    """Context manager form of record_stage for wrapping a block."""
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        record_stage(stage, int((time.perf_counter() - start) * 1000))
 
 
 @dataclass
@@ -47,6 +80,17 @@ class RequestMetrics:
     # latency_ms is end-to-end (rephrase + retrieval + full generation),
     # which can read much larger than the answer FELT — show both.
     first_token_ms: Optional[int] = None
+    # Per-stage decomposition recorded via record_stage(), e.g.
+    # {"rephrase": 520, "retrieval": 180}. Generation is derived: whatever
+    # latency the named stages don't account for.
+    stage_ms: Dict[str, int] = field(default_factory=dict)
+
+    @property
+    def generation_ms(self) -> int:
+        """Latency not attributed to a named stage (LLM generation plus
+        graph/checkpoint overhead). Derived rather than measured so stages
+        can never double-count."""
+        return max(0, self.latency_ms - sum(self.stage_ms.values()))
 
 
 # Approximate USD prices per million tokens (input, output). Used only for
@@ -92,25 +136,29 @@ def track_request(
     start = time.perf_counter()
     usage_ctx = get_usage_metadata_callback()
     usage_cb = usage_ctx.__enter__()
+    metrics_token = _current_metrics.set(metrics)
     try:
         yield metrics
     except Exception as exc:
         metrics.error = type(exc).__name__
         raise
     finally:
+        _current_metrics.reset(metrics_token)
         usage_ctx.__exit__(None, None, None)
         metrics.latency_ms = int((time.perf_counter() - start) * 1000)
         usages = usage_cb.usage_metadata.values()
         metrics.tokens = sum(u.get("total_tokens", 0) for u in usages)
         metrics.input_tokens = sum(u.get("input_tokens", 0) for u in usages)
         metrics.output_tokens = sum(u.get("output_tokens", 0) for u in usages)
+        stages = ",".join(f"{k}:{v}" for k, v in sorted(metrics.stage_ms.items()))
         logger.info(
-            "request=%s session=%s chain=%s cache_hit=%s latency_ms=%d tokens=%d%s",
+            "request=%s session=%s chain=%s cache_hit=%s latency_ms=%d tokens=%d%s%s",
             metrics.request_id,
             metrics.session_id,
             metrics.chain_type,
             metrics.cache_hit,
             metrics.latency_ms,
             metrics.tokens,
+            f" stages={stages}" if stages else "",
             f" error={metrics.error}" if metrics.error else "",
         )

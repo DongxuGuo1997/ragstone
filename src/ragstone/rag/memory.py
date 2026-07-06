@@ -21,6 +21,7 @@ from typing_extensions import TypedDict
 
 from ..config.settings import get_config
 from ..utils.exceptions import ChainInitializationError
+from ..utils.observability import time_stage
 
 logger = logging.getLogger(__name__)
 
@@ -162,14 +163,16 @@ class MemoryProxy:
         rephrase_chain = contextualize_q_prompt | llm | StrOutputParser()
 
         def rephrase(state: MemoryState) -> MemoryState:
-            return {
-                "standalone_question": rephrase_chain.invoke(
+            # Timed: this LLM round-trip runs BEFORE retrieval can start,
+            # so it is the dominant first-token cost on follow-up turns.
+            with time_stage("rephrase"):
+                standalone = rephrase_chain.invoke(
                     {
                         "chat_history": state["messages"][-MAX_REPHRASE_HISTORY:],
                         "question": state["question"],
                     }
                 )
-            }
+            return {"standalone_question": standalone}
 
         def answer(state: MemoryState) -> MemoryState:
             # get_stream_writer() is a no-op under .invoke(), so this one

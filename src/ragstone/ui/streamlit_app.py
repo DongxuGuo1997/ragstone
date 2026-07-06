@@ -354,6 +354,9 @@ class StreamlitApp:
             trace["first_token_ms"] = metrics.first_token_ms
             trace["tokens"] = metrics.tokens
             trace["cache_hit"] = metrics.cache_hit
+            if metrics.stage_ms:
+                trace["stage_ms"] = dict(metrics.stage_ms)
+                trace["generation_ms"] = metrics.generation_ms
             model = pipeline.LLM.get_model_name() if pipeline.LLM else None
             trace["cost_usd"] = estimate_cost_usd(
                 metrics.input_tokens, metrics.output_tokens, model
@@ -386,6 +389,18 @@ class StreamlitApp:
                 badge_parts.append(f"⛓ chain: {trace['chain_type']}")
             if badge_parts:
                 st.caption(" · ".join(badge_parts))
+
+            # Stage decomposition: WHERE the time went, when recorded.
+            if trace.get("stage_ms"):
+                stage_parts = [
+                    f"{name} {ms / 1000:.2f}s"
+                    for name, ms in sorted(trace["stage_ms"].items())
+                ]
+                if trace.get("generation_ms"):
+                    stage_parts.append(
+                        f"generation {trace['generation_ms'] / 1000:.2f}s"
+                    )
+                st.caption("🧭 " + " → ".join(stage_parts))
 
             sources = trace.get("sources") or []
             if sources:

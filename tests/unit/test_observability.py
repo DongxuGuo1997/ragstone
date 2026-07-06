@@ -12,7 +12,12 @@ import pytest
 
 from ragstone.rag.pipeline import OpenAIPipeline
 from ragstone.utils.exceptions import ChainExecutionError
-from ragstone.utils.observability import estimate_cost_usd, track_request
+from ragstone.utils.observability import (
+    estimate_cost_usd,
+    record_stage,
+    time_stage,
+    track_request,
+)
 
 REQUEST_LOGGER = "ragstone.requests"
 
@@ -61,6 +66,82 @@ class TestTrackRequest:
             with track_request("s1") as metrics:
                 metrics.cache_hit = True
         assert "cache_hit=True" in _request_records(caplog)[0].getMessage()
+
+
+class TestStageTiming:
+    def test_stages_accumulate_and_appear_in_log_line(self, caplog):
+        with caplog.at_level(logging.INFO, logger=REQUEST_LOGGER):
+            with track_request("s1") as metrics:
+                record_stage("retrieval", 120)
+                record_stage("retrieval", 80)  # agent mode: repeated searches
+                record_stage("rephrase", 500)
+
+        assert metrics.stage_ms == {"retrieval": 200, "rephrase": 500}
+        line = _request_records(caplog)[0].getMessage()
+        assert "stages=rephrase:500,retrieval:200" in line
+
+    def test_record_stage_outside_request_is_noop(self):
+        record_stage("retrieval", 100)  # must not raise or leak anywhere
+
+    def test_time_stage_context_manager_measures(self):
+        with track_request("s1") as metrics:
+            with time_stage("retrieval"):
+                pass
+        assert "retrieval" in metrics.stage_ms
+        assert metrics.stage_ms["retrieval"] >= 0
+
+    def test_generation_ms_is_the_unattributed_remainder(self):
+        with track_request("s1") as metrics:
+            record_stage("rephrase", 10)
+        # latency is tiny here; derived generation must never go negative.
+        assert metrics.generation_ms == max(0, metrics.latency_ms - 10)
+
+    def test_stages_recorded_inside_langgraph_nodes_reach_the_request(self):
+        # The critical propagation property: graph nodes run under copied
+        # contexts (ThreadPool + contextvars.copy_context), and stage
+        # recordings made there must land on the outer request's metrics.
+        from langchain_core.language_models.fake_chat_models import (
+            FakeListChatModel,
+        )
+
+        from ragstone.rag.memory import MemoryProxy, SimpleTextRetriever
+        from ragstone.rag.rag import RagProxy
+        from ragstone.utils.full_chain import FullChain
+
+        llm = FakeListChatModel(responses=["Paris.", "REPHRASED", "About 2M."])
+
+        class _Proxy:
+            def get_llm(self):
+                return llm
+
+        retriever = SimpleTextRetriever.from_texts(["Paris is the capital."])
+        full_chain = FullChain(
+            _Proxy(), RagProxy(model=llm, retriever=retriever), MemoryProxy()
+        )
+        full_chain.create_full_chain("simple")
+
+        with track_request("s1") as first_turn:
+            full_chain.ask_question("capital?", session_id="st1")
+        assert "rephrase" not in first_turn.stage_ms  # no history yet
+
+        with track_request("s1") as second_turn:
+            full_chain.ask_question("population?", session_id="st1")
+        assert "rephrase" in second_turn.stage_ms  # timed inside the node
+
+
+class TestRetrievalStageCapture:
+    def test_source_recording_retriever_times_retrieval(self):
+        from ragstone.rag.memory import SimpleTextRetriever
+        from ragstone.rag.pipeline import _SourceRecordingRetriever
+
+        wrapped = SimpleTextRetriever.from_texts(["Paris is the capital."])
+        retriever = _SourceRecordingRetriever(wrapped=wrapped, record=[])
+
+        with track_request("s1") as metrics:
+            docs = retriever.invoke("capital?")
+
+        assert len(docs) == 1
+        assert "retrieval" in metrics.stage_ms
 
 
 class TestCostEstimate:

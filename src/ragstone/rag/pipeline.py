@@ -15,7 +15,7 @@ from ..utils.exceptions import (
     RetrieverInitializationError,
 )
 from ..utils.full_chain import FullChain
-from ..utils.observability import RequestMetrics, track_request
+from ..utils.observability import RequestMetrics, time_stage, track_request
 from .cache import QueryResultCache  # noqa: F401  re-exported; tests import here
 from .cache import get_query_cache as _get_query_cache
 from .cache import is_response_cache_enabled as _is_response_cache_enabled
@@ -85,7 +85,11 @@ class _SourceRecordingRetriever(BaseRetriever):
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> List:
-        docs = self.wrapped.invoke(query)
+        # Timed as the "retrieval" stage: this wraps the FINAL retriever,
+        # so query embedding, ensemble merge, and any reranking are all
+        # included. Multiple invocations (agent mode) accumulate.
+        with time_stage("retrieval"):
+            docs = self.wrapped.invoke(query)
         self.record.extend(docs)
         return docs
 
