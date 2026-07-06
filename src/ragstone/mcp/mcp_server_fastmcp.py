@@ -63,12 +63,12 @@ mcp = FastMCP("Ragstone")
 
 @mcp.tool()
 def create_openai_pipeline(
-    model: str = "gpt-3.5-turbo", pipeline_id: str = "default_openai"
+    model: str = "gpt-4o-mini", pipeline_id: str = "default_openai"
 ) -> str:
     """Create an OpenAI-based RAG pipeline.
 
     Args:
-        model: OpenAI model to use (e.g., gpt-3.5-turbo, gpt-4, gpt-4o-mini)
+        model: OpenAI model to use (e.g., gpt-4o-mini, gpt-4o, gpt-4.1)
         pipeline_id: Unique identifier for this pipeline
 
     Returns:

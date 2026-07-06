@@ -47,7 +47,7 @@ class TestLLMConfig:
     def test_llm_config_defaults(self):
         """Test default LLM configuration."""
         config = LLMConfig()
-        assert "gpt-3.5-turbo" in config.openai_models
+        assert "gpt-4o-mini" in config.openai_models
         assert "llama3" in config.ollama_models
         assert config.default_temperature == 0.0
         assert config.max_retries == 3

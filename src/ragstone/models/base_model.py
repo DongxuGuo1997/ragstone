@@ -96,7 +96,7 @@ class OpenAIProxy(LLMProxy):
         Set and configure the OpenAI LLM instance with lazy loading.
 
         Args:
-            model_name (str): The name of the OpenAI model to use (e.g., "gpt-3.5-turbo").
+            model_name (str): The name of the OpenAI model to use (e.g., "gpt-4o-mini").
             temperature (float): The temperature setting for the LLM. Defaults to 0.0.
             **kwargs: Additional keyword arguments for ChatOpenAI.
 

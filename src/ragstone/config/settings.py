@@ -54,7 +54,7 @@ class LLMConfig:
     """Configuration for language models."""
 
     openai_models: List[str] = field(
-        default_factory=lambda: ["gpt-3.5-turbo", "gpt-4", "gpt-4o-mini"]
+        default_factory=lambda: ["gpt-4o-mini", "gpt-4o", "gpt-4.1"]
     )
     ollama_models: List[str] = field(
         default_factory=lambda: ["llama3", "phi4", "deepseek-r1:8b"]

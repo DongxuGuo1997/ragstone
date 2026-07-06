@@ -211,7 +211,7 @@ ls -la /path/to/ragstone/src/
 @ragstone list_pipelines
 # Expected: "📝 No pipelines created yet..."
 
-@ragstone create_openai_pipeline model="gpt-3.5-turbo" pipeline_id="test"
+@ragstone create_openai_pipeline model="gpt-4o-mini" pipeline_id="test"
 # Expected: Pipeline creation success message
 
 @ragstone list_pipelines

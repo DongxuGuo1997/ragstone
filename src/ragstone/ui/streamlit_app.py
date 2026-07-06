@@ -270,7 +270,7 @@ class StreamlitApp:
         ### 🔌 **Choose Your Mode:**
 
         **🌐 Online Mode** (Cloud-based)
-        - Uses OpenAI models (GPT-3.5, GPT-4)
+        - Uses OpenAI models (GPT-4o Mini, GPT-4o, GPT-4.1)
         - Requires internet connection and API key
         - Fast and powerful responses
 

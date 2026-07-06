@@ -141,7 +141,7 @@ def select_model_interactive():
     else:
         pipeline_type = "openai"
         print("\nOpenAI Models:")
-        openai_models = ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o"]
+        openai_models = ["gpt-4o-mini", "gpt-4o", "gpt-4.1", "gpt-4.1-mini"]
 
         for i, model in enumerate(openai_models, 1):
             print(f"{i}. {model}")

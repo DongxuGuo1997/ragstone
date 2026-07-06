@@ -30,7 +30,7 @@ Ragstone (a real building stone) leans into being that foundation:
 ## Features
 
 ### Multiple LLM Providers
-- **OpenAI**: GPT-3.5 Turbo, GPT-4, GPT-4o Mini
+- **OpenAI**: GPT-4o Mini, GPT-4o, GPT-4.1 (any chat model by name)
 - **Ollama**: Llama3, Phi4, DeepSeek-R1, and other local models
 
 ### Flexible Data Sources
@@ -137,7 +137,7 @@ Expose the RAG pipeline as MCP tools for use in VS Code/Cursor and other MCP-com
 
 3. **Use in your IDE**
    ```
-   @ragstone create_openai_pipeline with model "gpt-4"
+   @ragstone create_openai_pipeline with model "gpt-4o-mini"
    @ragstone load_documents with data_dir "docs"
    @ragstone ask_question "What is the main architecture?"
    ```
@@ -218,7 +218,7 @@ RAGSTONE_CHECKPOINT_DB=store/checkpoints.sqlite  # used by the sqlite backend
     "similarity_k": 4
   },
   "llm": {
-    "openai_models": ["gpt-3.5-turbo", "gpt-4", "gpt-4o-mini"],
+    "openai_models": ["gpt-4o-mini", "gpt-4o", "gpt-4.1"],
     "ollama_models": ["llama3", "phi4", "deepseek-r1:8b"],
     "default_temperature": 0.0
   },
@@ -258,7 +258,7 @@ from ragstone import OpenAIPipeline, get_config
 config = get_config()
 
 # Create pipeline
-pipeline = OpenAIPipeline(model="gpt-3.5-turbo")
+pipeline = OpenAIPipeline(model="gpt-4o-mini")
 
 # Load documents
 pipeline.load_and_split(

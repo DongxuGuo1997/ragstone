@@ -88,7 +88,7 @@ You should see logging output indicating the server is initializing successfully
 
 #### `create_openai_pipeline`
 Create an OpenAI-based RAG pipeline.
-- **model**: OpenAI model (e.g., "gpt-3.5-turbo", "gpt-4", "gpt-4o-mini")
+- **model**: OpenAI model (e.g., "gpt-4o-mini", "gpt-4o", "gpt-4.1")
 - **pipeline_id**: Unique identifier for the pipeline
 
 #### `create_ollama_pipeline`
@@ -136,7 +136,7 @@ Ask questions about your loaded documents.
 
 1. **Create a Pipeline**:
    ```
-   Use the create_openai_pipeline tool with model "gpt-3.5-turbo"
+   Use the create_openai_pipeline tool with model "gpt-4o-mini"
    ```
 
 2. **Load Documents**:
@@ -218,7 +218,7 @@ from ragstone.mcp.mcp_server_fastmcp import mcp, _pipelines
 from ragstone.rag.pipeline import OpenAIPipeline
 
 # Test pipeline creation
-pipeline = OpenAIPipeline(model="gpt-3.5-turbo")
+pipeline = OpenAIPipeline(model="gpt-4o-mini")
 _pipelines["test"] = pipeline
 print("✅ Pipeline created successfully")
 ```

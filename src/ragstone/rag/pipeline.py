@@ -592,7 +592,7 @@ class OpenAIPipeline(Pipeline):
 
     def __init__(
         self,
-        model: str = "gpt-3.5-turbo",
+        model: str = "gpt-4o-mini",
         loader_name: str = "local",
         vector_store_type: Optional[str] = None,
         optimize_loading: bool = True,
@@ -602,7 +602,7 @@ class OpenAIPipeline(Pipeline):
         Initialize the OpenAIPipeline with the specified model and loader name.
 
         Args:
-            model (str): The model to use. Defaults to "gpt-3.5-turbo".
+            model (str): The model to use. Defaults to "gpt-4o-mini".
             loader_name (str): The name of the loader. Defaults to "local".
             vector_store_type (Optional[str]): Type of vector store to use.
             optimize_loading (bool): Whether to use optimized parallel loading. Defaults to True.

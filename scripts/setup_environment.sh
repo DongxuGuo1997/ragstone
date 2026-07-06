@@ -67,7 +67,7 @@ VECTOR_STORE_TYPE=faiss
 MCP_LOG_LEVEL=INFO
 
 # Model Configuration
-DEFAULT_OPENAI_MODEL=gpt-3.5-turbo
+DEFAULT_OPENAI_MODEL=gpt-4o-mini
 DEFAULT_OLLAMA_MODEL=llama3
 
 # Ollama Configuration
