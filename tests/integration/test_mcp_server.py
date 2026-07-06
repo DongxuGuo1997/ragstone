@@ -13,6 +13,7 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from ragstone.mcp import mcp_server_fastmcp as srv
+from ragstone.utils import registry
 
 
 class _StubPipeline:
@@ -57,11 +58,9 @@ def stub_pipelines(monkeypatch):
     """Swap in stub pipeline classes and start/end with an empty registry."""
     monkeypatch.setattr(srv, "OpenAIPipeline", _StubOpenAIPipeline)
     monkeypatch.setattr(srv, "OllamaPipeline", _StubOllamaPipeline)
-    with srv._pipelines_lock:
-        srv._pipelines.clear()
+    registry.clear_pipelines()
     yield
-    with srv._pipelines_lock:
-        srv._pipelines.clear()
+    registry.clear_pipelines()
 
 
 async def _call(session, name, args=None):

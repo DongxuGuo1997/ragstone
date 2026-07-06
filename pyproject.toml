@@ -84,6 +84,11 @@ sqlite = [
     # checkpoint <3 and will silently downgrade/break langgraph 1.x.
     "langgraph-checkpoint-sqlite>=3.1,<4.0",
 ]
+api = [
+    # REST serving layer (ragstone-api console script).
+    "fastapi>=0.115,<1.0",
+    "uvicorn>=0.30,<1.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -106,6 +111,7 @@ Issues = "https://github.com/DongxuGuo1997/ragstone/issues"
 ragstone = "ragstone.ui.streamlit_app:main"
 ragstone-mcp = "ragstone.mcp.mcp_server_fastmcp:main"
 ragstone-chat = "ragstone.ui.chat_interface:main"
+ragstone-api = "ragstone.api.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

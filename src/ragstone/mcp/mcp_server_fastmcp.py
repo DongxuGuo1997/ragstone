@@ -7,9 +7,7 @@ offering a clean API for RAG operations with proper error handling.
 """
 
 import logging
-import threading
 from functools import partial
-from typing import Dict, List, Optional, Tuple, Union
 
 from anyio import to_thread
 from mcp.server.fastmcp import FastMCP
@@ -18,44 +16,17 @@ from ragstone.config.settings import get_config
 from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline
 from ragstone.utils.exceptions import PipelineError
 
+# The registry (shared with the REST API) is thread-safe: tools run
+# concurrently on the server's event loop and hand long operations to
+# worker threads via anyio, so registry access must be atomic.
+from ragstone.utils.registry import get_pipeline as _get_pipeline
+from ragstone.utils.registry import pop_pipeline as _pop_pipeline
+from ragstone.utils.registry import put_pipeline as _put_pipeline
+from ragstone.utils.registry import snapshot_pipelines as _snapshot_pipelines
+
 # Initialize configuration
 config = get_config()
 logger = logging.getLogger(__name__)
-
-Pipeline = Union[OpenAIPipeline, OllamaPipeline]
-
-# Global pipeline storage. Tools run concurrently on the server's event loop,
-# and the async ones hand long operations to worker threads via anyio; the
-# lock keeps registry reads/writes atomic so a create/delete cannot interleave
-# with another tool mid-lookup. Critical sections cover only the dict access
-# (never a network/embedding call), so they add no meaningful contention.
-_pipelines: Dict[str, Pipeline] = {}
-_pipelines_lock = threading.Lock()
-
-
-def _get_pipeline(pipeline_id: str) -> Optional[Pipeline]:
-    """Return the pipeline for an id, or None. Callers keep the returned
-    reference for the whole operation, so a concurrent delete cannot pull the
-    object out from under an in-flight call."""
-    with _pipelines_lock:
-        return _pipelines.get(pipeline_id)
-
-
-def _put_pipeline(pipeline_id: str, pipeline: Pipeline) -> None:
-    with _pipelines_lock:
-        _pipelines[pipeline_id] = pipeline
-
-
-def _pop_pipeline(pipeline_id: str) -> Optional[Pipeline]:
-    """Atomically remove and return a pipeline, or None if absent."""
-    with _pipelines_lock:
-        return _pipelines.pop(pipeline_id, None)
-
-
-def _snapshot_pipelines() -> List[Tuple[str, Pipeline]]:
-    """A consistent (id, pipeline) list for read-only iteration."""
-    with _pipelines_lock:
-        return list(_pipelines.items())
 
 
 def _safe_error(action: str, exc: Exception) -> str:

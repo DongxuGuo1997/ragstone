@@ -406,6 +406,43 @@ Each conversation is checkpointed per `session_id`, so after a restart a
 session picks up exactly where it left off — follow-up questions still
 resolve references against the earlier turns.
 
+### REST API (optional)
+
+Serve the pipeline over HTTP for applications (the MCP server covers
+agents; this covers everything else):
+
+```bash
+pip install -e ".[api]"
+ragstone-api          # binds 127.0.0.1:8000
+```
+
+```bash
+curl -X POST localhost:8000/pipelines -H 'content-type: application/json' \
+  -d '{"pipeline_id": "docs", "model": "gpt-4o-mini"}'
+curl -X POST localhost:8000/pipelines/docs/documents -d '{"data_dir": "data"}' \
+  -H 'content-type: application/json'
+curl -X POST localhost:8000/pipelines/docs/retriever -d '{"chain_type": "simple"}' \
+  -H 'content-type: application/json'
+curl -X POST localhost:8000/pipelines/docs/ask -H 'content-type: application/json' \
+  -d '{"question": "What is the main architecture?"}'
+```
+
+Production behaviors built in:
+
+- **Streaming**: pass `"stream": true` to `/ask` for Server-Sent Events.
+- **Probes**: `GET /health` (liveness) and `GET /ready` (a pipeline with a
+  RAG chain exists) for orchestrators; both stay unauthenticated.
+- **Auth**: set `RAGSTONE_API_KEY` and clients must send it as `X-API-Key`.
+- **Backpressure**: at most `RAGSTONE_API_MAX_CONCURRENCY` (default 8)
+  simultaneous `/ask` requests; beyond that the server answers `429`
+  immediately instead of queueing until it collapses.
+- **Safe errors**: typed pipeline errors map to precise status codes with
+  user-safe messages; anything unexpected is a generic `500` with details
+  only in the server log.
+
+Interactive docs at `localhost:8000/docs` (FastAPI's built-in Swagger UI).
+Bind address/port via `RAGSTONE_API_HOST` / `RAGSTONE_API_PORT`.
+
 ### Observability
 
 Every `ask_question` / `ask_question_stream` call emits one structured log

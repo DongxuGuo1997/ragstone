@@ -28,8 +28,9 @@ jobs:
           python -m pip install --upgrade pip
           # sqlite extra included so mypy can resolve langgraph.checkpoint.sqlite
           # (optional-backend import in rag/memory.py) and so the SQLite
-          # persistence test runs instead of being skipped.
-          pip install -e ".[dev,sqlite]"
+          # persistence test runs instead of being skipped. api extra included
+          # so the REST API tests run instead of being skipped.
+          pip install -e ".[dev,sqlite,api]"
 
       - name: Lint (black, isort, flake8)
         run: |
