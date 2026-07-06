@@ -5,6 +5,9 @@ This module contains all the RAG-related functionality including pipelines,
 vector stores, document loaders, splitters, memory, and RAG operations.
 """
 
+# Agentic RAG (LLM-driven retrieval loop)
+from .agent import AgentRagChain
+
 # Document loading and processing (from former services)
 from .loader import LocalLoader, RemoteLoader
 from .memory import MemoryProxy, SimpleTextRetriever
@@ -43,4 +46,5 @@ __all__ = [
     "split_documents",
     # RAG operations
     "RagProxy",
+    "AgentRagChain",
 ]

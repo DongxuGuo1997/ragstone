@@ -122,22 +122,33 @@ def eval_retrieval(pipeline, cases, k):
 
 def eval_generation(pipeline, cases, args):
     import judge
+    from langchain_core.callbacks import get_usage_metadata_callback
 
     retriever = pipeline.get_retriever()
     rows = []
     for case in cases:
         question = case["question"]
-        answer = with_retries(
-            pipeline.ask_question,
-            question,
-            session_id=f"eval_{case['id']}",
-            use_cache=False,
-        )
+        # Efficiency is scoped to the pipeline call only (not the judge):
+        # wall-clock latency plus token usage across every LLM call the
+        # answer needed — this is what makes chain types comparable
+        # (e.g. --chain-type simple vs --chain-type agent).
+        start = time.perf_counter()
+        with get_usage_metadata_callback() as usage_cb:
+            answer = with_retries(
+                pipeline.ask_question,
+                question,
+                session_id=f"eval_{case['id']}",
+                use_cache=False,
+            )
+        latency_s = round(time.perf_counter() - start, 2)
+        tokens = sum(u.get("total_tokens", 0) for u in usage_cb.usage_metadata.values())
         if not answer:
             rows.append(
                 {
                     "case": case,
                     "answer": "",
+                    "latency_s": latency_s,
+                    "tokens": tokens,
                     "correct": {
                         "verdict": "fail",
                         "reason": "pipeline returned no answer",
@@ -171,11 +182,19 @@ def eval_generation(pipeline, cases, args):
             args.judge_provider,
         )
         rows.append(
-            {"case": case, "answer": answer, "correct": correct, "faithful": faithful}
+            {
+                "case": case,
+                "answer": answer,
+                "latency_s": latency_s,
+                "tokens": tokens,
+                "correct": correct,
+                "faithful": faithful,
+            }
         )
         print(
             f"  [{case['id']}] correct={correct['verdict']:<4} "
-            f"faithful={faithful['verdict']:<4} {question[:50]}"
+            f"faithful={faithful['verdict']:<4} "
+            f"{latency_s:>5.1f}s {tokens:>5} tok  {question[:50]}"
         )
     n = len(rows)
     metrics = {
@@ -190,10 +209,16 @@ def eval_generation(pipeline, cases, args):
             else 0.0
         ),
     }
-    return metrics, rows
+    # Informational only — latency and token cost vary run to run, so they
+    # are reported for comparison but never gated against the baseline.
+    efficiency = {
+        "avg_latency_s": round(sum(r["latency_s"] for r in rows) / n, 2) if n else 0.0,
+        "total_tokens": sum(r["tokens"] for r in rows),
+    }
+    return metrics, rows, efficiency
 
 
-def write_report(args, metrics, retrieval_rows, generation_rows):
+def write_report(args, metrics, retrieval_rows, generation_rows, efficiency=None):
     lines = [
         "# Evaluation Report",
         "",
@@ -205,6 +230,13 @@ def write_report(args, metrics, retrieval_rows, generation_rows):
         "",
     ]
     lines += [f"- **{name}**: {value}" for name, value in metrics.items()]
+    if efficiency:
+        lines += [
+            "",
+            "## Efficiency (informational, not gated)",
+            "",
+        ]
+        lines += [f"- **{name}**: {value}" for name, value in efficiency.items()]
     lines += [
         "",
         "## Retrieval (Layer 1)",
@@ -220,13 +252,14 @@ def write_report(args, metrics, retrieval_rows, generation_rows):
             "",
             "## Generation (Layer 2)",
             "",
-            "| id | correct | faithful | question |",
-            "|---|---|---|---|",
+            "| id | correct | faithful | latency (s) | tokens | question |",
+            "|---|---|---|---|---|---|",
         ]
         for r in generation_rows:
             lines.append(
                 f"| {r['case']['id']} | {r['correct']['verdict']} "
-                f"| {r['faithful']['verdict']} | {r['case']['question']} |"
+                f"| {r['faithful']['verdict']} | {r.get('latency_s', '')} "
+                f"| {r.get('tokens', '')} | {r['case']['question']} |"
             )
         failures = [
             r
@@ -299,7 +332,11 @@ def main():
         "--judge-provider", choices=["openai", "ollama"], default="openai"
     )
     parser.add_argument("--k", type=int, default=4, help="retrieval depth")
-    parser.add_argument("--chain-type", default="simple")
+    parser.add_argument(
+        "--chain-type",
+        default="simple",
+        choices=["simple", "multi_query", "fusion", "agent"],
+    )
     parser.add_argument(
         "--rerank",
         action="store_true",
@@ -317,16 +354,23 @@ def main():
     metrics, retrieval_rows = eval_retrieval(pipeline, cases, args.k)
 
     generation_rows = []
+    efficiency = None
     if args.mode == "full":
         print("\nLayer 2: generation (LLM judge)")
-        gen_metrics, generation_rows = eval_generation(pipeline, cases, args)
+        gen_metrics, generation_rows, efficiency = eval_generation(
+            pipeline, cases, args
+        )
         metrics.update(gen_metrics)
 
     print("\nScores:")
     for name, value in metrics.items():
         print(f"  {name}: {value}")
+    if efficiency:
+        print("Efficiency (informational):")
+        for name, value in efficiency.items():
+            print(f"  {name}: {value}")
 
-    write_report(args, metrics, retrieval_rows, generation_rows)
+    write_report(args, metrics, retrieval_rows, generation_rows, efficiency)
 
     if args.no_baseline_check and not args.update_baseline:
         return 0

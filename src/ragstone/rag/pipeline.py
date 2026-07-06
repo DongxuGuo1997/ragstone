@@ -400,7 +400,7 @@ class Pipeline:
         Creates the RAG chain using the configured LLM and retriever.
 
         Args:
-            chain_type (str): The type of RAG chain to create (e.g., "simple", "multi_query", "fusion"). Defaults to "simple".
+            chain_type (str): The type of RAG chain to create ("simple", "multi_query", "fusion", or "agent"). Defaults to "simple".
 
         Raises:
             ChainInitializationError: If the LLM or retriever is not set up,

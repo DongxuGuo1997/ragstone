@@ -33,6 +33,33 @@ def format_docs(docs: List[Document]) -> str:
     return "\n\n".join(doc.page_content for doc in docs)
 
 
+def extract_question(inputs: Any) -> str:
+    """Extract the question from supported chain input shapes.
+
+    Accepts a plain string, a {"question": ...} dict, or a message.
+
+    Raises:
+        ValidationError: If the input is empty or of an unsupported type
+            — failing here gives a clear error instead of an opaque
+            failure deep inside the retriever.
+    """
+    question: Any
+    if isinstance(inputs, str):
+        question = inputs
+    elif isinstance(inputs, dict) and "question" in inputs:
+        question = inputs["question"]
+    elif isinstance(inputs, BaseMessage):
+        question = inputs.content
+    else:
+        raise ValidationError(
+            "Chain input must be a question string, a {'question': ...} "
+            f"dict, or a message; got {type(inputs).__name__}."
+        )
+    if not isinstance(question, str) or not question.strip():
+        raise ValidationError("Question must be a non-empty string.")
+    return question
+
+
 def parse_generated_queries(text: str) -> List[str]:
     """Split LLM-generated search queries into a clean list.
 
@@ -100,26 +127,9 @@ class RagProxy:
     def _get_question(self, inputs: Any) -> str:
         """Extract the question from supported input shapes.
 
-        Raises:
-            ValidationError: If the input is empty or of an unsupported type
-                — failing here gives a clear error instead of an opaque
-                failure deep inside the retriever.
+        See :func:`extract_question` for the accepted shapes and errors.
         """
-        question: Any
-        if isinstance(inputs, str):
-            question = inputs
-        elif isinstance(inputs, dict) and "question" in inputs:
-            question = inputs["question"]
-        elif isinstance(inputs, BaseMessage):
-            question = inputs.content
-        else:
-            raise ValidationError(
-                "Chain input must be a question string, a {'question': ...} "
-                f"dict, or a message; got {type(inputs).__name__}."
-            )
-        if not isinstance(question, str) or not question.strip():
-            raise ValidationError("Question must be a non-empty string.")
-        return question
+        return extract_question(inputs)
 
     def make_chain(self) -> Runnable:
         """
@@ -207,6 +217,24 @@ class RagProxy:
         )
         logger.info("RAG chain with Reciprocal Rank Fusion created.")
         return final_rag_chain
+
+    def make_agent_chain(self) -> Runnable:
+        """
+        Creates an agentic RAG chain: the LLM drives retrieval via a search
+        tool, deciding when and what to retrieve (and whether to search again
+        with a refined query) instead of following the fixed retrieve-once
+        pipeline. Costs extra LLM calls and latency; compare it against the
+        fixed chains with the eval harness (see evals/run_eval.py).
+
+        The input contract matches the other chains: a question string or a
+        dict {"question": "..."}.
+        """
+        # Imported lazily: agent.py imports helpers from this module.
+        from .agent import AgentRagChain
+
+        chain = AgentRagChain(self._llm, self._retriever)
+        logger.info("Agentic RAG chain created.")
+        return chain
 
     @staticmethod
     def _doc_key(doc: Document) -> Tuple[str, str]:

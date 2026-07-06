@@ -15,8 +15,8 @@ RAG didn't get replaced by agents — it became the primitive they stand on.
 Ragstone (a real building stone) leans into being that foundation:
 
 - **Efficient by design** — a fixed, deterministic pipeline: one retrieval,
-  one LLM call, predictable latency and cost. No agent loops unless you
-  build them on top.
+  one LLM call, predictable latency and cost. An optional agent mode exists
+  so you can measure exactly what an agent loop buys you (see below).
 - **Local-first** — runs fully offline with Ollama, FAISS, and a local
   cross-encoder reranker. No API key required.
 - **Measured, not vibes** — ships an eval harness (retrieval hit rate/MRR
@@ -45,6 +45,7 @@ Ragstone (a real building stone) leans into being that foundation:
 - **Fusion RAG**: Uses reciprocal rank fusion
 - **Ensemble Retrieval**: Combines BM25 and vector similarity
 - **Cross-Encoder Reranking** (optional): Two-stage retrieval for higher precision
+- **Agent Mode**: LLM-driven retrieval loop, for measured comparison against the fixed pipeline
 
 ### Vector Store Support
 - **FAISS**: Fast similarity search with local storage
@@ -348,6 +349,43 @@ pipeline.set_retriever_openai(use_ensemble=True, use_reranker=True)
 The cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, ~80 MB,
 downloaded on first use) runs fully locally — it works in offline/Ollama
 mode too. In the Streamlit UI, enable it under Advanced Settings.
+
+### Agent mode: pipeline vs. agent, measured
+
+Ragstone's default is a fixed pipeline — retrieve once, answer once. The
+`agent` chain type is the counterpoint: the LLM gets the retriever as a
+`search_documents` tool and drives the loop itself, searching again with a
+refined query when the first results don't answer the question (built on
+LangChain 1.x `create_agent`).
+
+```python
+pipeline.create_rag_chain(chain_type="agent")
+```
+
+Which is better? Don't guess — measure. The eval harness reports quality
+(correctness, faithfulness) **and** efficiency (latency, tokens) per chain
+type on the same corpus:
+
+```bash
+python evals/run_eval.py --chain-type simple
+python evals/run_eval.py --chain-type agent
+```
+
+Compare the two runs in `evals/report.md`. On the bundled eval corpus
+(gpt-4o-mini, 38 questions):
+
+| | simple | agent |
+|---|---|---|
+| correct rate | 0.947 | 0.947 |
+| faithful rate | 0.974 | 0.974 |
+| avg latency | 1.4 s | 2.7 s |
+| total tokens | 39k | 57k |
+
+Identical quality, 1.8× the latency, 1.45× the tokens: when first-shot
+retrieval is already good, the agent's ability to re-search buys nothing —
+it only pays. That is why the fixed pipeline is the default. On a corpus
+where retrieval misses more often, the trade-off can flip; the harness
+lets you find out for yours instead of guessing.
 
 ### Durable conversation memory (optional)
 

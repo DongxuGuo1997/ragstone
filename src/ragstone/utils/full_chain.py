@@ -48,6 +48,8 @@ class FullChain:
                 rag_chain = self._rag.make_multi_query_chain()
             case "fusion":
                 rag_chain = self._rag.make_fusion_chain()
+            case "agent":
+                rag_chain = self._rag.make_agent_chain()
             case _:
                 rag_chain = self._rag.make_chain()
         self._chain = self._memory.create_memory_chain(llm, rag_chain)

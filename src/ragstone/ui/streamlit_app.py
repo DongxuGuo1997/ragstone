@@ -196,8 +196,12 @@ class StreamlitApp:
 
                 chain_type = st.selectbox(
                     "RAG Chain Type",
-                    ["simple", "multi_query", "fusion"],
-                    help="Choose the RAG technique to use",
+                    ["simple", "multi_query", "fusion", "agent"],
+                    help=(
+                        "Choose the RAG technique to use. 'agent' lets the "
+                        "LLM drive retrieval via a search tool (slower, "
+                        "more LLM calls)."
+                    ),
                 )
 
                 temperature = st.slider(
