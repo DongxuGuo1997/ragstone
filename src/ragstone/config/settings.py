@@ -99,6 +99,13 @@ class LLMConfig:
     max_question_chars: int = field(
         default_factory=lambda: int(os.getenv("RAGSTONE_MAX_QUESTION_CHARS", "4000"))
     )
+    # Model for the follow-up rephrase step. Rephrasing is a trivial task
+    # that sits on the critical path (it runs before retrieval can start),
+    # so a fast, cheap model here directly cuts follow-up latency. None
+    # (the default) uses the main answer model.
+    rephrase_model: Optional[str] = field(
+        default_factory=lambda: os.getenv("RAGSTONE_REPHRASE_MODEL") or None
+    )
 
     def __post_init__(self):
         """Validate LLM configuration."""

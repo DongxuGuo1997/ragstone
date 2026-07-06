@@ -105,6 +105,39 @@ class TestMemoryBehavior:
         assert len(state_b.values["messages"]) == 2
 
 
+class TestRephraseModelSelection:
+    def test_none_uses_main_model(self):
+        from ragstone.rag.memory import _make_rephrase_llm
+
+        llm = _CountingFakeChatModel(responses=["x"])
+        assert _make_rephrase_llm(llm, None) is llm
+
+    def test_configured_model_builds_a_sibling(self):
+        from ragstone.rag.memory import _make_rephrase_llm
+
+        built = {}
+
+        class _ModelTakingFake(_CountingFakeChatModel):
+            def __init__(self, model=None, temperature=None, **kwargs):
+                kwargs.setdefault("responses", ["y"])
+                super().__init__(**kwargs)
+                built["model"] = model
+
+        main = _ModelTakingFake(model="big-model")
+        rephrase = _make_rephrase_llm(main, "tiny-model")
+
+        assert rephrase is not main
+        assert built["model"] == "tiny-model"
+
+    def test_unbuildable_model_falls_back_to_main(self):
+        from ragstone.rag.memory import _make_rephrase_llm
+
+        # FakeListChatModel requires `responses`; constructing a sibling
+        # with only model= raises — the fallback must kick in silently.
+        llm = _CountingFakeChatModel(responses=["x"])
+        assert _make_rephrase_llm(llm, "tiny-model") is llm
+
+
 class TestCheckpointBackend:
     def test_unknown_backend_raises(self):
         with pytest.raises(ValueError):

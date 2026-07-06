@@ -31,6 +31,30 @@ logger = logging.getLogger(__name__)
 MAX_REPHRASE_HISTORY = 10
 
 
+def _make_rephrase_llm(llm: BaseChatModel, model_name: Optional[str]) -> BaseChatModel:
+    """The LLM for the rephrase step: a cheaper/faster model when configured.
+
+    Constructs a sibling of the main model's class (works for ChatOpenAI
+    and ChatOllama alike — both take `model` and read auth/endpoint from
+    the environment). Falls back to the main model on any failure: a
+    misconfigured rephrase model must never break the chain.
+    """
+    if not model_name:
+        return llm
+    try:
+        # The concrete class is only known at runtime; `model` and
+        # `temperature` are constructor params on every supported provider.
+        llm_cls: Any = type(llm)
+        return llm_cls(model=model_name, temperature=0)
+    except Exception as exc:
+        logger.warning(
+            "Could not build rephrase model %r (%s); using the main model.",
+            model_name,
+            exc,
+        )
+        return llm
+
+
 class MemoryState(TypedDict, total=False):
     """Per-session conversation state, checkpointed by thread_id."""
 
@@ -149,7 +173,9 @@ class MemoryProxy:
         contextualize_q_system_prompt = (
             "Given a chat history and the latest user question "
             "which might reference context in the chat history, formulate a standalone question "
-            "which can be understood without the chat history. Do NOT answer the question, "
+            "which can be understood without the chat history. Replace pronouns and vague "
+            "references (like 'it', 'her', 'that', 'the panels') with the specific names, "
+            "products, or entities they refer to in the history. Do NOT answer the question, "
             "just reformulate it if needed and otherwise return it as is."
         )
 
@@ -160,7 +186,10 @@ class MemoryProxy:
                 ("human", "{question}"),
             ]
         )
-        rephrase_chain = contextualize_q_prompt | llm | StrOutputParser()
+        rephrase_llm = _make_rephrase_llm(llm, get_config().llm.rephrase_model)
+        if rephrase_llm is not llm:
+            logger.info("Rephrase step uses %s", get_config().llm.rephrase_model)
+        rephrase_chain = contextualize_q_prompt | rephrase_llm | StrOutputParser()
 
         def rephrase(state: MemoryState) -> MemoryState:
             # Timed: this LLM round-trip runs BEFORE retrieval can start,
