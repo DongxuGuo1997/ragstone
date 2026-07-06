@@ -39,3 +39,36 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
+
+  eval-retrieval:
+    # Retrieval-quality regression gate: embeds the eval corpus and checks
+    # hit rate / MRR against evals/baseline.json (fails on a drop). Needs an
+    # OpenAI key for embeddings (fractions of a cent per run), so it runs
+    # only where the secret is available — pushes and same-repo PRs, not
+    # forks. The in-step guard also makes it a clean skip on clones that
+    # have no OPENAI_API_KEY secret configured.
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run retrieval eval against baseline
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::notice::OPENAI_API_KEY secret not configured - skipping retrieval eval"
+            exit 0
+          fi
+          python evals/run_eval.py --mode retrieval
