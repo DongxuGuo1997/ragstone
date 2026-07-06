@@ -1,4 +1,7 @@
-from typing import Annotated, Any, Iterable, List
+import logging
+import sqlite3
+from pathlib import Path
+from typing import Annotated, Any, Iterable, List, Optional
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
@@ -8,12 +11,18 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import Runnable
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
 from typing_extensions import TypedDict
+
+from ..config.settings import get_config
+from ..utils.exceptions import ChainInitializationError
+
+logger = logging.getLogger(__name__)
 
 # How many history messages (human + AI) the rephrase step sees. Without a
 # cap, the rephrase prompt grows with every turn and so does its token cost;
@@ -38,16 +47,71 @@ class MemoryProxy:
     maintain conversation context across multiple interactions.
     """
 
-    def __init__(self, type: str = "InMemory") -> None:
+    def __init__(self, type: Optional[str] = None) -> None:
         """
         Initialize the MemoryProxy.
 
         Args:
-            type: The type of memory to use. Defaults to "InMemory".
+            type: Checkpoint backend to use, "memory" or "sqlite". When None
+                (the default), the backend is read from configuration
+                (RAGSTONE_CHECKPOINT_BACKEND, default "memory"). "InMemory"
+                is accepted as an alias for "memory" for backward
+                compatibility.
+
+        Raises:
+            TypeError: If type is given but is not a string.
+            ValueError: If type is not a recognized backend.
         """
-        if not isinstance(type, str):
+        if type is not None and not isinstance(type, str):
             raise TypeError("Memory type must be a string")
-        self._type = type
+
+        memory_cfg = get_config().memory
+        resolved = (type or memory_cfg.checkpoint_backend).strip().lower()
+        if resolved == "inmemory":
+            resolved = "memory"
+        if resolved not in {"memory", "sqlite"}:
+            raise ValueError(
+                f"Unknown memory type {type!r}; expected 'memory' or 'sqlite'."
+            )
+        self._type = resolved
+        self._db_path = memory_cfg.checkpoint_db_path
+        # Holds the SQLite connection for a "sqlite" backend so it outlives
+        # this call and is not garbage-collected while the graph uses it.
+        self._conn: Optional[sqlite3.Connection] = None
+
+    def _make_checkpointer(self) -> BaseCheckpointSaver:
+        """Build the checkpointer backing the memory graph.
+
+        Defaults to an in-process InMemorySaver (history lives only for the
+        life of the process). With the "sqlite" backend, history is persisted
+        to a SQLite file and survives restarts; that path needs the optional
+        `sqlite` extra (langgraph-checkpoint-sqlite).
+
+        Raises:
+            ChainInitializationError: If the "sqlite" backend is selected but
+                the optional dependency is not installed.
+        """
+        if self._type != "sqlite":
+            return InMemorySaver()
+
+        try:
+            from langgraph.checkpoint.sqlite import SqliteSaver
+        except ImportError as exc:
+            raise ChainInitializationError(
+                "SQLite conversation memory requires the 'sqlite' extra. "
+                "Install it with: pip install 'ragstone[sqlite]'"
+            ) from exc
+
+        db_path = Path(self._db_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        # check_same_thread=False: the compiled graph is invoked from worker
+        # threads (e.g. the MCP server offloads calls via anyio.to_thread).
+        conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        saver = SqliteSaver(conn)
+        saver.setup()
+        self._conn = conn
+        logger.info("Conversation memory persisted to SQLite at %s", db_path)
+        return saver
 
     def create_memory_chain(
         self, llm: BaseChatModel, base_chain: Runnable
@@ -138,8 +202,7 @@ class MemoryProxy:
         graph.add_edge("rephrase", "answer")
         graph.add_edge("answer", END)
 
-        self._type = "InMemory"
-        return graph.compile(checkpointer=InMemorySaver())
+        return graph.compile(checkpointer=self._make_checkpointer())
 
 
 class SimpleTextRetriever(BaseRetriever):

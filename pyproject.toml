@@ -78,6 +78,12 @@ dependencies = [
 rerank = [
     "sentence-transformers>=2.2.0",
 ]
+sqlite = [
+    # Durable conversation memory (survives restarts). The 3.x line targets
+    # langgraph-checkpoint 4.x, matching langgraph 1.x; the 2.x line pins
+    # checkpoint <3 and will silently downgrade/break langgraph 1.x.
+    "langgraph-checkpoint-sqlite>=3.1,<4.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

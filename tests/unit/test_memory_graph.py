@@ -2,6 +2,7 @@
 Unit tests for the LangGraph-based conversation memory (no network required).
 """
 
+import pytest
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
 from ragstone.rag.memory import MemoryProxy, SimpleTextRetriever
@@ -85,3 +86,59 @@ class TestMemoryBehavior:
         assert llm.calls == calls_before_b + 1
         state_b = full_chain.get_chain().get_state({"configurable": {"thread_id": "b"}})
         assert len(state_b.values["messages"]) == 2
+
+
+class TestCheckpointBackend:
+    def test_unknown_backend_raises(self):
+        with pytest.raises(ValueError):
+            MemoryProxy(type="redis")
+
+    def test_inmemory_alias_accepted(self):
+        # Backward-compatible alias for the old default.
+        assert MemoryProxy(type="InMemory")._type == "memory"
+
+    def test_sqlite_memory_persists_across_graphs(self, tmp_path):
+        # The whole point of the sqlite backend: a fresh graph pointed at the
+        # same file sees a prior "process's" conversation history.
+        pytest.importorskip("langgraph.checkpoint.sqlite")
+        db_path = str(tmp_path / "checkpoints.sqlite")
+
+        def build_chain():
+            llm = FakeListChatModel(responses=["Paris.", "REPHRASED", "About 2M."])
+            retriever = SimpleTextRetriever.from_texts(
+                ["Paris is the capital of France."]
+            )
+            rag = RagProxy(model=llm, retriever=retriever)
+            proxy = MemoryProxy(type="sqlite")
+            proxy._db_path = db_path  # redirect off the default store/ path
+            chain = FullChain(_FakeLLMProxy(llm), rag, proxy)
+            chain.create_full_chain("simple")
+            return chain
+
+        first_chain = build_chain()
+        assert first_chain.ask_question("capital?", session_id="s1") == "Paris."
+
+        # Simulate a restart: a brand-new graph over the same SQLite file.
+        second_chain = build_chain()
+        state = second_chain.get_chain().get_state(
+            {"configurable": {"thread_id": "s1"}}
+        )
+        assert [m.content for m in state.values["messages"]] == ["capital?", "Paris."]
+
+    def test_sqlite_missing_dependency_raises_actionable_error(self, monkeypatch):
+        # If the optional package is absent, selecting sqlite must fail with a
+        # clear "install the extra" message, not an opaque ImportError.
+        import builtins
+
+        from ragstone.utils.exceptions import ChainInitializationError
+
+        real_import = builtins.__import__
+
+        def deny_sqlite(name, *args, **kwargs):
+            if name == "langgraph.checkpoint.sqlite":
+                raise ImportError("no sqlite saver")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", deny_sqlite)
+        with pytest.raises(ChainInitializationError, match="sqlite"):
+            MemoryProxy(type="sqlite")._make_checkpointer()

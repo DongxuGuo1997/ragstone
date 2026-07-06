@@ -204,6 +204,37 @@ class CacheConfig:
 
 
 @dataclass
+class MemoryConfig:
+    """Configuration for conversation memory persistence.
+
+    The default in-memory checkpointer keeps conversation history only for
+    the life of the process. Set the backend to "sqlite" (and install the
+    `sqlite` extra) to persist history across restarts.
+    """
+
+    checkpoint_backend: str = field(
+        default_factory=lambda: os.getenv("RAGSTONE_CHECKPOINT_BACKEND", "memory")
+        .strip()
+        .lower()
+    )
+    checkpoint_db_path: str = field(
+        default_factory=lambda: os.getenv(
+            "RAGSTONE_CHECKPOINT_DB", "store/checkpoints.sqlite"
+        )
+    )
+
+    def __post_init__(self):
+        """Validate memory configuration."""
+        valid = {"memory", "sqlite"}
+        if self.checkpoint_backend not in valid:
+            raise ConfigurationError(
+                f"Invalid checkpoint backend: {self.checkpoint_backend!r}. "
+                "Valid values are 'memory' and 'sqlite' "
+                "(set via RAGSTONE_CHECKPOINT_BACKEND or config)."
+            )
+
+
+@dataclass
 class Config:
     """Main configuration class that aggregates all configuration sections."""
 
@@ -214,6 +245,7 @@ class Config:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     ui: UIConfig = field(default_factory=UIConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
 
     # Global settings
     environment: str = "development"
@@ -258,6 +290,7 @@ class Config:
             logging_config = LoggingConfig(**config_data.get("logging", {}))
             ui_config = UIConfig(**config_data.get("ui", {}))
             cache_config = CacheConfig(**config_data.get("cache", {}))
+            memory_config = MemoryConfig(**config_data.get("memory", {}))
 
             # Create main config
             main_config = config_data.get("main", {})
@@ -269,6 +302,7 @@ class Config:
                 logging=logging_config,
                 ui=ui_config,
                 cache=cache_config,
+                memory=memory_config,
                 environment=main_config.get("environment", "development"),
                 debug=main_config.get("debug"),
             )
@@ -343,6 +377,10 @@ class Config:
                 "enable_response_cache": self.cache.enable_response_cache,
                 "response_cache_size": self.cache.response_cache_size,
                 "response_cache_ttl": self.cache.response_cache_ttl,
+            },
+            "memory": {
+                "checkpoint_backend": self.memory.checkpoint_backend,
+                "checkpoint_db_path": self.memory.checkpoint_db_path,
             },
             "main": {
                 "environment": self.environment,

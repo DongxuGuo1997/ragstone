@@ -7,8 +7,9 @@ offering a clean API for RAG operations with proper error handling.
 """
 
 import logging
+import threading
 from functools import partial
-from typing import Dict, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from anyio import to_thread
 from mcp.server.fastmcp import FastMCP
@@ -20,8 +21,41 @@ from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline
 config = get_config()
 logger = logging.getLogger(__name__)
 
-# Global pipeline storage
-_pipelines: Dict[str, Union[OpenAIPipeline, OllamaPipeline]] = {}
+Pipeline = Union[OpenAIPipeline, OllamaPipeline]
+
+# Global pipeline storage. Tools run concurrently on the server's event loop,
+# and the async ones hand long operations to worker threads via anyio; the
+# lock keeps registry reads/writes atomic so a create/delete cannot interleave
+# with another tool mid-lookup. Critical sections cover only the dict access
+# (never a network/embedding call), so they add no meaningful contention.
+_pipelines: Dict[str, Pipeline] = {}
+_pipelines_lock = threading.Lock()
+
+
+def _get_pipeline(pipeline_id: str) -> Optional[Pipeline]:
+    """Return the pipeline for an id, or None. Callers keep the returned
+    reference for the whole operation, so a concurrent delete cannot pull the
+    object out from under an in-flight call."""
+    with _pipelines_lock:
+        return _pipelines.get(pipeline_id)
+
+
+def _put_pipeline(pipeline_id: str, pipeline: Pipeline) -> None:
+    with _pipelines_lock:
+        _pipelines[pipeline_id] = pipeline
+
+
+def _pop_pipeline(pipeline_id: str) -> Optional[Pipeline]:
+    """Atomically remove and return a pipeline, or None if absent."""
+    with _pipelines_lock:
+        return _pipelines.pop(pipeline_id, None)
+
+
+def _snapshot_pipelines() -> List[Tuple[str, Pipeline]]:
+    """A consistent (id, pipeline) list for read-only iteration."""
+    with _pipelines_lock:
+        return list(_pipelines.items())
+
 
 # Initialize FastMCP server
 mcp = FastMCP("Ragstone")
@@ -42,7 +76,7 @@ def create_openai_pipeline(
     """
     try:
         pipeline = OpenAIPipeline(model=model)
-        _pipelines[pipeline_id] = pipeline
+        _put_pipeline(pipeline_id, pipeline)
         return (
             f"OpenAI pipeline '{pipeline_id}' created successfully with model {model}"
         )
@@ -66,7 +100,7 @@ def create_ollama_pipeline(
     """
     try:
         pipeline = OllamaPipeline(model=model)
-        _pipelines[pipeline_id] = pipeline
+        _put_pipeline(pipeline_id, pipeline)
         return (
             f"Ollama pipeline '{pipeline_id}' created successfully with model {model}"
         )
@@ -90,12 +124,11 @@ async def load_documents(
     Returns:
         Success message with document count
     """
-    if pipeline_id not in _pipelines:
+    pipeline = _get_pipeline(pipeline_id)
+    if pipeline is None:
         return f"Pipeline '{pipeline_id}' not found. Create it first."
 
     try:
-        pipeline = _pipelines[pipeline_id]
-
         # Parse URLs if provided
         urls = (
             [url.strip() for url in page_urls.split(",") if url.strip()]
@@ -144,11 +177,11 @@ async def setup_retriever(
     Returns:
         Success message with configuration details
     """
-    if pipeline_id not in _pipelines:
+    pipeline = _get_pipeline(pipeline_id)
+    if pipeline is None:
         return f"Pipeline '{pipeline_id}' not found. Create it first."
 
     try:
-        pipeline = _pipelines[pipeline_id]
 
         def _configure():
             # Embeds the corpus and may download the cross-encoder model —
@@ -189,12 +222,11 @@ async def ask_question(
     Returns:
         Answer from the RAG pipeline
     """
-    if pipeline_id not in _pipelines:
+    pipeline = _get_pipeline(pipeline_id)
+    if pipeline is None:
         return f"Pipeline '{pipeline_id}' not found. Create it first."
 
     try:
-        pipeline = _pipelines[pipeline_id]
-
         # Full retrieval + LLM round trip — run off the event loop.
         response = await to_thread.run_sync(
             partial(pipeline.ask_question, question, session_id=session_id)
@@ -217,11 +249,12 @@ def list_pipelines() -> str:
     Returns:
         Formatted list of all pipelines with their details
     """
-    if not _pipelines:
+    pipelines = _snapshot_pipelines()
+    if not pipelines:
         return "No pipelines created yet. Use create_openai_pipeline or create_ollama_pipeline first."
 
     result = "**Available Pipelines:**\n\n"
-    for pipeline_id, pipeline in _pipelines.items():
+    for pipeline_id, pipeline in pipelines:
         pipeline_type = "OpenAI" if isinstance(pipeline, OpenAIPipeline) else "Ollama"
         model = pipeline.LLM.get_model_name() if pipeline.LLM else "Not set"
         has_docs = "Yes" if pipeline.texts else "No"
@@ -246,10 +279,10 @@ def get_pipeline_info(pipeline_id: str) -> str:
     Returns:
         Detailed information about the pipeline
     """
-    if pipeline_id not in _pipelines:
+    pipeline = _get_pipeline(pipeline_id)
+    if pipeline is None:
         return f"Pipeline '{pipeline_id}' not found."
 
-    pipeline = _pipelines[pipeline_id]
     pipeline_type = "OpenAI" if isinstance(pipeline, OpenAIPipeline) else "Ollama"
     model = pipeline.LLM.get_model_name() if pipeline.LLM else "Not set"
     doc_count = len(pipeline.texts) if pipeline.texts else 0
@@ -278,16 +311,16 @@ def delete_pipeline(pipeline_id: str) -> str:
     Returns:
         Success or error message
     """
-    if pipeline_id not in _pipelines:
+    # Remove atomically first so no other tool can look it up mid-cleanup.
+    pipeline = _pop_pipeline(pipeline_id)
+    if pipeline is None:
         return f"Pipeline '{pipeline_id}' not found."
 
     try:
         # Clean up resources if available
-        pipeline = _pipelines[pipeline_id]
         if hasattr(pipeline, "vector_db") and pipeline.vector_db:
             pipeline.vector_db.cleanup()
 
-        del _pipelines[pipeline_id]
         return f"Pipeline '{pipeline_id}' deleted successfully"
 
     except Exception as e:

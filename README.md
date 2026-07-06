@@ -200,6 +200,8 @@ OPENAI_ORG_ID=your_org_id  # Optional
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small  # Optional, this is the default
 OLLAMA_BASE_URL=http://localhost:11434
 VECTOR_STORE_TYPE=faiss  # or chroma
+RAGSTONE_CHECKPOINT_BACKEND=memory  # or sqlite (needs the sqlite extra)
+RAGSTONE_CHECKPOINT_DB=store/checkpoints.sqlite  # used by the sqlite backend
 ```
 
 > **Note:** Persisted vector stores (FAISS indices, Chroma collections) must be
@@ -346,6 +348,22 @@ pipeline.set_retriever_openai(use_ensemble=True, use_reranker=True)
 The cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, ~80 MB,
 downloaded on first use) runs fully locally — it works in offline/Ollama
 mode too. In the Streamlit UI, enable it under Advanced Settings.
+
+### Durable conversation memory (optional)
+
+By default, conversation history lives in memory and is lost when the
+process exits. To persist it across restarts, install the `sqlite` extra
+and switch the checkpoint backend:
+
+```bash
+pip install -e ".[sqlite]"   # pulls langgraph-checkpoint-sqlite
+export RAGSTONE_CHECKPOINT_BACKEND=sqlite
+export RAGSTONE_CHECKPOINT_DB=store/checkpoints.sqlite  # optional, this is the default
+```
+
+Each conversation is checkpointed per `session_id`, so after a restart a
+session picks up exactly where it left off — follow-up questions still
+resolve references against the earlier turns.
 
 ## Testing
 
