@@ -49,12 +49,13 @@ def make_openai_embeddings() -> Any:
     is pinned to None so a stray ``OPENAI_ORG_ID`` can't break auth.
     """
     OpenAIEmbeddings = _openai_embeddings_cls()
+    llm_cfg = get_config().llm
     return OpenAIEmbeddings(
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         openai_organization=None,
-        model=get_config().llm.openai_embedding_model,
-        request_timeout=30,
-        max_retries=2,
+        model=llm_cfg.openai_embedding_model,
+        request_timeout=llm_cfg.timeout,
+        max_retries=llm_cfg.max_retries,
     )
 
 

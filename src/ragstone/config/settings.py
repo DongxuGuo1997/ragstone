@@ -86,8 +86,19 @@ class LLMConfig:
     prefer_ollama_embeddings: bool = True  # Try Ollama first, fallback to OpenAI
     auto_detect_available_models: bool = True  # Detect available Ollama models
     default_temperature: float = 0.0
-    max_retries: int = 3
-    timeout: int = 60
+    # Applied to every LLM/embedding client (see models/base_model.py and
+    # rag/embeddings.py): bounded retries on transient API errors, and a
+    # request timeout so a hung call cannot hang the request forever.
+    max_retries: int = field(
+        default_factory=lambda: int(os.getenv("RAGSTONE_LLM_MAX_RETRIES", "3"))
+    )
+    timeout: int = field(
+        default_factory=lambda: int(os.getenv("RAGSTONE_LLM_TIMEOUT", "60"))
+    )
+    # Upper bound on question length, checked before any API call is made.
+    max_question_chars: int = field(
+        default_factory=lambda: int(os.getenv("RAGSTONE_MAX_QUESTION_CHARS", "4000"))
+    )
 
     def __post_init__(self):
         """Validate LLM configuration."""
@@ -97,6 +108,8 @@ class LLMConfig:
             raise ConfigurationError("Max retries must be non-negative")
         if self.timeout <= 0:
             raise ConfigurationError("Timeout must be positive")
+        if self.max_question_chars <= 0:
+            raise ConfigurationError("Max question chars must be positive")
 
 
 @dataclass
@@ -342,6 +355,7 @@ class Config:
                 "default_temperature": self.llm.default_temperature,
                 "max_retries": self.llm.max_retries,
                 "timeout": self.llm.timeout,
+                "max_question_chars": self.llm.max_question_chars,
             },
             "loader": {
                 "default_data_dir": self.loader.default_data_dir,

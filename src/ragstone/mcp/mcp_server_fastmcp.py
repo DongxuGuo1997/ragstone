@@ -16,6 +16,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ragstone.config.settings import get_config
 from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline
+from ragstone.utils.exceptions import PipelineError
 
 # Initialize configuration
 config = get_config()
@@ -57,6 +58,23 @@ def _snapshot_pipelines() -> List[Tuple[str, Pipeline]]:
         return list(_pipelines.items())
 
 
+def _safe_error(action: str, exc: Exception) -> str:
+    """Build the error text returned to the MCP client.
+
+    The full exception (with traceback) goes to the server log. Typed
+    pipeline errors have messages written for end users, so they are
+    echoed back; any other exception could leak paths or internals and is
+    replaced with a generic message.
+    """
+    logger.error(f"{action} failed: {exc}", exc_info=True)
+    if isinstance(exc, PipelineError):
+        return f"{action} failed: {exc}"
+    return (
+        f"{action} failed with an internal error ({type(exc).__name__}). "
+        "See the server logs for details."
+    )
+
+
 # Initialize FastMCP server
 mcp = FastMCP("Ragstone")
 
@@ -81,8 +99,7 @@ def create_openai_pipeline(
             f"OpenAI pipeline '{pipeline_id}' created successfully with model {model}"
         )
     except Exception as e:
-        logger.error(f"Failed to create OpenAI pipeline: {e}")
-        return f"Failed to create OpenAI pipeline: {str(e)}"
+        return _safe_error("Creating OpenAI pipeline", e)
 
 
 @mcp.tool()
@@ -105,8 +122,7 @@ def create_ollama_pipeline(
             f"Ollama pipeline '{pipeline_id}' created successfully with model {model}"
         )
     except Exception as e:
-        logger.error(f"Failed to create Ollama pipeline: {e}")
-        return f"Failed to create Ollama pipeline: {str(e)}"
+        return _safe_error("Creating Ollama pipeline", e)
 
 
 @mcp.tool()
@@ -155,8 +171,7 @@ async def load_documents(
             return "No documents were loaded. Check your data sources."
 
     except Exception as e:
-        logger.error(f"Failed to load documents: {e}")
-        return f"Failed to load documents: {str(e)}"
+        return _safe_error("Loading documents", e)
 
 
 @mcp.tool()
@@ -204,8 +219,7 @@ async def setup_retriever(
         return f"Pipeline '{pipeline_id}' configured with {retriever_type} retriever and {chain_type} RAG chain"
 
     except Exception as e:
-        logger.error(f"Failed to setup retriever: {e}")
-        return f"Failed to setup retriever: {str(e)}"
+        return _safe_error("Setting up the retriever", e)
 
 
 @mcp.tool()
@@ -238,8 +252,7 @@ async def ask_question(
             return "Sorry, I couldn't generate a response. Please try again."
 
     except Exception as e:
-        logger.error(f"Failed to ask question: {e}")
-        return f"Error generating response: {str(e)}"
+        return _safe_error("Answering the question", e)
 
 
 @mcp.tool()
@@ -324,8 +337,7 @@ def delete_pipeline(pipeline_id: str) -> str:
         return f"Pipeline '{pipeline_id}' deleted successfully"
 
     except Exception as e:
-        logger.error(f"Failed to delete pipeline: {e}")
-        return f"Failed to delete pipeline: {str(e)}"
+        return _safe_error("Deleting the pipeline", e)
 
 
 def main():

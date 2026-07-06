@@ -20,7 +20,7 @@ from .cache import get_query_cache as _get_query_cache
 from .cache import is_response_cache_enabled as _is_response_cache_enabled
 from .embeddings import get_smart_embeddings, make_openai_embeddings
 from .memory import MemoryProxy
-from .rag import RagProxy
+from .rag import RagProxy, validate_question
 from .splitter import split_documents
 
 logger = logging.getLogger(__name__)
@@ -340,7 +340,17 @@ class Pipeline:
         return self._retriever
 
     def _begin_ask(self, question: str) -> None:
-        """Reset per-question state so get_sources reflects this ask."""
+        """Validate the question and reset per-question state.
+
+        Validation runs here — before the cache lookup and before any
+        retrieval/LLM call — so malformed or oversized input is rejected
+        without spending anything.
+
+        Raises:
+            ValidationError: If the question is empty, not a string, or
+                exceeds the configured length cap.
+        """
+        validate_question(question)
         self._last_question = question
         if isinstance(self._retriever, _SourceRecordingRetriever):
             self._retriever.record.clear()

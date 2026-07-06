@@ -123,6 +123,13 @@ class OpenAIProxy(LLMProxy):
             # Lazy import ChatOpenAI only when needed
             ChatOpenAI = _get_cached_llm_import("openai")
 
+            # Resilience defaults from config: bounded retries on transient
+            # API errors and a request timeout so a hung call cannot hang
+            # the request forever. Caller kwargs still win.
+            llm_cfg = get_config().llm
+            kwargs.setdefault("max_retries", llm_cfg.max_retries)
+            kwargs.setdefault("request_timeout", llm_cfg.timeout)
+
             self._llm = ChatOpenAI(
                 model=model_name,
                 temperature=temperature,
@@ -176,7 +183,12 @@ class OllamaProxy(LLMProxy):
             # Lazy import ChatOllama only when needed
             ChatOllama = _get_cached_llm_import("ollama")
 
-            kwargs.setdefault("base_url", get_config().api.ollama_base_url)
+            config = get_config()
+            kwargs.setdefault("base_url", config.api.ollama_base_url)
+            # ChatOllama has no retry/timeout params of its own; the request
+            # timeout goes to its underlying httpx client instead. Retries
+            # are less relevant for a local server, so none are forced here.
+            kwargs.setdefault("client_kwargs", {"timeout": config.llm.timeout})
             self._llm = ChatOllama(
                 model=model_name, **kwargs
             )  # 'model' is the correct param for ChatOllama

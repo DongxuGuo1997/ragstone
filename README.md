@@ -203,6 +203,9 @@ OLLAMA_BASE_URL=http://localhost:11434
 VECTOR_STORE_TYPE=faiss  # or chroma
 RAGSTONE_CHECKPOINT_BACKEND=memory  # or sqlite (needs the sqlite extra)
 RAGSTONE_CHECKPOINT_DB=store/checkpoints.sqlite  # used by the sqlite backend
+RAGSTONE_LLM_MAX_RETRIES=3  # retries on transient LLM/embedding API errors
+RAGSTONE_LLM_TIMEOUT=60  # per-request timeout in seconds
+RAGSTONE_MAX_QUESTION_CHARS=4000  # questions above this are rejected pre-API
 ```
 
 > **Note:** Persisted vector stores (FAISS indices, Chroma collections) must be

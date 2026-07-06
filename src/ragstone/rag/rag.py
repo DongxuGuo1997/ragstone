@@ -11,6 +11,7 @@ from langchain_core.prompts import BasePromptTemplate, ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda
 from langchain_core.vectorstores import VectorStoreRetriever
 
+from ..config.settings import get_config
 from ..utils.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -33,15 +34,42 @@ def format_docs(docs: List[Document]) -> str:
     return "\n\n".join(doc.page_content for doc in docs)
 
 
+def validate_question(question: Any) -> str:
+    """Validate a question before any retrieval or LLM call is made.
+
+    Checks type, non-emptiness, and the configured length cap
+    (``llm.max_question_chars`` / RAGSTONE_MAX_QUESTION_CHARS) — an
+    oversized input should be rejected up front, not embedded and sent to
+    a paid API.
+
+    Returns:
+        The validated question string.
+
+    Raises:
+        ValidationError: If the question is not a string, is empty, or
+            exceeds the configured length cap.
+    """
+    if not isinstance(question, str) or not question.strip():
+        raise ValidationError("Question must be a non-empty string.")
+    max_chars = get_config().llm.max_question_chars
+    if len(question) > max_chars:
+        raise ValidationError(
+            f"Question is too long ({len(question)} chars); the configured "
+            f"maximum is {max_chars}. Set RAGSTONE_MAX_QUESTION_CHARS to "
+            "raise the limit."
+        )
+    return question
+
+
 def extract_question(inputs: Any) -> str:
-    """Extract the question from supported chain input shapes.
+    """Extract and validate the question from supported chain input shapes.
 
     Accepts a plain string, a {"question": ...} dict, or a message.
 
     Raises:
-        ValidationError: If the input is empty or of an unsupported type
-            — failing here gives a clear error instead of an opaque
-            failure deep inside the retriever.
+        ValidationError: If the input is empty, oversized, or of an
+            unsupported type — failing here gives a clear error instead of
+            an opaque failure deep inside the retriever.
     """
     question: Any
     if isinstance(inputs, str):
@@ -55,9 +83,7 @@ def extract_question(inputs: Any) -> str:
             "Chain input must be a question string, a {'question': ...} "
             f"dict, or a message; got {type(inputs).__name__}."
         )
-    if not isinstance(question, str) or not question.strip():
-        raise ValidationError("Question must be a non-empty string.")
-    return question
+    return validate_question(question)
 
 
 def parse_generated_queries(text: str) -> List[str]:
