@@ -105,6 +105,32 @@ class TestMemoryBehavior:
         assert len(state_b.values["messages"]) == 2
 
 
+class TestSessionCap:
+    def test_history_is_trimmed_beyond_the_cap(self, monkeypatch):
+        import ragstone.rag.memory as memory_mod
+
+        # Cap of 4 messages = 2 turns; the 3rd turn must evict the 1st.
+        monkeypatch.setattr(memory_mod, "MAX_SESSION_MESSAGES", 4)
+        llm = _CountingFakeChatModel(responses=["A1.", "R2", "A2.", "R3", "A3."])
+        full_chain = _make_full_chain(llm)
+
+        full_chain.ask_question("q1?", session_id="cap")
+        full_chain.ask_question("q2?", session_id="cap")
+        full_chain.ask_question("q3?", session_id="cap")
+
+        state = full_chain.get_chain().get_state({"configurable": {"thread_id": "cap"}})
+        contents = [m.content for m in state.values["messages"]]
+        # Oldest turn (q1) evicted; the two most recent remain, in order.
+        assert contents == ["q2?", "A2.", "q3?", "A3."]
+
+    def test_short_sessions_are_untouched(self):
+        llm = _CountingFakeChatModel(responses=["Paris."])
+        full_chain = _make_full_chain(llm)
+        full_chain.ask_question("capital?", session_id="s")
+        state = full_chain.get_chain().get_state({"configurable": {"thread_id": "s"}})
+        assert len(state.values["messages"]) == 2
+
+
 class TestRephraseModelSelection:
     def test_none_uses_main_model(self):
         from ragstone.rag.memory import _make_rephrase_llm

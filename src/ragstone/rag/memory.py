@@ -1,12 +1,17 @@
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Annotated, Any, Iterable, List, Optional
+from typing import Annotated, Any, Iterable, List, Optional, Union
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+from langchain_core.messages import (
+    AIMessage,
+    AnyMessage,
+    HumanMessage,
+    RemoveMessage,
+)
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.retrievers import BaseRetriever
@@ -29,6 +34,12 @@ logger = logging.getLogger(__name__)
 # cap, the rephrase prompt grows with every turn and so does its token cost;
 # recent turns are what matter for resolving references like "its" or "that".
 MAX_REPHRASE_HISTORY = 10
+
+# Hard cap on messages kept in a session's checkpointed state. Without it,
+# long-lived sessions grow without bound — every turn re-serializes the
+# whole history (painful with the SQLite backend). Comfortably above
+# MAX_REPHRASE_HISTORY, so trimming never affects rephrase quality.
+MAX_SESSION_MESSAGES = 40
 
 
 def _make_rephrase_llm(llm: BaseChatModel, model_name: Optional[str]) -> BaseChatModel:
@@ -55,10 +66,15 @@ def _make_rephrase_llm(llm: BaseChatModel, model_name: Optional[str]) -> BaseCha
         return llm
 
 
+# What the answer node may write into "messages": normal messages, plus
+# RemoveMessage instructions the add_messages reducer uses for trimming.
+_MessageWrite = Union[AnyMessage, RemoveMessage]
+
+
 class MemoryState(TypedDict, total=False):
     """Per-session conversation state, checkpointed by thread_id."""
 
-    messages: Annotated[List[AnyMessage], add_messages]
+    messages: Annotated[List[_MessageWrite], add_messages]
     question: str  # original user question for the current turn
     standalone_question: str  # history-rephrased question for the RAG chain
     answer: str
@@ -228,8 +244,22 @@ class MemoryProxy:
             # once history exists the route always runs the rephrase node,
             # which overwrites it before this node reads it — the only turn
             # that skips rephrase is the first, when it was never set.
+            new_messages: List[_MessageWrite] = [
+                HumanMessage(state["question"]),
+                AIMessage(text),
+            ]
+            # Trim the oldest messages once the cap is exceeded, so a
+            # long-lived session's checkpointed state stays bounded.
+            history = state.get("messages") or []
+            overflow = len(history) + len(new_messages) - MAX_SESSION_MESSAGES
+            if overflow > 0:
+                new_messages += [
+                    RemoveMessage(id=m.id)
+                    for m in history[:overflow]
+                    if m.id is not None
+                ]
             return {
-                "messages": [HumanMessage(state["question"]), AIMessage(text)],
+                "messages": new_messages,
                 "answer": text,
             }
 
