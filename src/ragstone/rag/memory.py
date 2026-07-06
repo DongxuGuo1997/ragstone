@@ -184,10 +184,15 @@ class MemoryProxy:
             text = "".join(parts)
             # History records the ORIGINAL question, not the rephrased one,
             # matching the previous RunnableWithMessageHistory behavior.
+            #
+            # standalone_question is deliberately KEPT in state so the UI can
+            # show how the follow-up was interpreted. It cannot go stale:
+            # once history exists the route always runs the rephrase node,
+            # which overwrites it before this node reads it — the only turn
+            # that skips rephrase is the first, when it was never set.
             return {
                 "messages": [HumanMessage(state["question"]), AIMessage(text)],
                 "answer": text,
-                "standalone_question": "",
             }
 
         def route(state: MemoryState) -> str:

@@ -63,6 +63,21 @@ class FullChain:
         """
         return self._chain
 
+    def get_interpretation(self, session_id: str) -> Optional[str]:
+        """
+        Return the standalone question the rephrase step produced for the
+        most recent turn of a session, or None if no rephrase has happened
+        (first turn, or unknown session). Reads checkpointed graph state —
+        no LLM call is made.
+
+        Args:
+            session_id (str): The session to inspect.
+        """
+        if self._chain is None:
+            return None
+        state = self._chain.get_state({"configurable": {"thread_id": session_id}})
+        return state.values.get("standalone_question") or None
+
     def ask_question(self, query: str, session_id: str):
         """
         Ask a question using the created chain.

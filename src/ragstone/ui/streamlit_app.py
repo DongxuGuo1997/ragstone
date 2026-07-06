@@ -31,6 +31,7 @@ from ragstone.utils import (  # noqa: E402
     ConfigurationError,
     LLMInitializationError,
 )
+from ragstone.utils.observability import estimate_cost_usd  # noqa: E402
 
 # Initialize configuration and logger first
 config: Config = get_config()
@@ -301,12 +302,82 @@ class StreamlitApp:
         - **Pipeline stuck?** → Check your internet connection or switch modes
         """)
 
+    def _collect_trace(self, prompt: str) -> Dict[str, Any]:
+        """Assemble the glass-box trace for the answer just generated.
+
+        Reads state the pipeline already recorded (request metrics, the
+        rephrased question, the retrieval record) — no extra LLM or
+        embedding calls are made here.
+        """
+        pipeline = st.session_state.pipeline
+        trace: Dict[str, Any] = {
+            "sources": pipeline.get_sources(prompt),
+            "interpretation": None,
+            "chain_type": None,
+            "latency_ms": None,
+            "tokens": None,
+            "cost_usd": None,
+            "cache_hit": False,
+        }
+
+        interpretation = pipeline.get_last_interpretation(
+            st.session_state.chat_session_id
+        )
+        # Only show the interpretation when the rephrase step actually
+        # changed the question — echoing it back verbatim teaches nothing.
+        if interpretation and interpretation.strip() != prompt.strip():
+            trace["interpretation"] = interpretation
+
+        metrics = pipeline.last_metrics
+        if metrics is not None:
+            trace["chain_type"] = metrics.chain_type
+            trace["latency_ms"] = metrics.latency_ms
+            trace["tokens"] = metrics.tokens
+            trace["cache_hit"] = metrics.cache_hit
+            model = pipeline.LLM.get_model_name() if pipeline.LLM else None
+            trace["cost_usd"] = estimate_cost_usd(
+                metrics.input_tokens, metrics.output_tokens, model
+            )
+        return trace
+
+    @staticmethod
+    def _render_trace(trace: Dict[str, Any]) -> None:
+        """Render the 'how this answer was made' panel under an answer."""
+        with st.expander("🔍 How this answer was made"):
+            if trace.get("interpretation"):
+                st.markdown(
+                    f"**Interpreted your question as:** _{trace['interpretation']}_"
+                )
+
+            badge_parts = []
+            if trace.get("latency_ms") is not None:
+                badge_parts.append(f"⏱ {trace['latency_ms'] / 1000:.2f}s")
+            if trace.get("cache_hit"):
+                badge_parts.append("♻️ served from cache")
+            elif trace.get("tokens"):
+                badge_parts.append(f"🔤 {trace['tokens']:,} tokens")
+                if trace.get("cost_usd") is not None:
+                    badge_parts.append(f"💰 ~${trace['cost_usd']:.4f}")
+            if trace.get("chain_type"):
+                badge_parts.append(f"⛓ chain: {trace['chain_type']}")
+            if badge_parts:
+                st.caption(" · ".join(badge_parts))
+
+            sources = trace.get("sources") or []
+            if sources:
+                st.markdown(f"**📄 Sources ({len(sources)})**")
+                for src in sources:
+                    st.markdown(f"**{src['source']}**")
+                    st.caption(src["snippet"])
+
     def _render_chat_interface(self) -> None:
         """Render the chat interface."""
-        # Display chat messages
+        # Display chat messages (with their glass-box traces, if recorded)
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
+                if message.get("trace"):
+                    self._render_trace(message["trace"])
 
         # Chat input
         if prompt := st.chat_input("Ask your question here..."):
@@ -317,41 +388,22 @@ class StreamlitApp:
 
             # Generate response
             with st.chat_message("assistant"):
-                import time
-
-                start_time = time.time()
-
                 try:
                     response = st.write_stream(
                         st.session_state.pipeline.ask_question_stream(
                             prompt, session_id=st.session_state.chat_session_id
                         )
                     )
-                    response_time = time.time() - start_time
 
                     if response:
-                        # Show the retrieved sources behind the answer
-                        sources = st.session_state.pipeline.get_sources(prompt)
-                        if sources:
-                            with st.expander(f"📄 Sources ({len(sources)})"):
-                                for src in sources:
-                                    st.markdown(f"**{src['source']}**")
-                                    st.caption(src["snippet"])
-
-                        # Add response time indicator
-                        if response_time < 0.5:
-                            st.info(
-                                f"⚡ **Ultra-fast response!** Answered in {response_time:.2f}s"
-                            )
-                        elif response_time < 2.0:
-                            st.info(
-                                f"🚀 **Fast response!** Answered in {response_time:.2f}s"
-                            )
-                        else:
-                            st.info(f"🤔 **Response** in {response_time:.2f}s")
-
+                        trace = self._collect_trace(prompt)
+                        self._render_trace(trace)
                         st.session_state.messages.append(
-                            {"role": "assistant", "content": response}
+                            {
+                                "role": "assistant",
+                                "content": response,
+                                "trace": trace,
+                            }
                         )
                     else:
                         error_msg = (

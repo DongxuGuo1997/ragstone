@@ -12,7 +12,7 @@ import pytest
 
 from ragstone.rag.pipeline import OpenAIPipeline
 from ragstone.utils.exceptions import ChainExecutionError
-from ragstone.utils.observability import track_request
+from ragstone.utils.observability import estimate_cost_usd, track_request
 
 REQUEST_LOGGER = "ragstone.requests"
 
@@ -61,6 +61,17 @@ class TestTrackRequest:
             with track_request("s1") as metrics:
                 metrics.cache_hit = True
         assert "cache_hit=True" in _request_records(caplog)[0].getMessage()
+
+
+class TestCostEstimate:
+    def test_known_model_prices_input_and_output_separately(self):
+        # gpt-4o-mini: $0.15/M input, $0.60/M output.
+        cost = estimate_cost_usd(1_000_000, 1_000_000, "gpt-4o-mini")
+        assert cost == pytest.approx(0.75)
+
+    def test_unknown_or_local_model_returns_none(self):
+        assert estimate_cost_usd(100, 100, "llama3") is None
+        assert estimate_cost_usd(100, 100, None) is None
 
 
 class TestPipelineRequestLogging:
@@ -115,6 +126,33 @@ class TestPipelineRequestLogging:
             assert pipeline.ask_question("capital?", session_id="obs3") == "cached!"
 
         assert "cache_hit=True" in _request_records(caplog)[0].getMessage()
+
+    def test_last_metrics_exposed_after_ask(self, caplog):
+        # The glass-box UI reads pipeline.last_metrics after each answer;
+        # the object must be complete by the time ask_question returns.
+        pipeline = self._pipeline_with_stub_chain()
+        assert pipeline.last_metrics is None  # nothing asked yet
+
+        with caplog.at_level(logging.INFO, logger=REQUEST_LOGGER):
+            pipeline.ask_question("capital?", session_id="m1")
+
+        metrics = pipeline.last_metrics
+        assert metrics is not None
+        assert metrics.session_id == "m1"
+        assert metrics.chain_type == "simple"
+        assert metrics.cache_hit is False
+        assert metrics.latency_ms >= 0
+        assert metrics.error is None
+
+    def test_last_metrics_complete_after_stream_consumed(self, caplog):
+        pipeline = self._pipeline_with_stub_chain("streamed answer here")
+        with caplog.at_level(logging.INFO, logger=REQUEST_LOGGER):
+            list(pipeline.ask_question_stream("capital?", session_id="m2"))
+
+        metrics = pipeline.last_metrics
+        assert metrics is not None
+        assert metrics.session_id == "m2"
+        assert metrics.latency_ms >= 0
 
     def test_failure_is_visible_in_request_line(self, caplog):
         pipeline = OpenAIPipeline(model="gpt-4o-mini")

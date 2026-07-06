@@ -41,6 +41,29 @@ class RequestMetrics:
     error: Optional[str] = None
     latency_ms: int = 0
     tokens: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+# Approximate USD prices per million tokens (input, output). Used only for
+# the demo UI's cost estimate — update as OpenAI prices change; an unknown
+# model yields None and the UI omits the estimate rather than guessing.
+_PRICES_PER_MTOK = {
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-4o": (2.50, 10.00),
+    "gpt-4.1": (2.00, 8.00),
+    "gpt-4.1-mini": (0.40, 1.60),
+}
+
+
+def estimate_cost_usd(
+    input_tokens: int, output_tokens: int, model: Optional[str]
+) -> Optional[float]:
+    """Rough USD cost of a request, or None for unknown/local models."""
+    if not model or model not in _PRICES_PER_MTOK:
+        return None
+    price_in, price_out = _PRICES_PER_MTOK[model]
+    return (input_tokens * price_in + output_tokens * price_out) / 1_000_000
 
 
 @contextmanager
@@ -73,9 +96,10 @@ def track_request(
     finally:
         usage_ctx.__exit__(None, None, None)
         metrics.latency_ms = int((time.perf_counter() - start) * 1000)
-        metrics.tokens = sum(
-            usage.get("total_tokens", 0) for usage in usage_cb.usage_metadata.values()
-        )
+        usages = usage_cb.usage_metadata.values()
+        metrics.tokens = sum(u.get("total_tokens", 0) for u in usages)
+        metrics.input_tokens = sum(u.get("input_tokens", 0) for u in usages)
+        metrics.output_tokens = sum(u.get("output_tokens", 0) for u in usages)
         logger.info(
             "request=%s session=%s chain=%s cache_hit=%s latency_ms=%d tokens=%d%s",
             metrics.request_id,

@@ -74,6 +74,23 @@ class TestMemoryBehavior:
         contents = [m.content for m in state.values["messages"]]
         assert contents == ["capital?", "Paris.", "population?", "About 2M."]
 
+    def test_interpretation_exposed_after_rephrase(self):
+        # The glass-box UI reads the rephrased question from graph state;
+        # it must be None on the first turn and populated after a follow-up.
+        llm = _CountingFakeChatModel(responses=["Paris.", "REPHRASED", "About 2M."])
+        full_chain = _make_full_chain(llm)
+
+        full_chain.ask_question("capital?", session_id="s1")
+        assert full_chain.get_interpretation("s1") is None  # no rephrase yet
+
+        full_chain.ask_question("population?", session_id="s1")
+        assert full_chain.get_interpretation("s1") == "REPHRASED"
+
+    def test_interpretation_none_for_unknown_session(self):
+        llm = _CountingFakeChatModel(responses=["Paris."])
+        full_chain = _make_full_chain(llm)
+        assert full_chain.get_interpretation("never-used") is None
+
     def test_sessions_are_isolated(self):
         llm = _CountingFakeChatModel(responses=["Paris.", "Paris."])
         full_chain = _make_full_chain(llm)

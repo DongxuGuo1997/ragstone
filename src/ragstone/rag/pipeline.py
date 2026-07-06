@@ -15,7 +15,7 @@ from ..utils.exceptions import (
     RetrieverInitializationError,
 )
 from ..utils.full_chain import FullChain
-from ..utils.observability import track_request
+from ..utils.observability import RequestMetrics, track_request
 from .cache import QueryResultCache  # noqa: F401  re-exported; tests import here
 from .cache import get_query_cache as _get_query_cache
 from .cache import is_response_cache_enabled as _is_response_cache_enabled
@@ -138,6 +138,7 @@ class Pipeline:
         self._chain_type: Optional[str] = None
         self.LLM: Optional[Any] = None
         self._last_question: Optional[str] = None
+        self._last_metrics: Optional[RequestMetrics] = None
         self._vector_db_fingerprint: Optional[str] = None
 
         logger.info(
@@ -482,6 +483,10 @@ class Pipeline:
         )
 
         with track_request(session_id, chain_type=self._chain_type) as metrics:
+            # The metrics object is mutable and completed when the context
+            # closes, so exposing it now is safe: by the time a caller reads
+            # last_metrics (after this method returns), it is fully filled.
+            self._last_metrics = metrics
             cache_enabled = _is_response_cache_enabled()
             if use_cache and cache_enabled:
                 cached_response = _get_query_cache().get_response(question, session_id)
@@ -561,6 +566,7 @@ class Pipeline:
 
         self._begin_ask(question)
         with track_request(session_id, chain_type=self._chain_type) as metrics:
+            self._last_metrics = metrics  # completed when the stream ends
             cache_enabled = _is_response_cache_enabled()
             if use_cache and cache_enabled:
                 cached_response = _get_query_cache().get_response(question, session_id)
@@ -585,6 +591,26 @@ class Pipeline:
                 raise ChainExecutionError(
                     f"Failed to generate a response: {e}", original_exception=e
                 ) from e
+
+    @property
+    def last_metrics(self) -> Optional[RequestMetrics]:
+        """Metrics of the most recent ask (latency, tokens, cache hit).
+
+        Complete once the ask returns (or, for streaming, once the stream
+        is fully consumed). None before the first ask.
+        """
+        return self._last_metrics
+
+    def get_last_interpretation(self, session_id: str) -> Optional[str]:
+        """The standalone question the rephrase step produced for the most
+        recent turn of a session, or None (first turn / unknown session).
+
+        Reads checkpointed graph state; makes no LLM call. Lets UIs show
+        how a follow-up like "what about its population?" was understood.
+        """
+        if self._chain is None:
+            return None
+        return self._chain.get_interpretation(session_id)
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """
