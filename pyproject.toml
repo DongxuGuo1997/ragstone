@@ -145,7 +145,6 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = [
     "chromadb.*",
-    "faiss.*",
     "wikipedia.*",
     "streamlit.*",
 ]

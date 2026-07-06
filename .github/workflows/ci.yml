@@ -26,7 +26,10 @@ jobs:
       - name: Install package with dev dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          # sqlite extra included so mypy can resolve langgraph.checkpoint.sqlite
+          # (optional-backend import in rag/memory.py) and so the SQLite
+          # persistence test runs instead of being skipped.
+          pip install -e ".[dev,sqlite]"
 
       - name: Lint (black, isort, flake8)
         run: |
