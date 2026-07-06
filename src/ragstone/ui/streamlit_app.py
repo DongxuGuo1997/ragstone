@@ -11,7 +11,10 @@ This module provides a web interface for the RAG pipeline with support for:
 import argparse
 import logging
 import os
+import queue
 import sys
+import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -31,7 +34,10 @@ from ragstone.utils import (  # noqa: E402
     ConfigurationError,
     LLMInitializationError,
 )
-from ragstone.utils.observability import estimate_cost_usd  # noqa: E402
+from ragstone.utils.observability import (  # noqa: E402
+    estimate_cost_usd,
+    track_request,
+)
 
 # Initialize configuration and logger first
 config: Config = get_config()
@@ -265,7 +271,11 @@ class StreamlitApp:
         if st.session_state.pipeline is None:
             self._render_welcome_message()
         else:
-            self._render_chat_interface()
+            chat_tab, compare_tab = st.tabs(["💬 Chat", "⚔️ Compare"])
+            with chat_tab:
+                self._render_chat_interface()
+            with compare_tab:
+                self._render_compare_interface()
 
     def _render_welcome_message(self) -> None:
         """Render welcome message when no pipeline is loaded."""
@@ -398,6 +408,155 @@ class StreamlitApp:
         answer = "".join(parts)
         placeholder.markdown(answer)
         return answer
+
+    def _get_compare_chain(self, chain_type: str):
+        """Chain variant for the compare tab, cached per pipeline build.
+
+        Variants share the pipeline's retriever and vector store (no
+        re-embedding); the cache is invalidated when the pipeline object
+        changes (i.e. after a rebuild in the sidebar).
+        """
+        pipeline = st.session_state.pipeline
+        cache = st.session_state.get("compare_chains")
+        if not cache or cache.get("pipeline") is not pipeline:
+            cache = {"pipeline": pipeline, "chains": {}}
+            st.session_state.compare_chains = cache
+        if chain_type not in cache["chains"]:
+            cache["chains"][chain_type] = pipeline.make_chain_variant(chain_type)
+        return cache["chains"][chain_type]
+
+    @staticmethod
+    def _stream_chain_to_queue(chain, chain_type, question, session_id, out_queue):
+        """Worker: stream one chain's answer into a queue.
+
+        Runs in a background thread, so it must never touch st.*; the main
+        thread drains the queue and renders. track_request gives the
+        column its own latency/token metrics (the usage callback is
+        contextvar-based, so per-thread isolation is exact).
+        """
+        metrics = None
+        try:
+            with track_request(session_id, chain_type=chain_type) as metrics:
+                for chunk in chain.stream_question(question, session_id):
+                    out_queue.put(("chunk", chunk))
+        except Exception as exc:  # surfaced in the column, not swallowed
+            out_queue.put(("error", str(exc)))
+        finally:
+            out_queue.put(("done", metrics))
+
+    def _render_compare_interface(self) -> None:
+        """Side-by-side comparison: one question, two chain types."""
+        st.caption(
+            "One question, two techniques, the same corpus. Judge the "
+            "answers yourself — latency and cost are measured for you."
+        )
+        options = ["simple", "multi_query", "fusion", "agent"]
+        select_left, select_right = st.columns(2)
+        with select_left:
+            left = st.selectbox("Left chain", options, index=0, key="cmp_left")
+        with select_right:
+            right = st.selectbox("Right chain", options, index=3, key="cmp_right")
+
+        question = st.text_input(
+            "Question for both chains",
+            key="cmp_question",
+            placeholder="e.g. What does fault code E-42 mean?",
+        )
+        if not st.button("⚔️ Run comparison", disabled=not question.strip()):
+            return
+
+        try:
+            chains = [self._get_compare_chain(ct) for ct in (left, right)]
+        except Exception as e:
+            st.error(f"Could not build the chains: {e}")
+            return
+
+        run_id = uuid.uuid4().hex[:6]
+        labels = (left, right)
+        queues: List[queue.Queue] = [queue.Queue(), queue.Queue()]
+        for chain, label, out_queue in zip(chains, labels, queues):
+            threading.Thread(
+                target=self._stream_chain_to_queue,
+                args=(chain, label, question, f"cmp-{run_id}-{label}", out_queue),
+                daemon=True,
+            ).start()
+
+        columns = st.columns(2)
+        bodies, footers = [], []
+        for column, label in zip(columns, labels):
+            with column:
+                st.subheader(f"⛓ {label}")
+                bodies.append(st.empty())
+                footers.append(st.empty())
+
+        events: List[List[str]] = [[], []]
+        parts: List[List[str]] = [[], []]
+        metrics_by_column: List[Any] = [None, None]
+        finished = [False, False]
+
+        def render_column(i: int, streaming: bool) -> None:
+            blocks = []
+            if events[i]:
+                blocks.append("\n".join(events[i]))
+            text = "".join(parts[i])
+            blocks.append(text + ("▌" if streaming else ""))
+            bodies[i].markdown("\n\n".join(blocks))
+
+        while not all(finished):
+            progressed = False
+            for i in (0, 1):
+                if finished[i]:
+                    continue
+                while True:
+                    try:
+                        kind, payload = queues[i].get_nowait()
+                    except queue.Empty:
+                        break
+                    progressed = True
+                    if kind == "chunk":
+                        if isinstance(payload, dict):
+                            if payload.get("event") == "search":
+                                events[i].append(
+                                    f'🔍 _searching: "{payload.get("query", "")}"_'
+                                )
+                        else:
+                            parts[i].append(payload)
+                    elif kind == "error":
+                        events[i].append(f"❌ {payload}")
+                    elif kind == "done":
+                        finished[i] = True
+                        metrics_by_column[i] = payload
+                if progressed:
+                    render_column(i, streaming=not finished[i])
+            if not progressed:
+                time.sleep(0.05)
+
+        model = (
+            st.session_state.pipeline.LLM.get_model_name()
+            if st.session_state.pipeline.LLM
+            else None
+        )
+        for i, label in enumerate(labels):
+            m = metrics_by_column[i]
+            if m is None:
+                continue
+            badge = [f"⏱ {m.latency_ms / 1000:.2f}s", f"🔤 {m.tokens:,} tokens"]
+            cost = estimate_cost_usd(m.input_tokens, m.output_tokens, model)
+            if cost is not None:
+                badge.append(f"💰 ~${cost:.4f}")
+            footers[i].caption(" · ".join(badge))
+
+        m0, m1 = metrics_by_column
+        if m0 and m1 and not (m0.error or m1.error) and m0.latency_ms and m1.latency_ms:
+            faster_idx = 0 if m0.latency_ms <= m1.latency_ms else 1
+            ratio = max(m0.latency_ms, m1.latency_ms) / max(
+                1, min(m0.latency_ms, m1.latency_ms)
+            )
+            st.success(
+                f"⚡ **{labels[faster_idx]}** answered {ratio:.1f}× faster "
+                f"({labels[0]}: {m0.tokens:,} vs {labels[1]}: {m1.tokens:,} tokens). "
+                "Same corpus, same question — the quality difference is yours to judge."
+            )
 
     def _render_suggested_questions(self) -> None:
         """Offer clickable starter questions for a fresh chat.

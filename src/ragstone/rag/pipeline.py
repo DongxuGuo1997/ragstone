@@ -409,16 +409,17 @@ class Pipeline:
                 break
         return sources
 
-    def create_rag_chain(self, chain_type: str = "simple") -> None:
-        """
-        Creates the RAG chain using the configured LLM and retriever.
+    def _build_chain(self, chain_type: str) -> FullChain:
+        """Build a FullChain of the given type over the CURRENT retriever.
 
-        Args:
-            chain_type (str): The type of RAG chain to create ("simple", "multi_query", "fusion", or "agent"). Defaults to "simple".
+        Shared by create_rag_chain (the pipeline's main chain) and
+        make_chain_variant (extra chains for comparison UIs) — the
+        expensive work (embedding the corpus) happened when the retriever
+        was set, so building a chain is cheap.
 
         Raises:
-            ChainInitializationError: If the LLM or retriever is not set up,
-                or if chain construction fails.
+            ChainInitializationError: If the LLM or retriever is not set
+                up, or if chain construction fails.
         """
         if not self.LLM or not self.LLM.get_llm():
             raise ChainInitializationError(
@@ -443,15 +444,51 @@ class Pipeline:
         try:
             chain.create_full_chain(chain_type=chain_type)
         except Exception as e:
-            self._chain = None
             raise ChainInitializationError(
                 f"Error creating RAG chain of type '{chain_type}': {e}",
                 chain_type=chain_type,
                 original_exception=e,
             ) from e
+        return chain
+
+    def create_rag_chain(self, chain_type: str = "simple") -> None:
+        """
+        Creates the RAG chain using the configured LLM and retriever.
+
+        Args:
+            chain_type (str): The type of RAG chain to create ("simple", "multi_query", "fusion", or "agent"). Defaults to "simple".
+
+        Raises:
+            ChainInitializationError: If the LLM or retriever is not set up,
+                or if chain construction fails.
+        """
+        try:
+            chain = self._build_chain(chain_type)
+        except ChainInitializationError:
+            self._chain = None
+            raise
         self._chain = chain
         self._chain_type = chain_type  # recorded in per-request log lines
         logger.info(f"Successfully created RAG chain of type: {chain_type}")
+
+    def make_chain_variant(self, chain_type: str) -> FullChain:
+        """Build an ADDITIONAL chain of a different type over the same
+        retriever and vector store — no re-embedding, and the pipeline's
+        main chain is left untouched. Comparison UIs use this to run two
+        techniques against the identical corpus.
+
+        Args:
+            chain_type (str): "simple", "multi_query", "fusion", or "agent".
+
+        Returns:
+            FullChain: An independent chain with its own conversation
+            memory (sessions do not leak between variants).
+
+        Raises:
+            ChainInitializationError: If the LLM or retriever is not set
+                up, or if chain construction fails.
+        """
+        return self._build_chain(chain_type)
 
     def ask_question(
         self, question: str, session_id: str = "default", use_cache: bool = True
