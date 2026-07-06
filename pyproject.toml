@@ -136,7 +136,11 @@ line_length = 88
 known_first_party = ["ragstone"]
 
 [tool.mypy]
-python_version = "3.10"
+# No pinned python_version: mypy targets the interpreter it runs under.
+# Pinning 3.10 breaks on Python 3.12 runners, where the freshly installed
+# numpy (>=2.5) ships stubs using PEP 695 `type` statements that are
+# invalid under a 3.10 target. The CI 3.10 matrix leg still guards our own
+# 3.10 compatibility, since mypy runs under 3.10 there.
 warn_unused_configs = true
 no_implicit_optional = true
 warn_redundant_casts = true
