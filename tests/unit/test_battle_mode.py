@@ -109,6 +109,7 @@ class TestStreamChainToQueue:
         assert metrics.chain_type == "agent"
         assert metrics.session_id == "cmp-1-agent"
         assert metrics.latency_ms >= 0
+        assert metrics.first_token_ms is not None  # captured for the column badge
 
     def test_error_is_reported_then_done(self):
         class _FailingChain:

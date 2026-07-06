@@ -270,12 +270,21 @@ class StreamlitApp:
         """Render the main content area."""
         if st.session_state.pipeline is None:
             self._render_welcome_message()
+            return
+        # A radio, not st.tabs: st.chat_input only stays pinned to the
+        # bottom of the page when rendered at the app root — inside a tab
+        # container it renders inline, which puts the input box above
+        # freshly streamed answers.
+        view = st.radio(
+            "View",
+            ["💬 Chat", "⚔️ Compare"],
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+        if view == "💬 Chat":
+            self._render_chat_interface()
         else:
-            chat_tab, compare_tab = st.tabs(["💬 Chat", "⚔️ Compare"])
-            with chat_tab:
-                self._render_chat_interface()
-            with compare_tab:
-                self._render_compare_interface()
+            self._render_compare_interface()
 
     def _render_welcome_message(self) -> None:
         """Render welcome message when no pipeline is loaded."""
@@ -342,6 +351,7 @@ class StreamlitApp:
         if metrics is not None:
             trace["chain_type"] = metrics.chain_type
             trace["latency_ms"] = metrics.latency_ms
+            trace["first_token_ms"] = metrics.first_token_ms
             trace["tokens"] = metrics.tokens
             trace["cache_hit"] = metrics.cache_hit
             model = pipeline.LLM.get_model_name() if pipeline.LLM else None
@@ -360,8 +370,12 @@ class StreamlitApp:
                 )
 
             badge_parts = []
+            if trace.get("first_token_ms") is not None:
+                badge_parts.append(
+                    f"⚡ first token {trace['first_token_ms'] / 1000:.2f}s"
+                )
             if trace.get("latency_ms") is not None:
-                badge_parts.append(f"⏱ {trace['latency_ms'] / 1000:.2f}s")
+                badge_parts.append(f"⏱ total {trace['latency_ms'] / 1000:.2f}s")
             if trace.get("cache_hit"):
                 badge_parts.append("♻️ served from cache")
             elif trace.get("tokens"):
@@ -390,6 +404,7 @@ class StreamlitApp:
         status = None
         placeholder = st.empty()
         parts: List[str] = []
+        last_render = 0.0
 
         for chunk in st.session_state.pipeline.ask_question_stream(
             prompt, session_id=st.session_state.chat_session_id
@@ -401,7 +416,12 @@ class StreamlitApp:
                     status.write(f'🔍 Searching: "{chunk.get("query", "")}"')
             elif chunk:
                 parts.append(chunk)
-                placeholder.markdown("".join(parts) + "▌")
+                # Throttle redraws: a markdown round-trip per token adds
+                # real latency to the measured window; ~20 fps is plenty.
+                now = time.perf_counter()
+                if now - last_render > 0.05:
+                    placeholder.markdown("".join(parts) + "▌")
+                    last_render = now
 
         if status is not None:
             status.update(label="🤖 Agent research", state="complete", expanded=False)
@@ -437,7 +457,12 @@ class StreamlitApp:
         metrics = None
         try:
             with track_request(session_id, chain_type=chain_type) as metrics:
+                stream_start = time.perf_counter()
                 for chunk in chain.stream_question(question, session_id):
+                    if isinstance(chunk, str) and metrics.first_token_ms is None:
+                        metrics.first_token_ms = int(
+                            (time.perf_counter() - stream_start) * 1000
+                        )
                     out_queue.put(("chunk", chunk))
         except Exception as exc:  # surfaced in the column, not swallowed
             out_queue.put(("error", str(exc)))
@@ -540,7 +565,11 @@ class StreamlitApp:
             m = metrics_by_column[i]
             if m is None:
                 continue
-            badge = [f"⏱ {m.latency_ms / 1000:.2f}s", f"🔤 {m.tokens:,} tokens"]
+            badge = []
+            if m.first_token_ms is not None:
+                badge.append(f"⚡ first token {m.first_token_ms / 1000:.2f}s")
+            badge.append(f"⏱ total {m.latency_ms / 1000:.2f}s")
+            badge.append(f"🔤 {m.tokens:,} tokens")
             cost = estimate_cost_usd(m.input_tokens, m.output_tokens, model)
             if cost is not None:
                 badge.append(f"💰 ~${cost:.4f}")

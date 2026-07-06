@@ -619,13 +619,18 @@ class Pipeline:
                     return
 
             try:
-                parts = []
+                parts: List[str] = []
+                stream_start = time.perf_counter()
                 for chunk in self._chain.stream_question(
                     query=question, session_id=session_id
                 ):
                     # Progress events pass through to the consumer but are
                     # not part of the answer text (and must not be cached).
                     if isinstance(chunk, str):
+                        if not parts:
+                            metrics.first_token_ms = int(
+                                (time.perf_counter() - stream_start) * 1000
+                            )
                         parts.append(chunk)
                     yield chunk
                 response = "".join(parts)

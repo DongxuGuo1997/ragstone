@@ -153,6 +153,16 @@ class TestPipelineRequestLogging:
         assert metrics is not None
         assert metrics.session_id == "m2"
         assert metrics.latency_ms >= 0
+        # Streaming records time-to-first-token separately from the
+        # end-to-end latency (they can differ wildly; UIs show both).
+        assert metrics.first_token_ms is not None
+        assert metrics.first_token_ms <= max(metrics.latency_ms, 1)
+
+    def test_non_streaming_ask_leaves_first_token_unset(self, caplog):
+        pipeline = self._pipeline_with_stub_chain()
+        with caplog.at_level(logging.INFO, logger=REQUEST_LOGGER):
+            pipeline.ask_question("capital?", session_id="m3")
+        assert pipeline.last_metrics.first_token_ms is None
 
     def test_progress_events_pass_through_but_are_never_cached(
         self, caplog, monkeypatch

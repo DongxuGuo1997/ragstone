@@ -43,6 +43,10 @@ class RequestMetrics:
     tokens: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    # Streaming only: ms until the first answer token reached the caller.
+    # latency_ms is end-to-end (rephrase + retrieval + full generation),
+    # which can read much larger than the answer FELT — show both.
+    first_token_ms: Optional[int] = None
 
 
 # Approximate USD prices per million tokens (input, output). Used only for
