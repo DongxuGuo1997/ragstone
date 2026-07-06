@@ -27,6 +27,21 @@ Ragstone (a real building stone) leans into being that foundation:
   agentic world, the agent is the customer; Ragstone is the ground it
   stands on.
 
+## Measured, at a glance
+
+Questions this codebase answered with its own eval harness instead of
+opinion:
+
+| Question | Verdict |
+|---|---|
+| Does an agent loop beat the fixed pipeline? | Identical quality, **1.8× latency, 1.45× tokens** → the pipeline stays default |
+| Where do follow-up seconds go? | **926 ms** in one rephrase LLM call → prompt + model fix: multi-turn quality **0.8 → 1.0**, rephrase **−40%** |
+| Are smaller chunks sharper? | No — hit rate **drops** 1.0 → 0.914 at 500 chars |
+| Is concurrent embedding safe? | **3.1× faster** ingestion, identical vectors and retrieval metrics |
+
+Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
+reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md)
+
 ## Features
 
 ### Multiple LLM Providers
