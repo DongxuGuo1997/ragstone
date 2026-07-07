@@ -82,6 +82,11 @@ class AgentRagChain(Runnable[Any, str]):
         self._agent = create_agent(
             llm, [search_documents], system_prompt=AGENT_SYSTEM_PROMPT
         )
+        # "At most three searches" in the system prompt is a soft bound a
+        # misbehaving model can ignore; this is the hard one. Each search
+        # is a model step + a tool step, so 3 searches + the final answer
+        # fits well inside 10 graph steps.
+        self._config: RunnableConfig = {"recursion_limit": 10}
 
     def invoke(
         self, input: Any, config: Optional[RunnableConfig] = None, **kwargs: Any
@@ -89,7 +94,7 @@ class AgentRagChain(Runnable[Any, str]):
         """Run the agent loop to completion and return the final answer."""
         question = extract_question(input)
         result = self._agent.invoke(
-            {"messages": [HumanMessage(question)]}, config=config
+            {"messages": [HumanMessage(question)]}, config=config or self._config
         )
         return _content_text(result["messages"][-1].content)
 
@@ -120,7 +125,7 @@ class AgentRagChain(Runnable[Any, str]):
         question = extract_question(input)
         for item in self._agent.stream(
             {"messages": [HumanMessage(question)]},
-            config=config,
+            config=config or self._config,
             stream_mode=["custom", "messages"],
         ):
             # With a list of stream modes, items are (mode, chunk) pairs.

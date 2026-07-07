@@ -207,3 +207,18 @@ class TestAgentRagChain:
         full_chain.create_full_chain("agent")
 
         assert full_chain.ask_question("capital?", session_id="s1") == "Paris."
+
+
+class TestHardBound:
+    """The search budget is a graph invariant, not just a prompt hint."""
+
+    def test_runaway_tool_calling_hits_the_recursion_limit(self):
+        # A model that ALWAYS asks for another search must be stopped by
+        # the recursion_limit, not run forever on the prompt's honor.
+        from langgraph.errors import GraphRecursionError
+
+        endless = [_search_call(f"search {i}", f"id{i}") for i in range(30)]
+        chain, _ = _make_agent_chain(endless)
+
+        with pytest.raises(GraphRecursionError):
+            chain.invoke("loop forever?")
