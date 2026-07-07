@@ -563,6 +563,42 @@ pipeline unless `RAGSTONE_COLLECTION` pins a stable name.
 
 ---
 
+## Experiment 14 — Incremental ingestion via the embedding cache
+
+**Question.** Ingestion re-embeds the whole corpus even when one document
+changed. ROADMAP 1.6 asked for incremental indexing; the implementation
+chose a content-addressed embedding cache (SQLite, keyed by SHA-256 of
+model + exact chunk text) over per-backend index mutation — one
+mechanism, every backend, no ID/deletion bookkeeping. Does it deliver,
+and can it move retrieval results?
+
+**Method.** Time three ingests of the merged eval corpus (16 docs, 63
+chunks, real embeddings, fresh cache file): cold cache, warm cache
+(nothing changed), and one edited document. Correctness is not measured
+but *proven*: vectors round-trip through the cache in float64 exactly
+(unit-tested), so a warm-cache index is bit-identical to a cold build.
+
+| ingest (63 chunks) | wall time | vs cold |
+|---|---|---|
+| cold cache | 0.80 s | 1× |
+| warm cache, unchanged corpus | 0.03 s | **30×** |
+| one document edited | 0.34 s | 2.4× |
+
+**Result.** Embedding API work now scales with *changed* chunks, not
+corpus size: the unchanged-corpus case is a pure index rebuild from
+cached vectors. This corpus is small enough that even cold ingest is
+sub-second — the ratios are the result, and they compound with corpus
+size since the cold cost is linear in chunks while the warm cost stays
+near-constant plus the edited delta.
+
+**Decision.** On by default (`RAGSTONE_EMBED_CACHE=off` to benchmark).
+Honest scope note: the index itself is still rebuilt each ingest —
+cheap up to tens of thousands of chunks; true index mutation
+(add/delete points in place) is the follow-on that matters beyond that,
+and stays on the roadmap.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

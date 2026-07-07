@@ -2,10 +2,10 @@
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full": {
     "metrics": {
       "hit_rate": 1.0,
-      "mrr": 0.895,
-      "correct_rate": 0.947,
-      "faithful_rate": 0.947,
-      "multi_turn_correct_rate": 1.0,
+      "mrr": 0.931,
+      "correct_rate": 0.974,
+      "faithful_rate": 1.0,
+      "multi_turn_correct_rate": 0.8,
       "multi_turn_faithful_rate": 1.0
     },
     "date": "2026-07-07"
@@ -13,16 +13,16 @@
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=retrieval": {
     "metrics": {
       "hit_rate": 1.0,
-      "mrr": 0.898
+      "mrr": 0.931
     },
-    "date": "2026-06-12"
+    "date": "2026-07-07"
   },
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=retrieval|rerank": {
     "metrics": {
       "hit_rate": 1.0,
-      "mrr": 0.964
+      "mrr": 1.0
     },
-    "date": "2026-06-12"
+    "date": "2026-07-07"
   },
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=corrective|mode=full": {
     "metrics": {
@@ -37,21 +37,21 @@
   },
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|set=large": {
     "metrics": {
-      "hit_rate": 0.955,
-      "mrr": 0.824,
-      "correct_rate": 0.943,
-      "faithful_rate": 0.938,
+      "hit_rate": 0.97,
+      "mrr": 0.844,
+      "correct_rate": 0.948,
+      "faithful_rate": 0.967,
       "multi_turn_correct_rate": 0.846,
-      "multi_turn_faithful_rate": 0.846
+      "multi_turn_faithful_rate": 0.923
     },
     "date": "2026-07-07"
   },
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=corrective|mode=full|set=large": {
     "metrics": {
-      "hit_rate": 0.955,
-      "mrr": 0.824,
-      "correct_rate": 0.948,
-      "faithful_rate": 0.957,
+      "hit_rate": 0.97,
+      "mrr": 0.844,
+      "correct_rate": 0.943,
+      "faithful_rate": 0.986,
       "multi_turn_correct_rate": 0.846,
       "multi_turn_faithful_rate": 0.923
     },
