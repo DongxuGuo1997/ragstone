@@ -54,6 +54,30 @@ hand-typed numbers (`python evals/quality_history.py`):
 
 ![Measured quality over the project's git history](docs/quality_history.svg)
 
+## Support tiers: what's guaranteed, what's optional, and when to enable it
+
+A deliberate policy, not an accident: several features below were
+**rejected for default status by their own experiments** and kept anyway
+— as measured options for the corpora where the trade-off flips. Every
+default is CI-gated; every opt-in is baselined and carries an explicit
+*enable-when* condition; combinations off this list are best-effort.
+
+| Option | Tier | Measured niche | Enable when |
+|---|---|---|---|
+| `simple` chain, k=4, ensemble, enrichment, embed cache | **default** (CI-gated) | the measured optimum on the eval corpus | — |
+| `corrective` chain | opt-in | faithfulness 0.986 vs 0.967; refuses with evidence instead of hallucinating (Exp 8/9/12) | your retrieval-slice hit rate drops below ~0.9, or a wrong answer costs more than a refusal |
+| `auto` routing | opt-in | corrective's edge on flagged questions at 1.25× instead of 2× (Exp 15/15b) | you want corrective's insurance without paying it on every lookup; pair with `RAGSTONE_REPHRASE_MODEL=gpt-4.1-nano` |
+| `agent` chain | opt-in | none on this corpus — identical quality at 1.8× latency | first-shot retrieval fails often enough that re-searching pays; measure it on YOUR corpus |
+| `multi_query` / `fusion` | opt-in | none measured (single-case noise, Exp 4) | question phrasing is genuinely ambiguous relative to your documents |
+| `[rerank]` cross-encoder | opt-in | biggest ranking lever: MRR 0.93 → 1.0 (smoke) | ranking precision matters and ~80 MB local model + latency is acceptable |
+| `RAGSTONE_CHUNK_CONTEXT=llm` | opt-in | untested beyond `source` mode | document names carry no meaning, so the free identity line can't disambiguate |
+| `qdrant` / `pgvector` stores | opt-in (operational) | FAISS parity by test (Exp 13) | you need persistence, server-mode sharing, or the Postgres you already run |
+| `sqlite` memory | opt-in (operational) | — | conversations must survive restarts |
+
+The verdicts above are single-corpus results; each *enable-when* is the
+condition we believe flips them. Validating those conditions on a second,
+materially different corpus is the top open eval item (ROADMAP).
+
 ## Features
 
 ### Multiple LLM Providers

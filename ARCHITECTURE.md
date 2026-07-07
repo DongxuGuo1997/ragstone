@@ -173,16 +173,40 @@ same property the token-usage callback depends on):
 - **Resilience**: retries and timeouts are wired into every LLM and
   embedding client from config; input length is capped pre-spend.
 
-## Things deliberately not built
+## Things deliberately not built (or built only when the conditions changed)
 
-| Not built | Why |
+| Decision | Why |
 |---|---|
-| Async core | Thread offload covers a network-bound workload; a rewrite adds risk for unmeasured gain |
-| Semantic response cache | Built, measured, removed — thresholds either leak wrong answers or never fire |
-| Speculative retrieval overlap | Instrumentation showed retrieval is 157 ms; the complexity would chase the wrong 15 % |
-| Docker / deploy manifests | Deployment belongs to deployers; the library stays `pip install` |
-| Postgres/pgvector backend | Only pays at multi-instance or corpus-beyond-RAM scale; scoped as a future extra ("Phase D") |
+| Async core — not built | Thread offload covers a network-bound workload; Experiment 16 measured p50 flat to 32 concurrent clients, so the rewrite stays unjustified by data |
+| Semantic response cache — built, measured, removed | Thresholds either leak wrong answers or never fire; exact-match only, twice affirmed |
+| Speculative retrieval overlap — not built | Instrumentation showed retrieval is ~150 ms; the complexity would chase the wrong 15 % |
+| Docker — removed, then reinstated as optional | Removed while it was deploy-manifest baggage; brought back when the pgvector/Qdrant server stores gave it a real job. Development and tests never require it |
+| pgvector/Qdrant — deferred ("Phase D"), then built | Deferred while FAISS covered the need; built with a parity gate (Experiment 13) when server-backed storage was commissioned |
 
 The pattern in every row: **the eval harness and instrumentation get to
-veto engineering enthusiasm.** That discipline — not any individual
-feature — is the architecture.
+veto engineering enthusiasm** — and un-veto it when measured conditions
+change. That discipline, not any individual feature, is the architecture.
+
+## Kept-though-rejected: the opt-in policy
+
+Several features were rejected for *default* status by their own
+pre-registered gates (corrective RAG, query routing) and kept anyway —
+deliberately. The verdicts are corpus-conditional: "self-correction
+isn't worth 2× here" is a statement about a corpus whose retrieval
+already hits 0.97, not a law. This repo's policy:
+
+1. **Defaults are CI-gated.** What ships on by default earned it on the
+   numbers, and a regression fails the build.
+2. **Opt-ins must own a niche and a revisit condition.** Each one is
+   baselined, honestly labeled with what it buys and costs, and carries
+   an explicit *enable-when* (see the README's support-tier table). An
+   option without a documented niche doesn't get to stay.
+3. **Niche duplicates get consolidated.** Two features occupying one
+   measured niche is redundancy, not learning — the weaker one's lesson
+   moves to EXPERIMENTS.md and the code goes.
+
+For a learning-focused project the living code is the artifact — a
+cyclic corrective graph you can step through teaches more than a
+paragraph saying one existed. The policy keeps that value while capping
+its cost: nothing stays without a condition that says when it would
+win.

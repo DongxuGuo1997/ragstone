@@ -97,6 +97,22 @@ Each is a `@tool` function away with the existing streaming events.
 
 ## 3. Evaluation science
 
+### 3.0 Second evaluation corpus — NOW THE TOP OPEN ITEM
+Seventeen experiments rest on one fictional corpus whose retrieval is
+near-saturated (hit 0.97, smoke faithfulness 1.0). Every verdict — and
+every opt-in's *enable-when* condition in the README's support-tier
+table — is a single-corpus result. A second, materially different corpus
+(real documents: long PDFs, tables, domain jargon; or a public QA set
+adapted to the needle format) would validate or overturn the existing
+conclusions wholesale, which is worth more than any new experiment on
+the current corpus. The kept-though-rejected policy (ARCHITECTURE.md)
+makes this the binding priority: optionality without a validated trigger
+condition is just a shelf.
+*Measure:* re-run Experiments 4/8/12/15 on the new corpus; publish which
+verdicts held and which flipped. Fold the n>=40 multi-turn expansion
+(3.3's sibling) into the new set so the conversation slice stops
+generating one-case noise.
+
 ### 3.1 Cross-family judge — DELIVERED same-provider (Experiment 11); different-provider judge still open
 The judge and the answering model are both gpt-4o-mini; self-preference
 inflation is a known LLM-as-judge bias, and it is now disclosed in
