@@ -56,5 +56,27 @@
       "multi_turn_faithful_rate": 0.923
     },
     "date": "2026-07-07"
+  },
+  "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=auto|mode=full": {
+    "metrics": {
+      "hit_rate": 1.0,
+      "mrr": 0.931,
+      "correct_rate": 1.0,
+      "faithful_rate": 1.0,
+      "multi_turn_correct_rate": 0.8,
+      "multi_turn_faithful_rate": 1.0
+    },
+    "date": "2026-07-07"
+  },
+  "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=auto|mode=full|set=large": {
+    "metrics": {
+      "hit_rate": 0.97,
+      "mrr": 0.844,
+      "correct_rate": 0.943,
+      "faithful_rate": 0.976,
+      "multi_turn_correct_rate": 0.846,
+      "multi_turn_faithful_rate": 1.0
+    },
+    "date": "2026-07-07"
   }
 }

@@ -40,6 +40,8 @@ opinion:
 | Where do follow-up seconds go? | **926 ms** in one rephrase LLM call → prompt + model fix: multi-turn quality **0.8 → 1.0** on the 5-case smoke slice, rephrase **−40%** |
 | Are smaller chunks sharper? | No — hit rate **drops** 1.0 → 0.914 at 500 chars |
 | Is concurrent embedding safe? | **3.1× faster** ingestion, identical vectors and retrieval metrics |
+| Does chunk enrichment beat more context? | Document identity in the chunk: hit **+1.5pp**, faithfulness **+2.9pp** at +5.7% tokens — now the default; k=6's extra volume had *hurt* |
+| Can a router capture self-correction's edge cheaply? | Quality held (multi-turn faithfulness **1.0**), but **1.3× tokens** failed the pre-set gate → `auto` ships opt-in, `simple` stays default |
 
 Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
 reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md) · What's

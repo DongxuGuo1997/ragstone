@@ -599,7 +599,47 @@ and stays on the roadmap.
 
 ---
 
-## Defaults, decided by the numbers above
+## Experiment 15 — Query routing: the gate was set first, and it failed
+
+**Hypothesis.** Corrective RAG's faithfulness edge (Experiment 12:
+0.986 vs 0.967) lives on confusion-prone questions; a cheap classifier
+routing only *those* to the corrective chain should capture most of the
+edge at a fraction of the 2× cost. **Acceptance gate, registered before
+the run:** quality ≥ simple with total tokens ≤ 1.2× simple.
+
+**Method.** `chain_type="auto"`: one utility-model call classifies each
+question (*simple* = direct single-entity lookup; *careful* =
+comparisons, multi-entity, possibly-unanswerable) and delegates.
+Classifier failures route to simple. Full large-set run vs the simple
+and corrective baselines, identical everything else.
+
+| n=224 | simple | corrective | **auto** |
+|---|---|---|---|
+| correct_rate | 0.948 ±0.030 | 0.943 ±0.031 | 0.943 ±0.031 |
+| faithful_rate | 0.967 ±0.024 | 0.986 ±0.016 | 0.976 ±0.021 |
+| multi_turn_faithful | 0.923 | 0.923 | **1.000** |
+| avg latency | **1.56 s** | 2.34 s | 2.41 s |
+| total tokens | **260 k** | 493 k | 338 k |
+
+**Result.** Routing does what it says: faithfulness lands between simple
+and corrective (+0.9 pp over simple), multi-turn faithfulness reaches
+1.0 (n=13 — one case better than either parent), and the smoke set came
+back a clean sweep (correct 1.0, faithful 1.0 at n=38). But the cost
+gate **fails**: 338 k tokens is **1.30×** simple — the classifier sent
+roughly a quarter of questions down the 2× path, and the routing call
+itself (767 ms average on the default model; a cheap
+`RAGSTONE_REPHRASE_MODEL` would cut that substantially) taxes every
+question, pushing latency to 1.5× simple.
+
+**Decision.** `simple` stays the default; **auto ships opt-in**, exactly
+like corrective — baselined under its own keys so users who choose it
+get regression protection. The pre-registered gate failing and the
+feature shipping anyway *as an option* is not a contradiction: the gate
+decided the *default*, and the measurements tell users precisely what
+the option buys (+1–2 pp faithfulness where it matters) and costs (+30%
+tokens, +0.85 s). Future tuning that could flip the verdict — a stricter
+classifier, the cheap router model by default, routing only multi-entity
+questions — is parked in ROADMAP 1.5 rather than iterated blindly here.
 
 | Choice            | Default                      | Decided by   | Why                                            |
 |-------------------|------------------------------|--------------|------------------------------------------------|

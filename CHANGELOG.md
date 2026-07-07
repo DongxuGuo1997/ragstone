@@ -33,6 +33,16 @@ Notable changes to Ragstone. The format follows
   re-ingesting a corpus embeds only new or edited chunks, across all
   vector-store backends, with bit-identical vectors (float64
   round-trip), so retrieval results cannot change.
+- **Query routing** (`chain_type="auto"`, opt-in): a cheap utility-model
+  classifier sends direct lookups to the simple chain and
+  confusion-prone questions to the corrective chain; fail-safe to
+  simple; the decision streams as a route event. Measured in Experiment
+  15: faithfulness improves (+0.9pp, multi-turn 1.0) but 1.3x tokens
+  failed the pre-registered default gate — simple stays the default.
+- **Quality-history chart** (`evals/quality_history.py`): the project's
+  measured quality trajectory, generated from the git history of its
+  committed baselines — table plus dependency-free SVG, embedded in the
+  README.
 - **Agent mode** (`chain_type="agent"`): tool-calling retrieval loop via
   LangGraph `create_agent`, measured head-to-head against the fixed
   pipeline (Experiments, README).
