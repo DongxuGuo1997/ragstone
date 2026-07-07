@@ -47,8 +47,8 @@ class TestOpenAIPipeline:
         """Test OpenAI pipeline initialization."""
         pipeline = OpenAIPipeline()
         assert pipeline is not None
-        assert hasattr(pipeline, "LLM")
-        assert pipeline.LLM is not None
+        assert hasattr(pipeline, "llm_proxy")
+        assert pipeline.llm_proxy is not None
 
     def test_openai_pipeline_with_custom_model(self):
         """Test OpenAI pipeline with custom model."""
@@ -70,8 +70,8 @@ class TestOllamaPipeline:
         """Test Ollama pipeline initialization."""
         pipeline = OllamaPipeline()
         assert pipeline is not None
-        assert hasattr(pipeline, "LLM")
-        assert pipeline.LLM is not None
+        assert hasattr(pipeline, "llm_proxy")
+        assert pipeline.llm_proxy is not None
 
     def test_ollama_pipeline_with_custom_model(self):
         """Test Ollama pipeline with custom model."""

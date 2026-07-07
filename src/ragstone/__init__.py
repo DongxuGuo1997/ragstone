@@ -72,7 +72,7 @@ PACKAGE_INFO = {
     "description": "RAG pipeline with multiple LLM backends",
     "author": __author__,
     "license": __license__,
-    "python_requires": ">=3.9",
+    "python_requires": ">=3.10",
     "features": [
         "Multiple LLM backends (OpenAI, Ollama)",
         "Multiple vector stores (FAISS, ChromaDB)",

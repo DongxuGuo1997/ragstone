@@ -37,7 +37,7 @@ opinion:
 | Does an agent loop beat the fixed pipeline? | Identical quality, **1.8× latency, 1.45× tokens** → the pipeline stays default |
 | Does self-correcting retrieval (CRAG) pay? | Looked like +0.027 at n=43; **failed to replicate at n=224** — quality within noise, 2× cost is not → opt-in, honestly labeled |
 | Was the small eval set lying to us? | Yes, once: scaling 43 → 224 cases reversed a conclusion (Exp 9) — design verdicts now require `--set large` |
-| Where do follow-up seconds go? | **926 ms** in one rephrase LLM call → prompt + model fix: multi-turn quality **0.8 → 1.0**, rephrase **−40%** |
+| Where do follow-up seconds go? | **926 ms** in one rephrase LLM call → prompt + model fix: multi-turn quality **0.8 → 1.0** on the 5-case smoke slice, rephrase **−40%** |
 | Are smaller chunks sharper? | No — hit rate **drops** 1.0 → 0.914 at 500 chars |
 | Is concurrent embedding safe? | **3.1× faster** ingestion, identical vectors and retrieval metrics |
 
@@ -394,7 +394,8 @@ python evals/run_eval.py --chain-type agent
 ```
 
 Compare the two runs in `evals/report.md`. On the bundled eval corpus
-(gpt-4o-mini, 38 questions):
+(gpt-4o-mini; measured on the earlier 38-question revision of the golden
+set — the current set has 43):
 
 | | simple | agent |
 |---|---|---|
@@ -538,10 +539,11 @@ file. A per-case report with judge reasons is written to `evals/report.md`.
 ### Benchmark Results
 
 Every default in Ragstone was chosen by measurement, not intuition. The
-numbers below come from the harness above on the bundled corpus (38 cases);
-the full hypothesis → method → decision log is in
-[EXPERIMENTS.md](EXPERIMENTS.md). Single corpus — read these as direction and
-magnitude, not decimal places.
+numbers below come from the harness above on the bundled corpus (the
+38-case revision of the golden set current at the time; today's set has
+43 cases — see [EXPERIMENTS.md](EXPERIMENTS.md) for the full
+hypothesis → method → decision log). Single corpus — read these as
+direction and magnitude, not decimal places.
 
 **Retrieval (Layer 1, deterministic).** Reranking is the largest ranking
 lever; `text-embedding-3-small` gives full coverage at ~5× lower cost than

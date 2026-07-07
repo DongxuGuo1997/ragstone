@@ -65,6 +65,31 @@ class FullChain:
         """
         return self._chain
 
+    def has_history(self, session_id: str) -> bool:
+        """True if the session has prior conversation turns.
+
+        Reads checkpointed graph state — no LLM call. Used to keep the
+        response cache out of conversational turns: a follow-up's answer
+        depends on history (via the rephrase step), so caching or serving
+        it under the raw question text would be wrong.
+
+        Args:
+            session_id (str): The session to inspect.
+        """
+        if self._chain is None:
+            return False
+        state = self._chain.get_state({"configurable": {"thread_id": session_id}})
+        return bool(state.values.get("messages"))
+
+    def close(self) -> None:
+        """Release resources held by the conversation memory.
+
+        Relevant for the sqlite checkpoint backend, which holds an open
+        database connection; the default in-memory backend has nothing to
+        release. Safe to call more than once.
+        """
+        self._memory.close()
+
     def get_interpretation(self, session_id: str) -> Optional[str]:
         """
         Return the standalone question the rephrase step produced for the

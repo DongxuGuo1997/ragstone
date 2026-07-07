@@ -1,12 +1,18 @@
 """
-Custom exceptions for the Ragstone.
+Custom exceptions for Ragstone.
 
-This module defines a hierarchy of custom exceptions to provide better error
-handling and debugging capabilities throughout the application.
+One root (PipelineError) with a small family per subsystem. The root is a
+load-bearing contract: the MCP server's _safe_error and the REST API's
+exception handler treat any PipelineError message as user-safe to surface,
+and anything else as internal (logged, but replaced with a generic message).
+ValidationError is the single class the API maps to HTTP 422.
+
+Every class here is raised somewhere in the codebase — when adding a new
+one, add the raise site with it.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +22,7 @@ class PipelineError(Exception):
     Base exception class for all pipeline-related errors.
 
     This is the root exception that all other custom exceptions inherit from.
-    It provides additional context and logging capabilities.
+    It provides additional context for structured handling.
     """
 
     def __init__(
@@ -44,23 +50,6 @@ class PipelineError(Exception):
         # error is the catcher's call, not the constructor's. Logging on
         # construction caused double logging and ERROR noise for failures
         # that were handled gracefully.
-
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert the exception to a dictionary for serialization.
-
-        Returns:
-            Dictionary representation of the exception.
-        """
-        return {
-            "error_type": self.__class__.__name__,
-            "error_code": self.error_code,
-            "message": self.message,
-            "context": self.context,
-            "original_exception": (
-                str(self.original_exception) if self.original_exception else None
-            ),
-        }
 
 
 class ConfigurationError(PipelineError):
@@ -99,28 +88,6 @@ class LLMInitializationError(LLMError):
         super().__init__(message, **kwargs)
 
 
-class LLMConnectionError(LLMError):
-    """Raised when LLM connection fails."""
-
-    def __init__(self, message: str, endpoint: Optional[str] = None, **kwargs):
-        context = kwargs.get("context", {})
-        if endpoint:
-            context["endpoint"] = endpoint
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
-class LLMRateLimitError(LLMError):
-    """Raised when LLM rate limits are exceeded."""
-
-    def __init__(self, message: str, retry_after: Optional[int] = None, **kwargs):
-        context = kwargs.get("context", {})
-        if retry_after:
-            context["retry_after"] = retry_after
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
 class VectorStoreError(PipelineError):
     """Base class for vector store-related errors."""
 
@@ -149,78 +116,10 @@ class VectorStoreOperationError(VectorStoreError):
         super().__init__(message, **kwargs)
 
 
-class EmbeddingError(VectorStoreError):
-    """Raised when embedding operations fail."""
-
-    def __init__(self, message: str, text_count: Optional[int] = None, **kwargs):
-        context = kwargs.get("context", {})
-        if text_count:
-            context["text_count"] = text_count
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
 class DocumentLoadingError(PipelineError):
-    """Base class for document loading errors."""
+    """Raised when document loading fails."""
 
     pass
-
-
-class FileLoadingError(DocumentLoadingError):
-    """Raised when file loading fails."""
-
-    def __init__(
-        self,
-        message: str,
-        file_path: Optional[str] = None,
-        file_type: Optional[str] = None,
-        **kwargs,
-    ):
-        context = kwargs.get("context", {})
-        if file_path:
-            context["file_path"] = file_path
-        if file_type:
-            context["file_type"] = file_type
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
-class RemoteLoadingError(DocumentLoadingError):
-    """Raised when remote content loading fails."""
-
-    def __init__(
-        self,
-        message: str,
-        url: Optional[str] = None,
-        status_code: Optional[int] = None,
-        **kwargs,
-    ):
-        context = kwargs.get("context", {})
-        if url:
-            context["url"] = url
-        if status_code:
-            context["status_code"] = status_code
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
-class DocumentProcessingError(DocumentLoadingError):
-    """Raised when document processing fails."""
-
-    def __init__(
-        self,
-        message: str,
-        document_count: Optional[int] = None,
-        processing_step: Optional[str] = None,
-        **kwargs,
-    ):
-        context = kwargs.get("context", {})
-        if document_count:
-            context["document_count"] = document_count
-        if processing_step:
-            context["processing_step"] = processing_step
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
 
 
 class RetrievalError(PipelineError):
@@ -236,25 +135,6 @@ class RetrieverInitializationError(RetrievalError):
         context = kwargs.get("context", {})
         if retriever_type:
             context["retriever_type"] = retriever_type
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
-class SearchError(RetrievalError):
-    """Raised when search operations fail."""
-
-    def __init__(
-        self,
-        message: str,
-        query: Optional[str] = None,
-        k: Optional[int] = None,
-        **kwargs,
-    ):
-        context = kwargs.get("context", {})
-        if query:
-            context["query"] = query[:100] + "..." if len(query) > 100 else query
-        if k:
-            context["k"] = k
         kwargs["context"] = context
         super().__init__(message, **kwargs)
 
@@ -287,22 +167,8 @@ class ChainExecutionError(ChainError):
         super().__init__(message, **kwargs)
 
 
-class ConversationMemoryError(PipelineError):
-    """Raised when conversation memory operations fail.
-
-    Named to avoid shadowing the built-in MemoryError.
-    """
-
-    def __init__(self, message: str, session_id: Optional[str] = None, **kwargs):
-        context = kwargs.get("context", {})
-        if session_id:
-            context["session_id"] = session_id
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
 class ValidationError(PipelineError):
-    """Raised when input validation fails."""
+    """Raised when input validation fails. Maps to HTTP 422 in the API."""
 
     def __init__(
         self,
@@ -318,184 +184,3 @@ class ValidationError(PipelineError):
             context["value"] = str(value)[:100]  # Truncate long values
         kwargs["context"] = context
         super().__init__(message, **kwargs)
-
-
-class APIError(PipelineError):
-    """Base class for external API errors."""
-
-    pass
-
-
-class APIConnectionError(APIError):
-    """Raised when API connection fails."""
-
-    def __init__(
-        self,
-        message: str,
-        api_name: Optional[str] = None,
-        endpoint: Optional[str] = None,
-        **kwargs,
-    ):
-        context = kwargs.get("context", {})
-        if api_name:
-            context["api_name"] = api_name
-        if endpoint:
-            context["endpoint"] = endpoint
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
-class APIAuthenticationError(APIError):
-    """Raised when API authentication fails."""
-
-    def __init__(self, message: str, api_name: Optional[str] = None, **kwargs):
-        context = kwargs.get("context", {})
-        if api_name:
-            context["api_name"] = api_name
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
-class UIError(PipelineError):
-    """Base class for UI-related errors."""
-
-    pass
-
-
-class FileUploadError(UIError):
-    """Raised when file upload fails."""
-
-    def __init__(
-        self,
-        message: str,
-        filename: Optional[str] = None,
-        file_size: Optional[int] = None,
-        **kwargs,
-    ):
-        context = kwargs.get("context", {})
-        if filename:
-            context["filename"] = filename
-        if file_size:
-            context["file_size"] = file_size
-        kwargs["context"] = context
-        super().__init__(message, **kwargs)
-
-
-# Exception hierarchy mapping for easy lookup
-EXCEPTION_HIERARCHY = {
-    "pipeline": PipelineError,
-    "configuration": ConfigurationError,
-    "llm": {
-        "base": LLMError,
-        "initialization": LLMInitializationError,
-        "connection": LLMConnectionError,
-        "rate_limit": LLMRateLimitError,
-    },
-    "vector_store": {
-        "base": VectorStoreError,
-        "initialization": VectorStoreInitializationError,
-        "operation": VectorStoreOperationError,
-        "embedding": EmbeddingError,
-    },
-    "document_loading": {
-        "base": DocumentLoadingError,
-        "file": FileLoadingError,
-        "remote": RemoteLoadingError,
-        "processing": DocumentProcessingError,
-    },
-    "retrieval": {
-        "base": RetrievalError,
-        "initialization": RetrieverInitializationError,
-        "search": SearchError,
-    },
-    "chain": {
-        "base": ChainError,
-        "initialization": ChainInitializationError,
-        "execution": ChainExecutionError,
-    },
-    "memory": ConversationMemoryError,
-    "validation": ValidationError,
-    "api": {
-        "base": APIError,
-        "connection": APIConnectionError,
-        "authentication": APIAuthenticationError,
-    },
-    "ui": {
-        "base": UIError,
-        "file_upload": FileUploadError,
-    },
-}
-
-
-def get_exception_class(error_type: str) -> type:
-    """
-    Get exception class by type string.
-
-    Args:
-        error_type: String identifier for the exception type.
-
-    Returns:
-        Exception class corresponding to the error type.
-
-    Raises:
-        ValueError: If error_type is not found.
-    """
-
-    def _find_in_hierarchy(hierarchy: Dict, path: List[str]) -> type:
-        current: Any = hierarchy
-        for part in path:
-            if isinstance(current, dict) and part in current:
-                current = current[part]
-            else:
-                raise ValueError(f"Exception type not found: {error_type}")
-        if not isinstance(current, type):
-            # Path resolved to a sub-hierarchy (e.g. "llm"), not a class.
-            raise ValueError(f"Exception type not found: {error_type}")
-        return current
-
-    path = error_type.split(".")
-    try:
-        return _find_in_hierarchy(EXCEPTION_HIERARCHY, path)
-    except (KeyError, TypeError):
-        raise ValueError(f"Exception type not found: {error_type}")
-
-
-def handle_exception(
-    func_name: str,
-    exception: Exception,
-    context: Optional[Dict[str, Any]] = None,
-    reraise_as: Optional[type] = None,
-) -> None:
-    """
-    Generic exception handler that logs and optionally re-raises exceptions.
-
-    Args:
-        func_name: Name of the function where the exception occurred.
-        exception: The original exception.
-        context: Additional context information.
-        reraise_as: Exception class to re-raise as (if different from original).
-
-    Raises:
-        The original exception or the specified reraise_as exception.
-    """
-    error_context = context or {}
-    error_context["function"] = func_name
-
-    if isinstance(exception, PipelineError):
-        # Already a pipeline error, just add context
-        exception.context.update(error_context)
-        raise exception
-    else:
-        # Convert to pipeline error
-        if reraise_as and issubclass(reraise_as, PipelineError):
-            raise reraise_as(
-                message=str(exception),
-                context=error_context,
-                original_exception=exception,
-            )
-        else:
-            raise PipelineError(
-                message=f"Unexpected error in {func_name}: {exception}",
-                context=error_context,
-                original_exception=exception,
-            )

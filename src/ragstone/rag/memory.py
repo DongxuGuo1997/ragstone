@@ -154,6 +154,18 @@ class MemoryProxy:
         logger.info("Conversation memory persisted to SQLite at %s", db_path)
         return saver
 
+    def close(self) -> None:
+        """Close the checkpoint backend's resources, if any.
+
+        The sqlite backend holds an open database connection per built
+        chain; without this, a server that rebuilds chains or deletes
+        pipelines leaks one connection per build. Safe to call more than
+        once; a no-op for the in-memory backend.
+        """
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
     def create_memory_chain(
         self, llm: BaseChatModel, base_chain: Runnable
     ) -> CompiledStateGraph:

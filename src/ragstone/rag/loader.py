@@ -698,9 +698,12 @@ class RemoteLoader(Loader):
         try:
             # Timeout so one unresponsive URL can't hang the load forever;
             # continue_on_failure so one bad URL doesn't lose the others.
+            # Redirects are not followed: the SSRF guard validated the
+            # ORIGINAL host, and a redirect could point the fetch at an
+            # internal address the guard never saw.
             loader = WebBaseLoader(
                 page_urls,
-                requests_kwargs={"timeout": 30},
+                requests_kwargs={"timeout": 30, "allow_redirects": False},
                 continue_on_failure=True,
             )
             docs = loader.load()
@@ -725,9 +728,11 @@ class RemoteLoader(Loader):
             AsyncHtmlLoader = _get_cached_loader("html")
             Html2TextTransformer = _get_cached_loader("html_transformer")
 
+            # allow_redirects=False for the same SSRF reason as above: the
+            # guard validated the original host, not redirect targets.
             html_loader = AsyncHtmlLoader(
                 page_urls,
-                requests_kwargs={"timeout": 30},
+                requests_kwargs={"timeout": 30, "allow_redirects": False},
                 ignore_load_errors=True,
             )
             html_docs = html_loader.load()

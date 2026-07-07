@@ -27,7 +27,7 @@ class _StubPipeline:
         self.texts = None
         self._chain = None
         self.vector_db = None
-        self.LLM = self
+        self.llm_proxy = self
 
     def get_model_name(self):
         return self.model
@@ -163,6 +163,46 @@ class TestStreaming:
             )
             assert response.status_code == 200
 
+    def test_streamed_request_with_real_instrumentation_completes(self, client):
+        # Regression: the pipeline wraps streaming in track_request, whose
+        # contextvar enter/exit must share a context. Under Starlette each
+        # response chunk used to be pumped through a fresh copied context,
+        # so teardown raised ValueError and [DONE] (plus the metrics log
+        # line) was lost. The stub here drives the REAL track_request.
+        from ragstone.utils.observability import track_request
+
+        _create_ready_pipeline(client)
+        pipeline = registry.get_pipeline("p1")
+
+        def _instrumented_stream(question, session_id=None, use_cache=True):
+            with track_request(session_id or "s", chain_type="simple"):
+                yield "instrumented "
+                yield "answer"
+
+        pipeline.ask_question_stream = _instrumented_stream
+        response = client.post(
+            "/pipelines/p1/ask", json={"question": "q", "stream": True}
+        )
+        assert "data: instrumented \n\n" in response.text
+        assert response.text.endswith("data: [DONE]\n\n")
+
+    def test_multiline_chunks_are_framed_per_sse_line(self, client):
+        # A literal newline inside one `data:` line makes spec-compliant
+        # clients drop the continuation; each physical line must get its
+        # own `data:` prefix (clients rejoin them with newlines).
+        _create_ready_pipeline(client)
+        pipeline = registry.get_pipeline("p1")
+
+        def _multiline_stream(question, session_id=None, use_cache=True):
+            yield "- first\n- second"
+
+        pipeline.ask_question_stream = _multiline_stream
+        response = client.post(
+            "/pipelines/p1/ask", json={"question": "q", "stream": True}
+        )
+        assert "data: - first\ndata: - second\n\n" in response.text
+        assert response.text.endswith("data: [DONE]\n\n")
+
 
 class TestAuth:
     def test_requests_without_key_are_401(self):
@@ -232,3 +272,20 @@ class TestRobustness:
                 client.post("/pipelines/p1/ask", json={"question": "q"}).status_code
                 == 500
             )
+
+    def test_non_ascii_api_key_header_is_401_not_500(self):
+        # A real client can send latin-1 header bytes >127, which Starlette
+        # decodes into a non-ASCII str; hmac.compare_digest raises TypeError
+        # on non-ASCII str operands, so the comparison must run on bytes for
+        # garbage headers to reject cleanly instead of erroring.
+        app_client = TestClient(server.create_app(api_key="secret"))
+        response = app_client.get(
+            "/pipelines", headers={b"x-api-key": "s\xe9cret".encode("latin-1")}
+        )
+        assert response.status_code == 401
+
+    def test_negative_concurrency_cap_is_rejected(self):
+        # A negative cap is a misconfiguration; silently disabling the
+        # limit would remove the 429 protection without a trace.
+        with pytest.raises(ValueError, match="max_concurrency"):
+            server.create_app(api_key="", max_concurrency=-1)

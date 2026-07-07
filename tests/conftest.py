@@ -2,6 +2,7 @@
 Pytest configuration and shared fixtures for Ragstone tests.
 """
 
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -14,6 +15,14 @@ os.environ["OPENAI_API_KEY"] = "sk-test-dummy-key-for-testing"
 os.environ["VECTOR_STORE_TYPE"] = "faiss"
 os.environ["MCP_LOG_LEVEL"] = "DEBUG"
 os.environ["ENVIRONMENT"] = "testing"
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    # Third-party atexit hooks (huggingface_hub closing its httpx pool) emit
+    # DEBUG records after pytest has closed its capture streams; any root
+    # handler still bound to a captured stream then prints a "Logging error"
+    # traceback. Dropping root handlers here keeps the test output clean.
+    logging.getLogger().handlers.clear()
 
 
 @pytest.fixture(scope="session")

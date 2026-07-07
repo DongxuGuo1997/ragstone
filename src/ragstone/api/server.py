@@ -23,8 +23,9 @@ import hmac
 import json
 import logging
 import os
+import queue
 import threading
-from typing import Iterator, List, Literal, Optional
+from typing import Iterator, List, Literal, Optional, Tuple
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -111,6 +112,12 @@ def create_app(
         if max_concurrency is not None
         else int(os.getenv("RAGSTONE_API_MAX_CONCURRENCY", "8"))
     )
+    if cap < 0:
+        # A negative cap is a misconfiguration, not a request to disable
+        # the limit — refusing beats silently removing the protection.
+        raise ValueError(
+            f"max_concurrency must be >= 0 (0 disables the cap), got {cap}"
+        )
     # Bounded, non-blocking: a full server refuses new /ask work instead of
     # queueing it behind an unbounded backlog.
     ask_slots = threading.BoundedSemaphore(cap) if cap > 0 else None
@@ -120,9 +127,11 @@ def create_app(
 
     def _require_key(request: Request) -> None:
         # compare_digest: constant-time comparison, so response timing
-        # cannot be used to guess the key byte by byte.
-        provided = request.headers.get("x-api-key") or ""
-        if key and not hmac.compare_digest(provided, key):
+        # cannot be used to guess the key byte by byte. Compare as bytes:
+        # the str overload raises TypeError on non-ASCII input, which would
+        # turn a garbage header into a 500 instead of a 401.
+        provided = (request.headers.get("x-api-key") or "").encode("utf-8")
+        if key and not hmac.compare_digest(provided, key.encode("utf-8")):
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
     @app.exception_handler(PipelineError)
@@ -181,7 +190,11 @@ def create_app(
                     "provider": (
                         "openai" if isinstance(pipeline, OpenAIPipeline) else "ollama"
                     ),
-                    "model": (pipeline.LLM.get_model_name() if pipeline.LLM else None),
+                    "model": (
+                        pipeline.llm_proxy.get_model_name()
+                        if pipeline.llm_proxy
+                        else None
+                    ),
                     "documents_loaded": bool(pipeline.texts),
                     "chain_ready": pipeline.get_chain() is not None,
                 }
@@ -195,8 +208,8 @@ def create_app(
         pipeline = pop_pipeline(pipeline_id)
         if pipeline is None:
             raise HTTPException(status_code=404, detail="Pipeline not found")
-        if getattr(pipeline, "vector_db", None):
-            pipeline.vector_db.cleanup()
+        if hasattr(pipeline, "close"):
+            pipeline.close()  # memory backend + vector store
         return {"deleted": pipeline_id}
 
     @app.post("/pipelines/{pipeline_id}/documents")
@@ -255,8 +268,8 @@ def create_app(
             )
         try:
             if body.stream:
-                # The generator owns the slot and releases it when the
-                # stream finishes (or the client disconnects).
+                # The stream's worker thread owns the slot and releases it
+                # exactly once, when the pipeline call finishes.
                 return StreamingResponse(
                     _sse_stream(pipeline, body, ask_slots),
                     media_type="text/event-stream",
@@ -282,29 +295,74 @@ def create_app(
     return app
 
 
+def _sse_data(text: str) -> str:
+    """Frame text as an SSE data payload, newline-safe.
+
+    A literal "\\n" inside a single `data:` line splits the payload: the
+    continuation lines lack the `data:` prefix, so spec-compliant clients
+    drop them. Emit one `data:` line per physical line instead — clients
+    rejoin them with newlines per the SSE spec.
+    """
+    return "".join(f"data: {line}\n" for line in text.split("\n")) + "\n"
+
+
 def _sse_stream(pipeline, body: AskRequest, ask_slots) -> Iterator[str]:
-    """Yield the answer as Server-Sent Events; Starlette iterates this sync
-    generator in a worker thread, keeping the event loop free."""
+    """Yield the answer as Server-Sent Events.
+
+    The pipeline generator runs on ONE dedicated worker thread and hands
+    chunks over via a queue. This matters: Starlette pumps a sync response
+    generator through a fresh copied context per chunk, which would tear
+    the pipeline's context-local instrumentation (track_request, the token
+    usage callback) apart — enter and exit must share a context. The worker
+    owns the concurrency slot and releases it exactly once, when the
+    pipeline call actually finishes.
+    """
+    handoff: "queue.Queue[Tuple[str, object]]" = queue.Queue()
+
+    def _produce() -> None:
+        try:
+            for chunk in pipeline.ask_question_stream(
+                body.question, session_id=body.session_id, use_cache=body.use_cache
+            ):
+                handoff.put(("chunk", chunk))
+            handoff.put(("done", None))
+        except PipelineError as exc:
+            # Mid-stream failures can't change the status code anymore;
+            # emit a terminal error event so clients can distinguish a
+            # real error from truncation.
+            logger.error(f"Stream failed: {exc}", exc_info=True)
+            handoff.put(("error", str(exc)))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error(f"Stream failed unexpectedly: {exc}", exc_info=True)
+            handoff.put(("error", "internal error"))
+        finally:
+            if ask_slots is not None:
+                ask_slots.release()
+
+    worker = threading.Thread(target=_produce, daemon=True, name="sse-ask")
     try:
-        for chunk in pipeline.ask_question_stream(
-            body.question, session_id=body.session_id, use_cache=body.use_cache
-        ):
-            if isinstance(chunk, dict):
-                # Progress events (e.g. the agent chain's live searches)
-                # become named SSE events, distinct from answer data.
-                name = chunk.get("event", "progress")
-                yield f"event: {name}\ndata: {json.dumps(chunk)}\n\n"
-            else:
-                yield f"data: {chunk}\n\n"
-        yield "data: [DONE]\n\n"
-    except PipelineError as exc:
-        # Mid-stream failures can't change the status code anymore; emit a
-        # terminal error event so clients can distinguish truncation.
-        logger.error(f"Stream failed: {exc}", exc_info=True)
-        yield f"event: error\ndata: {exc}\n\n"
-    finally:
+        worker.start()
+    except Exception:  # pragma: no cover - thread creation failure
         if ask_slots is not None:
             ask_slots.release()
+        raise
+
+    while True:
+        kind, payload = handoff.get()
+        if kind == "chunk":
+            if isinstance(payload, dict):
+                # Progress events (e.g. the agent chain's live searches)
+                # become named SSE events, distinct from answer data.
+                name = payload.get("event", "progress")
+                yield f"event: {name}\ndata: {json.dumps(payload)}\n\n"
+            else:
+                yield _sse_data(str(payload))
+        elif kind == "error":
+            yield f"event: error\n{_sse_data(str(payload))}"
+            return
+        else:  # done
+            yield "data: [DONE]\n\n"
+            return
 
 
 def main() -> None:

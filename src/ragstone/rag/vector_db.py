@@ -1,5 +1,6 @@
 import logging
 import os
+import uuid
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
@@ -167,6 +168,11 @@ class ChromaProxy(VectorStoreProxy):
         self._db: Optional[Any] = None
         self._client = None
         self._is_initialized = False
+        # Unique per proxy instance: all pipelines share one persist
+        # directory, and Chroma.from_documents ADDS to an existing
+        # collection — a shared name would silently mix corpora across
+        # pipelines (and across process runs).
+        self._default_collection = f"ragstone_{uuid.uuid4().hex[:8]}"
 
         # Ensure persist directory exists
         os.makedirs(persist_directory, exist_ok=True)
@@ -205,7 +211,7 @@ class ChromaProxy(VectorStoreProxy):
     def create_db(  # type: ignore[override]  # chroma adds collection_name
         self,
         docs: List,
-        collection_name: str = "default_chroma_collection",
+        collection_name: Optional[str] = None,
         embeddings: Optional[Any] = None,
     ) -> None:
         """
@@ -213,12 +219,15 @@ class ChromaProxy(VectorStoreProxy):
 
         Args:
             docs: List of Document objects to add to the database.
-            collection_name: Name for the Chroma collection.
+            collection_name: Name for the Chroma collection. Defaults to a
+                name unique to this proxy instance, so pipelines never share
+                (and never append into) each other's collections.
             embeddings: Embeddings instance to use.
 
         Raises:
             VectorStoreInitializationError: If database creation fails.
         """
+        collection_name = collection_name or self._default_collection
         try:
             # Validate inputs
             self._validate_documents(docs)
@@ -246,6 +255,12 @@ class ChromaProxy(VectorStoreProxy):
             # Use context manager for client
             with self._ensure_client() as client:
                 try:
+                    # Rebuilding must REPLACE the collection, not append to
+                    # one persisted by an earlier run under the same name.
+                    try:
+                        client.delete_collection(collection_name)
+                    except Exception:
+                        pass  # no such collection yet
                     # Reuse our PersistentClient instead of passing
                     # persist_directory — otherwise LangChain opens a second
                     # client on the same sqlite directory.

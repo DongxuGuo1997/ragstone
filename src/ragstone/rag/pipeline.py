@@ -5,14 +5,16 @@ import time
 from typing import Any, Dict, List, Optional
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
 from ..config.settings import get_config
-from ..models.base_model import OllamaProxy, OpenAIProxy
+from ..models.base_model import LLMProxy, OllamaProxy, OpenAIProxy
 from ..utils.exceptions import (
     ChainExecutionError,
     ChainInitializationError,
     RetrieverInitializationError,
+    VectorStoreInitializationError,
 )
 from ..utils.full_chain import FullChain
 from ..utils.observability import RequestMetrics, time_stage, track_request
@@ -81,11 +83,11 @@ class _SourceRecordingRetriever(BaseRetriever):
     """
 
     wrapped: BaseRetriever
-    record: List = []
+    record: List[Document] = []
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
-    ) -> List:
+    ) -> List[Document]:
         # Timed as the "retrieval" stage: this wraps the FINAL retriever,
         # so query embedding, ensemble merge, and any reranking are all
         # included. Multiple invocations (agent mode) accumulate.
@@ -96,7 +98,17 @@ class _SourceRecordingRetriever(BaseRetriever):
 
 
 class Pipeline:
-    """Base pipeline class with lazy loading and optimized performance."""
+    """Base pipeline class with lazy loading and optimized performance.
+
+    Concurrency contract: distinct sessions may ask concurrently — answers
+    and conversation memory are isolated per session_id, and per-request
+    metrics are contextvar-scoped. The INTROSPECTION helpers, however
+    (get_sources, get_last_retrieved_documents, last_metrics,
+    get_last_interpretation), reflect "the most recent ask" and are
+    single-writer: call them from the same thread of control as the ask
+    they describe. Under concurrent asks on one pipeline they may reflect
+    a mix of requests.
+    """
 
     def __init__(
         self,
@@ -137,16 +149,16 @@ class Pipeline:
 
         self.vector_db = create_vector_store_proxy(vector_store_type)
 
-        self.texts: Optional[List] = None
-        self._retriever: Optional[Any] = None
+        self.texts: Optional[List[Document]] = None
+        self._retriever: Optional[BaseRetriever] = None
         self._chain: Optional[FullChain] = None
         self._chain_type: Optional[str] = None
-        self.LLM: Optional[Any] = None
+        self.llm_proxy: Optional[LLMProxy] = None
         self._last_question: Optional[str] = None
         self._last_metrics: Optional[RequestMetrics] = None
         self._vector_db_fingerprint: Optional[str] = None
         self._bm25_retriever: Optional[Any] = None
-        self._bm25_texts: Optional[List] = None  # identity marker for reuse
+        self._bm25_texts: Optional[List[Document]] = None  # identity for reuse
 
         logger.info(
             f"Pipeline initialized with loader: {loader_name}, vector store: {vector_store_type or 'default'}, optimization: {optimize_loading}"
@@ -184,8 +196,6 @@ class Pipeline:
             f"Starting document loading. data_dir='{data_dir}', uploaded_files={'yes' if uploaded_files else 'no'}, page_urls={'yes' if page_urls else 'no'}, wiki_query='{wiki_query if wiki_query else 'no'}'"
         )
 
-        # Ensure loaders are reset or handle multiple calls appropriately if needed
-        # For this example, assuming they load fresh each time `load` is called.
         self.local_loader.load(data_dir=data_dir, uploaded_files=uploaded_files)
         loaded_local_docs = self.local_loader.get_documents()
         if loaded_local_docs:
@@ -265,12 +275,16 @@ class Pipeline:
             else:
                 logger.info("Creating vector store database...")
                 self.vector_db.create_db(docs=self.texts, embeddings=embeddings)
-                self._vector_db_fingerprint = fingerprint
 
             vs = self.vector_db.db  # Use the property .db
             if vs is None:
-                logger.error("Failed to create or access vector store database.")
-                return
+                raise VectorStoreInitializationError(
+                    "Vector store creation returned no database."
+                )
+            # Record the fingerprint only once the store is confirmed
+            # usable — recording earlier would make the next call wrongly
+            # skip the rebuild after a partial failure.
+            self._vector_db_fingerprint = fingerprint
 
             logger.info("Vector store database created successfully.")
             vs_retriever = vs.as_retriever(search_kwargs={"k": stage_one_k})
@@ -451,10 +465,11 @@ class Pipeline:
             ChainInitializationError: If the LLM or retriever is not set
                 up, or if chain construction fails.
         """
-        if not self.LLM or not self.LLM.get_llm():
+        llm = self.llm_proxy.get_llm() if self.llm_proxy else None
+        if llm is None or self.llm_proxy is None:
             raise ChainInitializationError(
                 "Cannot create RAG chain: LLM is not set. Construct the "
-                "pipeline with a model (or call LLM.set_llm) first.",
+                "pipeline with a model (or call llm_proxy.set_llm) first.",
                 chain_type=chain_type,
             )
         if not self._retriever:
@@ -465,11 +480,11 @@ class Pipeline:
             )
 
         logger.info(f"Creating RAG chain of type: {chain_type}")
-        rag_proxy = RagProxy(model=self.LLM.get_llm(), retriever=self._retriever)
+        rag_proxy = RagProxy(model=llm, retriever=self._retriever)
         memory_proxy = MemoryProxy()
 
         chain = FullChain(
-            llm_proxy=self.LLM, rag_proxy=rag_proxy, memory_proxy=memory_proxy
+            llm_proxy=self.llm_proxy, rag_proxy=rag_proxy, memory_proxy=memory_proxy
         )
         try:
             chain.create_full_chain(chain_type=chain_type)
@@ -497,8 +512,15 @@ class Pipeline:
         except ChainInitializationError:
             self._chain = None
             raise
+        if self._chain is not None:
+            # Release the replaced chain's memory backend (the sqlite
+            # checkpointer holds an open connection per built chain).
+            self._chain.close()
         self._chain = chain
         self._chain_type = chain_type  # recorded in per-request log lines
+        # A different chain type produces different answers for the same
+        # question; cached responses from the old chain are stale.
+        _get_query_cache().clear_cache()
         logger.info(f"Successfully created RAG chain of type: {chain_type}")
 
     def make_chain_variant(self, chain_type: str) -> FullChain:
@@ -519,6 +541,42 @@ class Pipeline:
                 up, or if chain construction fails.
         """
         return self._build_chain(chain_type)
+
+    def close(self) -> None:
+        """Release the pipeline's held resources.
+
+        Closes the chain's conversation-memory backend (the sqlite
+        checkpointer holds an open connection) and cleans up the vector
+        store. Called by the API/MCP delete paths; safe to call more than
+        once.
+        """
+        if self._chain is not None:
+            self._chain.close()
+        if self.vector_db is not None:
+            self.vector_db.cleanup()
+
+    def _cache_scope(self, session_id: str) -> str:
+        """Scope component for response-cache keys.
+
+        The response cache is shared process-wide, so the key must encode
+        WHICH corpus and chain produced an answer, not just the session —
+        otherwise two pipelines serving different document sets could trade
+        answers for the same question text.
+        """
+        corpus = self._vector_db_fingerprint or "no-index"
+        return f"{session_id}|{corpus}|{self._chain_type or 'none'}"
+
+    def _cache_usable(self, use_cache: bool, session_id: str) -> bool:
+        """Whether the response cache may serve or store this ask.
+
+        Caching is only sound on history-free turns: a follow-up's answer
+        depends on conversation history via the rephrase step, so caching
+        or serving it under the raw question text would be wrong (the same
+        words can mean something different after a different conversation).
+        """
+        if not (use_cache and _is_response_cache_enabled()):
+            return False
+        return self._chain is not None and not self._chain.has_history(session_id)
 
     def ask_question(
         self, question: str, session_id: str = "default", use_cache: bool = True
@@ -555,9 +613,10 @@ class Pipeline:
             # closes, so exposing it now is safe: by the time a caller reads
             # last_metrics (after this method returns), it is fully filled.
             self._last_metrics = metrics
-            cache_enabled = _is_response_cache_enabled()
-            if use_cache and cache_enabled:
-                cached_response = _get_query_cache().get_response(question, session_id)
+            cache_enabled = self._cache_usable(use_cache, session_id)
+            cache_scope = self._cache_scope(session_id)
+            if cache_enabled:
+                cached_response = _get_query_cache().get_response(question, cache_scope)
                 if cached_response:
                     logger.info("Cache hit! Returning cached response.")
                     metrics.cache_hit = True
@@ -570,9 +629,9 @@ class Pipeline:
                     query=question, session_id=session_id
                 )
 
-                if response and use_cache and cache_enabled:
+                if response and cache_enabled:
                     # Cache the successful response
-                    _get_query_cache().cache_response(question, response, session_id)
+                    _get_query_cache().cache_response(question, response, cache_scope)
 
                     generation_time = time.time() - start_time
                     logger.info(
@@ -639,9 +698,10 @@ class Pipeline:
         self._begin_ask(question)
         with track_request(session_id, chain_type=self._chain_type) as metrics:
             self._last_metrics = metrics  # completed when the stream ends
-            cache_enabled = _is_response_cache_enabled()
-            if use_cache and cache_enabled:
-                cached_response = _get_query_cache().get_response(question, session_id)
+            cache_enabled = self._cache_usable(use_cache, session_id)
+            cache_scope = self._cache_scope(session_id)
+            if cache_enabled:
+                cached_response = _get_query_cache().get_response(question, cache_scope)
                 if cached_response:
                     logger.info("Cache hit! Streaming cached response.")
                     metrics.cache_hit = True
@@ -664,8 +724,8 @@ class Pipeline:
                         parts.append(chunk)
                     yield chunk
                 response = "".join(parts)
-                if response and use_cache and cache_enabled:
-                    _get_query_cache().cache_response(question, response, session_id)
+                if response and cache_enabled:
+                    _get_query_cache().cache_response(question, response, cache_scope)
             except Exception as e:
                 logger.error(f"Error during ask_question_stream: {e}", exc_info=True)
                 raise ChainExecutionError(
@@ -758,8 +818,8 @@ class OpenAIPipeline(Pipeline):
             raise ValueError("OPENAI_API_KEY is required for OpenAIPipeline")
 
         # Initialize OpenAI LLM with lazy loading
-        self.LLM = OpenAIProxy()
-        self.LLM.set_llm(model_name=model)
+        self.llm_proxy = OpenAIProxy()
+        self.llm_proxy.set_llm(model_name=model)
         logger.info(f"OpenAIPipeline initialized with model: {model}")
 
     def set_retriever_openai(
@@ -820,8 +880,8 @@ class OllamaPipeline(Pipeline):
         )
 
         # Initialize Ollama LLM with lazy loading
-        self.LLM = OllamaProxy()
-        self.LLM.set_llm(model_name=model)
+        self.llm_proxy = OllamaProxy()
+        self.llm_proxy.set_llm(model_name=model)
         logger.info(f"OllamaPipeline initialized with model: {model}")
 
     def set_retriever_ollama(
@@ -837,7 +897,7 @@ class OllamaPipeline(Pipeline):
                 (requires the `rerank` extra). Defaults to False.
         """
         embeddings = get_smart_embeddings(
-            self.LLM.get_model_name() if self.LLM else None
+            self.llm_proxy.get_model_name() if self.llm_proxy else None
         )
         if not embeddings:
             raise RetrieverInitializationError(

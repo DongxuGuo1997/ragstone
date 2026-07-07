@@ -24,7 +24,7 @@ class _StubPipeline:
         self.texts = None
         self._chain = None
         self.vector_db = None
-        self.LLM = self  # the tools call pipeline.LLM.get_model_name()
+        self.llm_proxy = self  # the tools call pipeline.llm_proxy.get_model_name()
 
     def get_model_name(self):
         return self.model

@@ -201,6 +201,28 @@ class TestCheckpointBackend:
         )
         assert [m.content for m in state.values["messages"]] == ["capital?", "Paris."]
 
+    def test_close_releases_sqlite_connection_and_is_idempotent(self, tmp_path):
+        # Without close(), a server that rebuilds chains or deletes
+        # pipelines leaks one SQLite connection per built chain.
+        import sqlite3
+
+        pytest.importorskip("langgraph.checkpoint.sqlite")
+        proxy = MemoryProxy(type="sqlite")
+        proxy._db_path = str(tmp_path / "checkpoints.sqlite")
+        proxy._make_checkpointer()
+        conn = proxy._conn
+        assert conn is not None
+
+        proxy.close()
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")
+        proxy.close()  # safe to call again
+
+    def test_close_is_a_noop_for_the_inmemory_backend(self):
+        proxy = MemoryProxy(type="memory")
+        proxy._make_checkpointer()
+        proxy.close()  # nothing to release, must not raise
+
     def test_sqlite_missing_dependency_raises_actionable_error(self, monkeypatch):
         # If the optional package is absent, selecting sqlite must fail with a
         # clear "install the extra" message, not an opaque ImportError.

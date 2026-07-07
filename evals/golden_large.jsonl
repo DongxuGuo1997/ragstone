@@ -209,8 +209,8 @@
 {"question": "What is the price of the helios mk-4 solar panel?", "gold_answer": null, "must_contain": [], "category": "unanswerable", "gold_source": "helios_mk4_announcement.md", "id": "g169"}
 {"question": "What is the age of clara nguyen, the founder of ember roastworks?", "gold_answer": null, "must_contain": [], "category": "unanswerable", "gold_source": "ember_roastworks.md", "id": "g170"}
 {"question": "What is the price of the borealis bx-2 solar panel?", "gold_answer": null, "must_contain": [], "category": "unanswerable", "gold_source": "borealis_solar_guide.md", "id": "g171"}
-{"question": "What is the warranty period for the corona k-7 solar panel?", "gold_answer": null, "must_contain": [], "category": "unanswerable", "gold_source": "corona_solar_guide.md", "id": "g172"}
-{"question": "What is the cost of a fare on the meridian transit system?", "gold_answer": null, "must_contain": [], "category": "unanswerable", "gold_source": "meridian_fare_handbook.md", "id": "g173"}
+{"question": "What is the warranty period for the corona k-7 solar panel?", "gold_answer": "The Corona K-7 comes with a 30-year linear power output warranty.", "must_contain": ["k-7", "30-year"], "category": "factual", "gold_source": "corona_solar_guide.md", "id": "g172"}
+{"question": "What is the cost of a fare on the meridian transit system?", "gold_answer": "A single adult ride on the Meridian Transit network costs $2.75.", "must_contain": ["2.75"], "category": "factual", "gold_source": "meridian_fare_handbook.md", "id": "g173"}
 {"question": "What is the price of the suncore x10 inverter?", "gold_answer": null, "must_contain": [], "category": "unanswerable", "gold_source": "suncore_x10_manual.md", "id": "g174"}
 {"question": "What is the age of tomas reiner, the founder of solstice coffee roasters?", "gold_answer": null, "must_contain": [], "category": "unanswerable", "gold_source": "solstice_coffee.md", "id": "g175"}
 {"question": "What is the price of the vela drive ion engine?", "gold_answer": null, "must_contain": [], "category": "unanswerable", "gold_source": "vela_drive_bulletin.md", "id": "g176"}

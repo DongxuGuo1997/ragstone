@@ -357,7 +357,7 @@ class StreamlitApp:
             if metrics.stage_ms:
                 trace["stage_ms"] = dict(metrics.stage_ms)
                 trace["generation_ms"] = metrics.generation_ms
-            model = pipeline.LLM.get_model_name() if pipeline.LLM else None
+            model = pipeline.llm_proxy.get_model_name() if pipeline.llm_proxy else None
             trace["cost_usd"] = estimate_cost_usd(
                 metrics.input_tokens, metrics.output_tokens, model
             )
@@ -559,7 +559,18 @@ class StreamlitApp:
             blocks.append(text + ("▌" if streaming else ""))
             bodies[i].markdown("\n\n".join(blocks))
 
+        # Wall-clock ceiling independent of the LLM client's own timeout: a
+        # worker that hangs without raising must not spin this loop (and the
+        # Streamlit script run) forever.
+        deadline = time.monotonic() + 180
         while not all(finished):
+            if time.monotonic() > deadline:
+                for i in (0, 1):
+                    if not finished[i]:
+                        events[i].append("❌ timed out waiting for the answer")
+                        finished[i] = True
+                        render_column(i, streaming=False)
+                break
             progressed = False
             for i in (0, 1):
                 if finished[i]:
@@ -588,8 +599,8 @@ class StreamlitApp:
                 time.sleep(0.05)
 
         model = (
-            st.session_state.pipeline.LLM.get_model_name()
-            if st.session_state.pipeline.LLM
+            st.session_state.pipeline.llm_proxy.get_model_name()
+            if st.session_state.pipeline.llm_proxy
             else None
         )
         for i, label in enumerate(labels):
@@ -894,8 +905,8 @@ class StreamlitApp:
         """Build OpenAI pipeline."""
         try:
             pipeline = OpenAIPipeline(model=model)
-            assert pipeline.LLM is not None  # set by the constructor
-            pipeline.LLM.set_llm(model, temperature=temperature)
+            assert pipeline.llm_proxy is not None  # set by the constructor
+            pipeline.llm_proxy.set_llm(model, temperature=temperature)
 
             # Load and split documents
             texts = pipeline.load_and_split(
@@ -932,8 +943,8 @@ class StreamlitApp:
         """Build Ollama pipeline."""
         try:
             pipeline = OllamaPipeline(model=model)
-            assert pipeline.LLM is not None  # set by the constructor
-            pipeline.LLM.set_llm(model, temperature=temperature)
+            assert pipeline.llm_proxy is not None  # set by the constructor
+            pipeline.llm_proxy.set_llm(model, temperature=temperature)
 
             # Load and split documents
             texts = pipeline.load_and_split(

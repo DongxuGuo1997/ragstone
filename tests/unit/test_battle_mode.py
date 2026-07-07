@@ -32,7 +32,7 @@ class _FakeLLMProxy:
 
 def _configured_pipeline(responses):
     pipeline = OpenAIPipeline(model="gpt-4o-mini")
-    pipeline.LLM = _FakeLLMProxy(FakeListChatModel(responses=list(responses)))
+    pipeline.llm_proxy = _FakeLLMProxy(FakeListChatModel(responses=list(responses)))
     pipeline._retriever = SimpleTextRetriever.from_texts(["Paris is the capital."])
     return pipeline
 
@@ -79,7 +79,7 @@ class TestMakeChainVariant:
 
     def test_variant_requires_retriever(self):
         pipeline = OpenAIPipeline(model="gpt-4o-mini")
-        pipeline.LLM = _FakeLLMProxy(FakeListChatModel(responses=["x"]))
+        pipeline.llm_proxy = _FakeLLMProxy(FakeListChatModel(responses=["x"]))
         pipeline._retriever = None
         with pytest.raises(ChainInitializationError):
             pipeline.make_chain_variant("simple")

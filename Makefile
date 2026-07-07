@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov eval eval-retrieval lint format clean build
+.PHONY: help install install-dev test test-cov eval eval-retrieval lint format clean build dev-setup run-streamlit run-mcp-server run-chat check prepare-release
 
 # Default target
 help:

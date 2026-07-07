@@ -7,6 +7,7 @@ offering a clean API for RAG operations with proper error handling.
 """
 
 import logging
+import os
 from functools import partial
 
 from anyio import to_thread
@@ -167,6 +168,16 @@ async def setup_retriever(
     if pipeline is None:
         return f"Pipeline '{pipeline_id}' not found. Create it first."
 
+    # An unknown chain_type would silently build a "simple" chain while
+    # this tool reports the requested name as configured — reject typos
+    # instead (mirrors the REST API's Literal validation).
+    known_chain_types = {"simple", "multi_query", "fusion", "agent", "corrective"}
+    if chain_type not in known_chain_types:
+        return (
+            f"Unknown chain_type '{chain_type}'. "
+            f"Expected one of: {', '.join(sorted(known_chain_types))}."
+        )
+
     try:
 
         def _configure():
@@ -240,7 +251,7 @@ def list_pipelines() -> str:
     result = "**Available Pipelines:**\n\n"
     for pipeline_id, pipeline in pipelines:
         pipeline_type = "OpenAI" if isinstance(pipeline, OpenAIPipeline) else "Ollama"
-        model = pipeline.LLM.get_model_name() if pipeline.LLM else "Not set"
+        model = pipeline.llm_proxy.get_model_name() if pipeline.llm_proxy else "Not set"
         has_docs = "Yes" if pipeline.texts else "No"
         has_chain = "Yes" if pipeline.get_chain() else "No"
 
@@ -268,7 +279,7 @@ def get_pipeline_info(pipeline_id: str) -> str:
         return f"Pipeline '{pipeline_id}' not found."
 
     pipeline_type = "OpenAI" if isinstance(pipeline, OpenAIPipeline) else "Ollama"
-    model = pipeline.LLM.get_model_name() if pipeline.LLM else "Not set"
+    model = pipeline.llm_proxy.get_model_name() if pipeline.llm_proxy else "Not set"
     doc_count = len(pipeline.texts) if pipeline.texts else 0
     has_chain = pipeline.get_chain() is not None
 
@@ -301,9 +312,9 @@ def delete_pipeline(pipeline_id: str) -> str:
         return f"Pipeline '{pipeline_id}' not found."
 
     try:
-        # Clean up resources if available
-        if hasattr(pipeline, "vector_db") and pipeline.vector_db:
-            pipeline.vector_db.cleanup()
+        # Release held resources (memory backend + vector store)
+        if hasattr(pipeline, "close"):
+            pipeline.close()
 
         return f"Pipeline '{pipeline_id}' deleted successfully"
 
@@ -313,8 +324,9 @@ def delete_pipeline(pipeline_id: str) -> str:
 
 def main():
     """Entry point for the MCP server (used by the ragstone-mcp console script)."""
+    level = os.getenv("MCP_LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
-        level=logging.INFO,
+        level=getattr(logging, level, logging.INFO),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 

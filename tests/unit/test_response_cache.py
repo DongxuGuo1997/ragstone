@@ -62,3 +62,67 @@ class TestQueryResultCache:
         cache.clear_cache()
 
         assert cache.get_response("q", "s") is None
+
+
+class TestPipelineCacheScoping:
+    """The pipeline-level rules for WHEN and UNDER WHAT KEY caching applies."""
+
+    def _pipeline(self, monkeypatch, cache, has_history=False, fingerprint="fp-a"):
+        import ragstone.rag.pipeline as pl
+        from ragstone.rag.pipeline import OpenAIPipeline
+
+        monkeypatch.setattr(pl, "_is_response_cache_enabled", lambda: True)
+        monkeypatch.setattr(pl, "_get_query_cache", lambda: cache)
+
+        pipeline = OpenAIPipeline(model="gpt-4o-mini")
+        pipeline._chain_type = "simple"
+        pipeline._vector_db_fingerprint = fingerprint
+
+        class _Chain:
+            def ask_question(self, query, session_id):
+                return "fresh answer"
+
+            def has_history(self, session_id):
+                return has_history
+
+        pipeline._chain = _Chain()
+        return pipeline
+
+    class _RecordingCache:
+        def __init__(self):
+            self.gets = []
+            self.puts = []
+
+        def get_response(self, question, scope):
+            self.gets.append((question, scope))
+            return None
+
+        def cache_response(self, question, response, scope):
+            self.puts.append((question, scope))
+
+        class stats:
+            total_queries = 1
+
+    def test_follow_up_turns_bypass_the_cache(self, monkeypatch):
+        # A follow-up's answer depends on conversation history (rephrase);
+        # serving or storing it under the raw question text would be wrong.
+        cache = self._RecordingCache()
+        pipeline = self._pipeline(monkeypatch, cache, has_history=True)
+
+        assert pipeline.ask_question("what about its battery?") == "fresh answer"
+
+        assert cache.gets == []
+        assert cache.puts == []
+
+    def test_cache_key_encodes_corpus_identity(self, monkeypatch):
+        # The cache is shared process-wide: two pipelines over different
+        # corpora must never trade answers for the same question text.
+        cache = self._RecordingCache()
+        p_a = self._pipeline(monkeypatch, cache, fingerprint="fp-a")
+        p_b = self._pipeline(monkeypatch, cache, fingerprint="fp-b")
+
+        p_a.ask_question("What is the warranty?", session_id="s")
+        p_b.ask_question("What is the warranty?", session_id="s")
+
+        scopes = {scope for _, scope in cache.puts}
+        assert len(scopes) == 2  # distinct keys despite same question+session

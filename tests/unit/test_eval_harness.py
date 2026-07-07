@@ -85,17 +85,25 @@ class TestMultiTurnGeneration:
 
         run_eval.eval_generation(pipeline, cases, ARGS)
 
-        assert pipeline.asks == [
-            ("Who commanded it?", "eval_mt01"),
-            ("What is her background?", "eval_mt01"),
+        # Both turns run in order and share ONE session; session ids are
+        # namespaced per run so persistent checkpoint backends can't feed
+        # stale history into a later invocation.
+        assert [q for q, _ in pipeline.asks] == [
+            "Who commanded it?",
+            "What is her background?",
         ]
+        sessions = {s for _, s in pipeline.asks}
+        assert len(sessions) == 1
+        assert sessions.pop().endswith("_mt01")
 
     def test_single_turn_cases_unchanged(self, run_eval):
         pipeline = _ScriptedPipeline()
         run_eval.eval_generation(
             pipeline, [_case("q01", "factual", "When did it launch?")], ARGS
         )
-        assert pipeline.asks == [("When did it launch?", "eval_q01")]
+        [(question, session_id)] = pipeline.asks
+        assert question == "When did it launch?"
+        assert session_id.endswith("_q01")
 
     def test_metrics_are_split_by_category(self, run_eval):
         pipeline = _ScriptedPipeline()

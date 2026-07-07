@@ -6,14 +6,14 @@ This project provides a Model Context Protocol (MCP) server that exposes your La
 
 - **Multiple LLM Support**: OpenAI and Ollama-based pipelines
 - **Document Loading**: Local files, URLs, and Wikipedia
-- **Advanced RAG**: Simple, multi-query, and fusion retrieval strategies
+- **Advanced RAG**: Simple, multi-query, fusion, agent, and corrective strategies
 - **Ensemble Retrieval**: BM25 + Vector search combination
 - **Memory Management**: Conversation history with session support
 - **Pipeline Management**: Create, configure, and manage multiple pipelines
 
 ## 📋 Prerequisites
 
-1. **Python Environment**: Python 3.8+ with the project dependencies installed
+1. **Python Environment**: Python 3.10+ with the project dependencies installed
 2. **MCP-Compatible Client**: VS Code with Cursor, Claude Desktop, or other MCP clients
 3. **LLM Setup**: 
    - For OpenAI: Set `OPENAI_API_KEY` environment variable
@@ -120,7 +120,7 @@ Load and split documents into a pipeline.
 Configure the retriever and RAG chain.
 - **pipeline_id**: Target pipeline
 - **use_ensemble**: Use BM25 + Vector ensemble (default: true)
-- **chain_type**: RAG strategy ("simple", "multi_query", "fusion")
+- **chain_type**: RAG strategy ("simple", "multi_query", "fusion", "agent", "corrective")
 
 ### Question Answering
 
@@ -210,17 +210,17 @@ export MCP_LOG_LEVEL=DEBUG
 You can test the server functionality directly:
 
 ```python
-import asyncio
 import sys
 sys.path.insert(0, 'src')
 
-from ragstone.mcp.mcp_server_fastmcp import mcp, _pipelines
 from ragstone.rag.pipeline import OpenAIPipeline
+from ragstone.utils.registry import put_pipeline, get_pipeline
 
-# Test pipeline creation
+# Test pipeline creation (the MCP server and REST API share this registry)
 pipeline = OpenAIPipeline(model="gpt-4o-mini")
-_pipelines["test"] = pipeline
-print("✅ Pipeline created successfully")
+put_pipeline("test", pipeline)
+assert get_pipeline("test") is pipeline
+print("Pipeline registered successfully")
 ```
 
 ## 🔧 Configuration

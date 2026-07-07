@@ -8,8 +8,8 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages.base import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import BasePromptTemplate, ChatPromptTemplate
+from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import Runnable, RunnableLambda
-from langchain_core.vectorstores import VectorStoreRetriever
 
 from ..config.settings import get_config
 from ..utils.exceptions import ValidationError
@@ -126,7 +126,7 @@ class RagProxy:
     def __init__(
         self,
         model: BaseChatModel,
-        retriever: VectorStoreRetriever,
+        retriever: BaseRetriever,
         rag_prompt: Optional[BasePromptTemplate] = None,
     ):
         """
@@ -134,7 +134,7 @@ class RagProxy:
 
         Args:
             model: The base chat model to use.
-            retriever: The vector store retriever.
+            retriever: The retriever to ground answers with (vector store, ensemble, or any BaseRetriever).
             rag_prompt: Optional custom RAG prompt. If None, a bundled default
                 (equivalent to "rlm/rag-prompt") is used — no network required.
         """
@@ -148,7 +148,7 @@ class RagProxy:
         else:
             self._rag_prompt = rag_prompt
 
-    def get_retriever(self) -> VectorStoreRetriever:
+    def get_retriever(self) -> BaseRetriever:
         """Returns the base retriever."""
         return self._retriever
 

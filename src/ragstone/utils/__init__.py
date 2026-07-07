@@ -1,32 +1,22 @@
 """
 Utility functions and helpers for the RAG pipeline.
 
-This module contains the exception hierarchy and chain utilities.
+This module re-exports the exception hierarchy; chain composition,
+observability, security, and the pipeline registry live in their own
+submodules (full_chain, observability, security, registry).
 """
 
-# Import all exceptions
 from .exceptions import (
-    APIAuthenticationError,
-    APIConnectionError,
-    APIError,
     ChainError,
     ChainExecutionError,
     ChainInitializationError,
     ConfigurationError,
-    ConversationMemoryError,
     DocumentLoadingError,
-    DocumentProcessingError,
-    EmbeddingError,
-    FileLoadingError,
-    FileUploadError,
     LLMError,
     LLMInitializationError,
     PipelineError,
-    RemoteLoadingError,
     RetrievalError,
     RetrieverInitializationError,
-    SearchError,
-    UIError,
     ValidationError,
     VectorStoreError,
     VectorStoreInitializationError,
@@ -34,7 +24,6 @@ from .exceptions import (
 )
 
 __all__ = [
-    # Exceptions
     "PipelineError",
     "ConfigurationError",
     "LLMError",
@@ -42,22 +31,11 @@ __all__ = [
     "VectorStoreError",
     "VectorStoreInitializationError",
     "VectorStoreOperationError",
-    "EmbeddingError",
     "DocumentLoadingError",
-    "FileLoadingError",
-    "RemoteLoadingError",
-    "DocumentProcessingError",
     "RetrievalError",
     "RetrieverInitializationError",
-    "SearchError",
     "ChainError",
     "ChainInitializationError",
     "ChainExecutionError",
-    "ConversationMemoryError",
     "ValidationError",
-    "APIError",
-    "APIConnectionError",
-    "APIAuthenticationError",
-    "UIError",
-    "FileUploadError",
 ]

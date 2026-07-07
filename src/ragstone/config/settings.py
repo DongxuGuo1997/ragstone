@@ -375,7 +375,9 @@ class Config:
                 "chroma_persist_dir": self.database.chroma_persist_dir,
                 "faiss_index_name": self.database.faiss_index_name,
                 "batch_size": self.database.batch_size,
+                "embed_workers": self.database.embed_workers,
                 "similarity_k": self.database.similarity_k,
+                "ensemble_bm25_weight": self.database.ensemble_bm25_weight,
                 "max_query_length": self.database.max_query_length,
             },
             "llm": {
@@ -389,6 +391,7 @@ class Config:
                 "max_retries": self.llm.max_retries,
                 "timeout": self.llm.timeout,
                 "max_question_chars": self.llm.max_question_chars,
+                "rephrase_model": self.llm.rephrase_model,
             },
             "loader": {
                 "default_data_dir": self.loader.default_data_dir,
@@ -397,6 +400,7 @@ class Config:
                 "enable_ocr": self.loader.enable_ocr,
                 "chunk_size": self.loader.chunk_size,
                 "chunk_overlap": self.loader.chunk_overlap,
+                "allowed_data_root": self.loader.allowed_data_root,
             },
             "api": {
                 "ollama_base_url": self.api.ollama_base_url,

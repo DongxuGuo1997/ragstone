@@ -19,15 +19,23 @@ Re-run any row yourself with the command shown.
   deliberately includes near-duplicate pairs (Aurora-7 / Aurora-9, the
   Helios / Borealis solar guides) as *distractors* — easily-confused
   documents that punish imprecise retrieval.
-- **Golden set** (`evals/golden.jsonl`): 38 hand-written cases — 24 factual,
-  5 distractor, 4 multi-hop, 3 unanswerable, 2 paraphrase.
+- **Golden set** (`evals/golden.jsonl`): 43 hand-written cases — 24 factual,
+  5 distractor, 4 multi-hop, 3 unanswerable, 2 paraphrase, 5 multi-turn.
+  (The multi-turn cases were added when conversation quality became a gated
+  metric; experiments that predate them ran on the original 38 and say so.)
 - **Layer 1 — retrieval** (deterministic, free): `hit_rate@k` (did any
   retrieved chunk contain all required strings) and **MRR** (mean reciprocal
-  rank of the first hit). Unanswerable cases are excluded.
+  rank of the first hit). Unanswerable and multi-turn cases are excluded.
+  One honest caveat: multi-hop cases count as a hit when all needles appear
+  anywhere in the top-k *union*, and are pinned at rank 1 — so read MRR as
+  slightly optimistic on the multi-hop slice.
 - **Layer 2 — generation** (LLM-as-judge, `gpt-4o-mini`, costs cents):
   **correctness** vs the gold answer and **faithfulness** to the retrieved
   context (a hallucination check). Judge prompts are in `evals/judge.py`, in
-  the open.
+  the open. The judge and the answering model share a model family
+  (gpt-4o-mini grading gpt-4o-mini), so absolute scores may carry some
+  self-preference inflation; every comparison in this file uses the same
+  judge on both sides, so the *deltas* are the meaningful signal.
 - **Regression gate**: every run is compared to `evals/baseline.json` and
   fails if any metric drops more than 0.05 below baseline — so quality
   regressions surface as failed runs, not silent drift.
@@ -369,23 +377,31 @@ blending entities, multi-turn faithfulness collapsed 0.923 → 0.692, and
 every answer paid +46% context tokens. `k=4` was reverted the same day,
 with the reasoning recorded on the config field itself.
 
-**The prompt fixes are a modest, real win where they were aimed.**
-At identical retrieval (v1 vs v3, both k=4): multi-turn correctness rose
-0.769 → 0.846 — the comparative follow-up `gmt184` now retrieves both
-compared entities and passes. The two remaining multi-turn failures are
-the known hard cases (`mt05`, `gmt181` — a genuine corpus coverage gap).
-Single-turn correctness moved −1.4 pp (three cases, inside the ±3 pp noise
-band) while faithfulness ticked up +0.5 pp — consistent with the
-no-invented-identifiers clause trading a little eagerness for grounding.
-On the smoke set the same prompts had already lifted multi-turn from
-0.8 → 1.0.
+**The prompt-fix verdict, honestly stated.** At identical retrieval
+(v1 vs v3, both k=4): single-turn correctness moved −1.4 pp (three cases,
+inside the ±3 pp noise band) and faithfulness +0.5 pp — consistent with
+the no-invented-identifiers clause trading a little eagerness for
+grounding, and costing nothing. The multi-turn columns need more care
+than the table suggests, because n=13 makes every case worth 7.7 pp:
+correctness rose one case (0.769 → 0.846) and faithfulness *fell* one
+case (0.923 → 0.846). Worse for the tidy narrative: the case that flipped
+to pass (`gmt184`, "What system is it compatible with?") is not a
+comparative question at all — its gold answer was corrected in the same
+commit (it had been vaguer than a correct system answer), so its flip is
+a *scoring* fix, not a prompt effect, and the v1 row is not a clean A/B
+against v3. What the prompt changes can honestly claim: no measurable
+harm at n=224, a plausible mechanism, and the smoke-set multi-turn lift
+(0.8 → 1.0 — itself one case at n=5). They ship because they are
+principled and free, not because n=13 proves them.
 
 **Decision.** `similarity_k` stays **4**; both prompt changes ship; the
-large-simple baseline is re-recorded at v3 values. The transferable
-lesson — now a standing rule for this repo: **a knob that changes what
-the generator reads must be judged end-to-end, never by a retrieval-slice
-metric.** The slice metric answers "did the needle land in top-k?"; it is
-silent about what the other k−1 chunks do to the answer.
+large-simple baseline is re-recorded. The transferable lesson — now a
+standing rule for this repo: **a knob that changes what the generator
+reads must be judged end-to-end, never by a retrieval-slice metric.** The
+slice metric answers "did the needle land in top-k?"; it is silent about
+what the other k−1 chunks do to the answer. (And its corollary from the
+gmt184 confound: **never edit the golden set and the system under test in
+the same measured comparison.**)
 
 ---
 

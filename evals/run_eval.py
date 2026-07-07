@@ -19,6 +19,7 @@ import argparse
 import json
 import sys
 import time
+import uuid
 from datetime import date
 from pathlib import Path
 
@@ -172,6 +173,11 @@ def eval_generation(pipeline, cases, args):
 
     retriever = pipeline.get_retriever()
     rows = []
+    # Namespace sessions per run: with a persistent checkpoint backend
+    # (RAGSTONE_CHECKPOINT_BACKEND=sqlite) a bare eval_<id> session would
+    # survive across invocations and feed stale history into the rephrase
+    # step, silently corrupting multi-turn metrics on the second run.
+    run_ns = uuid.uuid4().hex[:8]
     for case in cases:
         # multi_turn cases script a conversation: warm-up turns build the
         # history, and the FINAL turn — unresolvable without it — is what
@@ -179,7 +185,7 @@ def eval_generation(pipeline, cases, args):
         # exercised and measured.
         turns = case.get("turns") or [case["question"]]
         question = turns[-1]
-        session_id = f"eval_{case['id']}"
+        session_id = f"eval_{run_ns}_{case['id']}"
         for warm_turn in turns[:-1]:
             with_retries(
                 pipeline.ask_question,
@@ -227,20 +233,25 @@ def eval_generation(pipeline, cases, args):
             print(f"  [{case['id']}] NO ANSWER")
             continue
 
-        if case["category"] == "multi_turn":
-            # The raw final turn ("How long is its warranty?") retrieves the
-            # wrong context; judge faithfulness against the documents the
-            # pipeline ACTUALLY used (post-rephrase). Single-turn keeps the
-            # direct retrieval so scores stay comparable with old baselines.
-            context = "\n\n".join(
-                d.page_content
-                for d in pipeline.get_last_retrieved_documents()[: args.k]
-            )
-        else:
-            context = "\n\n".join(
-                d.page_content
-                for d in with_retries(retriever.invoke, question)[: args.k]
-            )
+        # Judge faithfulness against the documents the pipeline ACTUALLY
+        # used: for multi_turn that includes the rephrase effect, and for
+        # corrective/agent chains it includes rewritten or refined queries
+        # that a fresh retrieval with the raw question would miss. Those
+        # chains may retrieve more than once, so pass everything the answer
+        # saw (deduplicated, order preserved) rather than slicing to k —
+        # slicing would judge a corrective answer against its own failed
+        # first attempt. For the simple chain this is identical to the
+        # former fresh top-k retrieval.
+        used_docs = pipeline.get_last_retrieved_documents()
+        if not used_docs:  # defensive: no recorded retrieval for this ask
+            used_docs = with_retries(retriever.invoke, question)[: args.k]
+        seen_chunks = set()
+        context_docs = []
+        for d in used_docs:
+            if d.page_content not in seen_chunks:
+                seen_chunks.add(d.page_content)
+                context_docs.append(d)
+        context = "\n\n".join(d.page_content for d in context_docs)
         correct = with_retries(
             judge.judge_correctness,
             question,

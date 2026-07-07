@@ -171,8 +171,10 @@ Generate a JSON array with exactly:
   one verbatim string from EACH document involved.
 - {n_unanswerable} "unanswerable" cases: plausible questions about these
   entities whose answers appear in NO document (e.g. a person's age, a
-  product's price when none is stated). gold_answer = null,
-  must_contain = [].
+  product's price when none is stated). Before writing one, re-read the
+  summaries and make certain no document states the answer — a question
+  whose answer IS in the corpus would score correct answers as failures.
+  gold_answer = null, must_contain = [].
 - {n_multiturn} "multi_turn" cases: {{"turns": [q1, q2], ...}} where q1
   asks about an entity and q2 is a follow-up using a pronoun or vague
   reference ("its", "her", "the panels") that is unresolvable without q1.
@@ -230,7 +232,14 @@ def _corpus_texts() -> dict:
 
 
 def validate(case: dict, corpus: dict) -> str | None:
-    """Return a rejection reason, or None if the case is sound."""
+    """Return a rejection reason, or None if the case is sound.
+
+    Needle presence is checked mechanically; corpus ABSENCE (for
+    unanswerable cases) cannot be — "is this fact stated anywhere?" is a
+    semantic question. Unanswerable cases therefore still need a human
+    audit: one that is actually answerable scores correct answers as
+    failures and rewards false refusals (the g172/g173 lesson).
+    """
     category = case.get("category")
     needles = [n.lower() for n in case.get("must_contain", [])]
     source = case.get("gold_source")

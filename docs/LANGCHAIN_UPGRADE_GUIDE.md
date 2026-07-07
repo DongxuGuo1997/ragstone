@@ -167,7 +167,7 @@ If everything works, update `pyproject.toml`:
 
 # After (if upgrading past a tested version):
 # Update the comment with new tested version
-# Last compatibility test: 2025-01-XX (run pytest tests/test_langchain_compatibility.py)
+# Last compatibility test: 2026-06 (run pytest tests/test_langchain_compatibility.py)
 "langchain>=1.0,<2.0",  # Tested up to 1.3.7
 ```
 
@@ -273,7 +273,7 @@ Update this guide with breaking changes:
 ### LangChain major version upgrades (e.g. 1.x → 2.x)
 
 - **Import change**: `langchain.docstore.document.Document` → `langchain_core.documents.Document`
-- **Action taken**: Updated imports in `loader.py`, `splitter.py`, `ensemble.py`
+- **Action taken**: Updated imports in `loader.py`, `splitter.py`, `pipeline.py`
 - **Test status**: ✅ All compatibility tests passing
 ```
 
@@ -402,13 +402,13 @@ Our test suite covers these critical imports:
 - **Migration Guides**: https://python.langchain.com/docs/versions/migration
 - **Breaking Changes**: https://github.com/langchain-ai/langchain/issues?q=label%3A%22breaking+change%22
 - **Our Compatibility Tests**: `tests/test_langchain_compatibility.py`
-- **Our Issue Tracker**: (Your GitHub issues URL)
+- **Our Issue Tracker**: https://github.com/DongxuGuo1997/ragstone/issues
 
 ---
 
 ## 📝 **Changelog**
 
-### 2025-01-XX - Initial Version
+### 2025-06 - Initial Version
 - Created upgrade guide
 - Pinned LangChain to 1.x (community 0.4.x)
 - Added 28 compatibility tests

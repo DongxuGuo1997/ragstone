@@ -22,7 +22,7 @@ inputs arrive from clients you may not fully control.
 | Threat | Defense | Where |
 |---|---|---|
 | Local file exfiltration via `data_dir` (a client points ingestion at `~/.ssh` and reads it back through answers) | `RAGSTONE_DATA_ROOT` confines ingestion to one directory tree; `..`-traversal is resolved before the containment check | `utils/security.py`, enforced in `load_and_split` |
-| SSRF via `page_urls` (fetching internal services or cloud metadata endpoints) | http/https only; hosts resolving to private, loopback, link-local, or reserved addresses are rejected | `utils/security.py` |
+| SSRF via `page_urls` (fetching internal services or cloud metadata endpoints) | http/https only; hosts resolving to private, loopback, link-local, or reserved addresses are rejected; the fetchers do not follow redirects (a 3xx to an internal host would bypass the check) | `utils/security.py`, `rag/loader.py` |
 | Prompt injection via retrieved documents | The answer prompt delimits context and instructs the model to treat it strictly as data; an on-demand real-model check (`evals/injection_check.py`) verifies compliance | `rag/rag.py` |
 | Resource exhaustion via oversized questions | Length cap rejected before any API spend (`RAGSTONE_MAX_QUESTION_CHARS`) | `rag/rag.py` |
 | Unbounded concurrent load on the API | Non-blocking semaphore on `/ask` → immediate 429 | `api/server.py` |

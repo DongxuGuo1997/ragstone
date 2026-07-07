@@ -143,8 +143,10 @@ def track_request(
         metrics.error = type(exc).__name__
         raise
     finally:
-        _current_metrics.reset(metrics_token)
-        usage_ctx.__exit__(None, None, None)
+        # Record and log FIRST: when the enclosing generator is stepped
+        # across different contexts (e.g. a server pumping each chunk
+        # through a fresh thread), the ContextVar teardown below can fail —
+        # the log line must not be lost with it.
         metrics.latency_ms = int((time.perf_counter() - start) * 1000)
         usages = usage_cb.usage_metadata.values()
         metrics.tokens = sum(u.get("total_tokens", 0) for u in usages)
@@ -162,3 +164,15 @@ def track_request(
             f" stages={stages}" if stages else "",
             f" error={metrics.error}" if metrics.error else "",
         )
+        # ContextVar.reset() raises ValueError if __enter__ ran in a
+        # different context (the token belongs to that context). Fall back
+        # to clearing the var so stale metrics can't leak into whatever
+        # runs next in THIS context.
+        try:
+            _current_metrics.reset(metrics_token)
+        except ValueError:
+            _current_metrics.set(None)
+        try:
+            usage_ctx.__exit__(None, None, None)
+        except ValueError:
+            pass  # same cross-context teardown; the callback data is read

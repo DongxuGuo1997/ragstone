@@ -71,9 +71,10 @@ def _parse_verdict(text: str) -> dict:
     if start == -1 or end == -1:
         raise ValueError(f"no JSON object in judge output: {text!r}")
     result = json.loads(cleaned[start : end + 1])
-    if result.get("verdict") not in ("pass", "fail"):
+    verdict = str(result.get("verdict", "")).strip().lower()
+    if verdict not in ("pass", "fail"):
         raise ValueError(f"invalid verdict in judge output: {text!r}")
-    return {"verdict": result["verdict"], "reason": str(result.get("reason", ""))}
+    return {"verdict": verdict, "reason": str(result.get("reason", ""))}
 
 
 def _judge(prompt: str, model: str, provider: str) -> dict:

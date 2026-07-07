@@ -167,6 +167,9 @@ class TestPipelineRequestLogging:
             def stream_question(self, query, session_id):
                 yield from answer.split()
 
+            def has_history(self, session_id):
+                return False  # caching applies only to history-free turns
+
         pipeline._chain = _StubChain()
         return pipeline
 
@@ -270,6 +273,9 @@ class TestPipelineRequestLogging:
                 yield {"event": "search", "query": "refined"}
                 yield "the "
                 yield "answer"
+
+            def has_history(self, session_id):
+                return False  # caching applies only to history-free turns
 
         pipeline._chain = _EventingChain()
         with caplog.at_level(logging.INFO, logger=REQUEST_LOGGER):
