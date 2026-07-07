@@ -94,6 +94,8 @@ def build_pipeline(args):
         config.database.ensemble_bm25_weight = args.bm25_weight
     if args.chunk_context is not None:
         config.loader.chunk_context = args.chunk_context
+    if args.answer_check:
+        config.llm.answer_check_enabled = True
 
     store_kwargs = {}
     if args.vector_store is not None:
@@ -549,6 +551,11 @@ def main():
         choices=["faiss", "chroma", "qdrant", "pgvector"],
         default=None,
         help="vector store backend (Experiment 13; needs the matching extra)",
+    )
+    parser.add_argument(
+        "--answer-check",
+        action="store_true",
+        help="enable the answer self-check pass (Experiment 17)",
     )
     args = parser.parse_args()
 
