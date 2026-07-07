@@ -37,12 +37,14 @@ ROUTE_PROMPT = """You are routing questions for a document QA system.
 
 Classify the question into exactly one strategy:
 
-- simple: a direct factual lookup about one clearly named entity — a
-  specification, a date, a schedule, a person, a number.
-- careful: anything where retrieval could be led astray or come up
-  empty — comparisons between entities or versions, questions naming
-  several products, vague or pronoun-heavy references, or questions the
-  documents may not answer at all.
+- simple: a factual lookup — a specification, a date, a schedule, a
+  person, a number, an instruction. This is the default.
+- careful: ONLY when the question clearly compares two or more named
+  entities or versions, or clearly asks for something product
+  documentation rarely contains (prices, opinions, future plans,
+  personal details).
+
+When unsure, choose simple.
 
 Question: {question}
 

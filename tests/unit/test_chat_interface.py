@@ -129,6 +129,28 @@ class TestCommands:
         assert "warranty is 25 years" in out
         assert "torque spec 12 Nm" in out
 
+    def test_sources_highlight_the_evidence_the_answer_reused(self, capsys):
+        # Evidence highlighting: source words the answer verbatim-reuses
+        # get ANSI-marked in /sources (only on a styled terminal).
+        class _EvidencePipeline(_StubPipeline):
+            def ask_question_stream(self, question, session_id=None, use_cache=True):
+                yield "The full warranty lasts twenty five years in total."
+
+            def get_sources(self, question):
+                return [
+                    {
+                        "source": "guide.md",
+                        "snippet": "the warranty lasts twenty five years and more",
+                    }
+                ]
+
+        chat = ChatInterface(pipeline=_EvidencePipeline(), style=Style(enabled=True))
+        chat.ask("how long?")
+        capsys.readouterr()
+        chat.handle("/sources")
+        out = capsys.readouterr().out
+        assert "\033[33mwarranty lasts twenty five years" in out
+
     def test_new_resets_the_session(self):
         chat = _chat()
         chat.ask("q?")

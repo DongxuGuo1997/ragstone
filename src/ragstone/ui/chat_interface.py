@@ -32,6 +32,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from ragstone.config.settings import get_config
+from ragstone.rag.citations import find_supporting_spans, highlight_spans
 from ragstone.rag.pipeline import build_pipeline
 from ragstone.utils.exceptions import DocumentLoadingError, PipelineError
 from ragstone.utils.observability import estimate_cost_usd, track_request
@@ -160,6 +161,7 @@ class ChatInterface:
         self.model = model
         self.session_id = f"chat_{uuid.uuid4().hex[:8]}"
         self._last_question: Optional[str] = None
+        self._last_answer: Optional[str] = None
         self._last_trace: Optional[str] = None
 
         if pipeline is not None:
@@ -193,6 +195,7 @@ class ChatInterface:
         """Stream one answer with events, then print the glass-box trace."""
         style = self.style
         self._last_question = question
+        parts: List[str] = []
         printed_any = False
         print(style.cyan("Assistant: "), end="", flush=True)
         try:
@@ -209,11 +212,13 @@ class ChatInterface:
                         printed_any = False
                 else:
                     print(chunk, end="", flush=True)
+                    parts.append(chunk)
                     printed_any = True
         except PipelineError as exc:
             print(f"\n{style.yellow(f'Error: {exc}')}")
             return
         print()
+        self._last_answer = "".join(parts)
 
         interpretation = self.pipeline.get_last_interpretation(self.session_id)
         if interpretation and interpretation != question:
@@ -243,7 +248,20 @@ class ChatInterface:
             return
         for i, source in enumerate(sources, 1):
             print(self.style.bold(f"[{i}] {source['source']}"))
-            print(f"    {source['snippet']}\n")
+            snippet = source["snippet"]
+            spans = (
+                find_supporting_spans(self._last_answer, snippet)
+                if self._last_answer
+                else []
+            )
+            # Evidence highlighting: the exact source words the answer
+            # reuses (yellow on a TTY, plain text otherwise).
+            rendered = (
+                highlight_spans(snippet, spans, "\033[33m", "\033[0m")
+                if (spans and self.style.enabled)
+                else snippet
+            )
+            print(f"    {rendered}\n")
 
     def cmd_trace(self) -> None:
         print(self._last_trace or "No answer yet.")
@@ -266,6 +284,7 @@ class ChatInterface:
     def cmd_new(self) -> None:
         self.session_id = f"chat_{uuid.uuid4().hex[:8]}"
         self._last_question = None
+        self._last_answer = None
         self._last_trace = None
         print("Started a fresh conversation.")
 

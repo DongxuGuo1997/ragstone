@@ -9,6 +9,7 @@ This module provides a web interface for the RAG pipeline with support for:
 """
 
 import argparse
+import html
 import logging
 import os
 import queue
@@ -29,6 +30,10 @@ sys.path.insert(0, str(src_dir))
 
 from ragstone import get_package_info  # noqa: E402
 from ragstone.config.settings import Config, get_config  # noqa: E402
+from ragstone.rag.citations import (  # noqa: E402
+    find_supporting_spans,
+    highlight_spans,
+)
 from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline  # noqa: E402
 from ragstone.utils import (  # noqa: E402
     ConfigurationError,
@@ -203,11 +208,12 @@ class StreamlitApp:
 
                 chain_type = st.selectbox(
                     "RAG Chain Type",
-                    ["simple", "multi_query", "fusion", "agent", "corrective"],
+                    ["simple", "multi_query", "fusion", "agent", "corrective", "auto"],
                     help=(
-                        "Choose the RAG technique to use. 'agent' lets the "
-                        "LLM drive retrieval via a search tool (slower, "
-                        "more LLM calls)."
+                        "Choose the RAG technique. 'agent' lets the LLM "
+                        "drive retrieval via a search tool; 'auto' routes "
+                        "each question to simple or corrective (opt-in, "
+                        "see Experiment 15)."
                     ),
                 )
 
@@ -321,16 +327,18 @@ class StreamlitApp:
         - **Pipeline stuck?** → Check your internet connection or switch modes
         """)
 
-    def _collect_trace(self, prompt: str) -> Dict[str, Any]:
+    def _collect_trace(self, prompt: str, answer: str = "") -> Dict[str, Any]:
         """Assemble the glass-box trace for the answer just generated.
 
         Reads state the pipeline already recorded (request metrics, the
         rephrased question, the retrieval record) — no extra LLM or
-        embedding calls are made here.
+        embedding calls are made here. The answer text is used only for
+        evidence highlighting (answer-to-source span alignment).
         """
         pipeline = st.session_state.pipeline
         trace: Dict[str, Any] = {
             "sources": pipeline.get_sources(prompt),
+            "answer": answer,
             "interpretation": None,
             "chain_type": None,
             "latency_ms": None,
@@ -405,9 +413,27 @@ class StreamlitApp:
             sources = trace.get("sources") or []
             if sources:
                 st.markdown(f"**📄 Sources ({len(sources)})**")
+                answer = trace.get("answer") or ""
                 for src in sources:
                     st.markdown(f"**{src['source']}**")
-                    st.caption(src["snippet"])
+                    spans = (
+                        find_supporting_spans(answer, src["snippet"]) if answer else []
+                    )
+                    if spans:
+                        # Evidence highlighting: the exact source words the
+                        # answer reuses, marked in place.
+                        st.caption(
+                            highlight_spans(
+                                src["snippet"],
+                                spans,
+                                "<mark>",
+                                "</mark>",
+                                escape=html.escape,
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.caption(src["snippet"])
 
     @staticmethod
     def _event_line(event: Dict[str, Any]) -> Optional[str]:
@@ -653,7 +679,7 @@ class StreamlitApp:
                     response = self._stream_answer(prompt)
 
                     if response:
-                        trace = self._collect_trace(prompt)
+                        trace = self._collect_trace(prompt, answer=response)
                         self._render_trace(trace)
                         st.session_state.messages.append(
                             {
