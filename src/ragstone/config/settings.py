@@ -157,6 +157,14 @@ class LoaderConfig:
     )
     chunk_size: int = 1000
     chunk_overlap: int = 200
+    # Contextual chunk enrichment (ROADMAP 1.1): "off", "source" (prepend
+    # the document identity — free), or "llm" (prepend a generated
+    # situating sentence — one utility-model call per chunk at ingest).
+    chunk_context: str = field(
+        default_factory=lambda: (
+            os.getenv("RAGSTONE_CHUNK_CONTEXT", "off").strip().lower()
+        )
+    )
 
     def __post_init__(self):
         """Validate loader configuration."""
@@ -168,6 +176,11 @@ class LoaderConfig:
             raise ConfigurationError("Chunk overlap must be non-negative")
         if self.chunk_overlap >= self.chunk_size:
             raise ConfigurationError("Chunk overlap must be less than chunk size")
+        if self.chunk_context not in ("off", "source", "llm"):
+            raise ConfigurationError(
+                f"chunk_context must be 'off', 'source', or 'llm', "
+                f"got {self.chunk_context!r}"
+            )
 
 
 @dataclass
@@ -400,6 +413,7 @@ class Config:
                 "enable_ocr": self.loader.enable_ocr,
                 "chunk_size": self.loader.chunk_size,
                 "chunk_overlap": self.loader.chunk_overlap,
+                "chunk_context": self.loader.chunk_context,
                 "allowed_data_root": self.loader.allowed_data_root,
             },
             "api": {

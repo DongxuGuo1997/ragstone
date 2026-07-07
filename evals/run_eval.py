@@ -17,11 +17,13 @@ committed baseline in evals/baseline.json.
 
 import argparse
 import json
+import math
 import sys
 import time
 import uuid
 from datetime import date
 from pathlib import Path
+from typing import Dict, Optional
 
 EVALS_DIR = Path(__file__).parent
 CORPUS_DIR = EVALS_DIR / "corpus"  # original 6 docs — the smoke gate's world
@@ -90,6 +92,8 @@ def build_pipeline(args):
         config.loader.chunk_overlap = args.chunk_overlap
     if args.bm25_weight is not None:
         config.database.ensemble_bm25_weight = args.bm25_weight
+    if args.chunk_context is not None:
+        config.loader.chunk_context = args.chunk_context
 
     if args.provider == "openai":
         pipeline = OpenAIPipeline(model=args.model)
@@ -325,7 +329,10 @@ def eval_generation(pipeline, cases, args):
     return metrics, rows, efficiency
 
 
-def write_report(args, metrics, retrieval_rows, generation_rows, efficiency=None):
+def write_report(
+    args, metrics, retrieval_rows, generation_rows, efficiency=None, sizes=None
+):
+    sizes = sizes or {}
     lines = [
         "# Evaluation Report",
         "",
@@ -335,8 +342,14 @@ def write_report(args, metrics, retrieval_rows, generation_rows, efficiency=None
         "",
         "## Scores",
         "",
+        "Rate metrics carry their 95% binomial CI — a delta smaller than",
+        "the interval is not evidence (MRR is a mean of ranks, no CI).",
+        "",
     ]
-    lines += [f"- **{name}**: {value}" for name, value in metrics.items()]
+    lines += [
+        f"- **{name}**: {format_metric(name, value, sizes)}"
+        for name, value in metrics.items()
+    ]
     if efficiency:
         lines += [
             "",
@@ -387,6 +400,49 @@ def write_report(args, metrics, retrieval_rows, generation_rows, efficiency=None
     print(f"\nReport written to {REPORT_PATH}")
 
 
+def ci95_halfwidth(p: float, n: int) -> Optional[float]:
+    """95% binomial CI half-width for a pass-rate metric.
+
+    Mechanizes the Experiment-9 lesson: a score without its uncertainty
+    invites over-reading. At n=13 every case is worth 7.7pp and the CI is
+    ~±19pp; at n=211 it is ~±3pp — the numbers should say so themselves.
+    """
+    if n <= 0:
+        return None
+    return 1.96 * math.sqrt(p * (1.0 - p) / n)
+
+
+def metric_sample_sizes(retrieval_rows, generation_rows) -> Dict[str, int]:
+    """Sample size behind each metric, for CI annotation.
+
+    MRR gets an n but no CI — it is a mean of reciprocal ranks, not a
+    proportion, so the binomial interval does not apply.
+    """
+    sizes: Dict[str, int] = {}
+    if retrieval_rows:
+        sizes["hit_rate"] = len(retrieval_rows)
+        sizes["mrr"] = len(retrieval_rows)
+    if generation_rows:
+        multi = sum(1 for r in generation_rows if r["case"]["category"] == "multi_turn")
+        single = len(generation_rows) - multi
+        sizes["correct_rate"] = single
+        sizes["faithful_rate"] = single
+        sizes["multi_turn_correct_rate"] = multi
+        sizes["multi_turn_faithful_rate"] = multi
+    return sizes
+
+
+def format_metric(name: str, value, sizes: Dict[str, int]) -> str:
+    """Render a metric with its 95% CI and sample size, when known."""
+    n = sizes.get(name)
+    if n is None:
+        return f"{value}"
+    if name == "mrr":
+        return f"{value} (n={n})"
+    halfwidth = ci95_halfwidth(float(value), n)
+    return f"{value} ±{halfwidth:.3f} (n={n})"
+
+
 def baseline_key(args) -> str:
     return (
         f"{args.provider}:{args.model}|judge:{args.judge_provider}:{args.judge_model}"
@@ -397,7 +453,7 @@ def baseline_key(args) -> str:
     )
 
 
-def check_baseline(args, metrics) -> int:
+def check_baseline(args, metrics, sizes: Optional[Dict[str, int]] = None) -> int:
     key = baseline_key(args)
     baseline = {}
     if BASELINE_PATH.exists():
@@ -416,14 +472,30 @@ def check_baseline(args, metrics) -> int:
         print("Run with --update-baseline to record one.")
         return 0
 
+    sizes = sizes or {}
     failed = False
     for name, value in metrics.items():
         base = baseline[key]["metrics"].get(name)
         if base is None:
             continue
         if value < base - TOLERANCE:
+            # Annotate whether the drop exceeds the metric's own 95% CI:
+            # "outside" means a real effect is likely; "within" means it
+            # may be sampling noise — either way the gate fails, but the
+            # reader should know which conversation to have.
+            note = ""
+            n = sizes.get(name)
+            if n and name != "mrr":
+                halfwidth = ci95_halfwidth(float(value), n)
+                if halfwidth is not None:
+                    note = (
+                        " — outside the 95% CI: likely a real regression"
+                        if (base - value) > halfwidth
+                        else " — within the 95% CI: possibly noise, still gated"
+                    )
             print(
-                f"REGRESSION: {name} = {value} (baseline {base}, tolerance {TOLERANCE})"
+                f"REGRESSION: {name} = {value} "
+                f"(baseline {base}, tolerance {TOLERANCE}){note}"
             )
             failed = True
         else:
@@ -463,6 +535,12 @@ def main():
     parser.add_argument("--chunk-size", type=int, default=None)
     parser.add_argument("--chunk-overlap", type=int, default=None)
     parser.add_argument("--bm25-weight", type=float, default=None)
+    parser.add_argument(
+        "--chunk-context",
+        choices=["off", "source", "llm"],
+        default=None,
+        help="contextual chunk enrichment mode (ROADMAP 1.1)",
+    )
     args = parser.parse_args()
 
     cases = load_cases(args.set)
@@ -481,19 +559,20 @@ def main():
         )
         metrics.update(gen_metrics)
 
-    print("\nScores:")
+    sizes = metric_sample_sizes(retrieval_rows, generation_rows)
+    print("\nScores (rate metrics show the 95% binomial CI):")
     for name, value in metrics.items():
-        print(f"  {name}: {value}")
+        print(f"  {name}: {format_metric(name, value, sizes)}")
     if efficiency:
         print("Efficiency (informational):")
         for name, value in efficiency.items():
             print(f"  {name}: {value}")
 
-    write_report(args, metrics, retrieval_rows, generation_rows, efficiency)
+    write_report(args, metrics, retrieval_rows, generation_rows, efficiency, sizes)
 
     if args.no_baseline_check and not args.update_baseline:
         return 0
-    return check_baseline(args, metrics)
+    return check_baseline(args, metrics, sizes)
 
 
 if __name__ == "__main__":

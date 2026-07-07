@@ -220,6 +220,23 @@ class Pipeline:
             logger.info(
                 f"Successfully split {len(docs)} source documents into {len(self.texts)} chunks."
             )
+            context_mode = get_config().loader.chunk_context
+            if context_mode != "off":
+                # Enrich BEFORE indexing so the context line is part of
+                # what gets embedded, BM25-indexed, and fingerprinted.
+                from .enrichment import enrich_chunks
+                from .memory import _make_rephrase_llm
+
+                llm = None
+                main_llm = self.llm_proxy.get_llm() if self.llm_proxy else None
+                if main_llm is not None:
+                    # Ingest-time context lines are utility work — run them
+                    # on the cheap model when one is configured.
+                    llm = _make_rephrase_llm(main_llm, get_config().llm.rephrase_model)
+                self.texts = enrich_chunks(
+                    self.texts, source_docs=docs, mode=context_mode, llm=llm
+                )
+                logger.info(f"Chunk context enrichment applied: {context_mode}")
         else:
             logger.warning("Document splitting resulted in no text chunks.")
         return self.texts
