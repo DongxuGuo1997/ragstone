@@ -226,7 +226,7 @@ RAGSTONE_LLM_MAX_RETRIES=3  # retries on transient LLM/embedding API errors
 RAGSTONE_LLM_TIMEOUT=60  # per-request timeout in seconds
 RAGSTONE_MAX_QUESTION_CHARS=4000  # questions above this are rejected pre-API
 RAGSTONE_REPHRASE_MODEL=gpt-4.1-nano  # optional: faster follow-up rephrasing
-RAGSTONE_CHUNK_CONTEXT=off  # or source/llm: prepend document context to chunks
+RAGSTONE_CHUNK_CONTEXT=source  # document identity in chunks (Exp 12); off/llm
 ```
 
 > **Note:** Persisted vector stores (FAISS indices, Chroma collections) must be
@@ -464,6 +464,39 @@ Production behaviors built in:
 
 Interactive docs at `localhost:8000/docs` (FastAPI's built-in Swagger UI).
 Bind address/port via `RAGSTONE_API_HOST` / `RAGSTONE_API_PORT`.
+
+### Docker deployment (optional)
+
+Local development never needs Docker — the venv flow and the embedded
+vector stores are primary. For a server-shaped deployment, the compose
+stack runs the API next to a real Qdrant server and a Postgres with
+pgvector:
+
+```bash
+OPENAI_API_KEY=sk-... docker compose up --build
+# API on :8000, Qdrant on :6333, Postgres on :5432
+```
+
+Documents go in `./data` (mounted read-only; `RAGSTONE_DATA_ROOT` confines
+ingestion to it). The API defaults to the Qdrant server here; switch with
+`VECTOR_STORE_TYPE=pgvector` (or `faiss`) — same code path, no rebuild.
+The image bakes in no secrets: keys come from the environment at run
+time, and `.dockerignore` excludes `.env`.
+
+#### Vector store backends
+
+| `VECTOR_STORE_TYPE` | Where it runs | Extra | When |
+|---|---|---|---|
+| `faiss` (default) | in-process, per session | — | demos, evals, notebooks |
+| `qdrant` | embedded (`QDRANT_PATH`) or server (`QDRANT_URL`) | `[qdrant]` | persistence without a server; scale by pointing at one |
+| `pgvector` | your Postgres (`RAGSTONE_PG_URL`) | `[pgvector]` | the database you already run |
+| `chroma` | embedded, persistent dir | — | legacy persistent option |
+
+Retrieval quality is backend-independent by construction and by test —
+a parity test asserts identical rankings to FAISS, and Experiment 13
+measures it on the full eval set. Set `RAGSTONE_COLLECTION` to pin a
+stable collection name when one deployment owns the store (unset =
+unique per pipeline, the safe multi-tenant default).
 
 ### Observability
 

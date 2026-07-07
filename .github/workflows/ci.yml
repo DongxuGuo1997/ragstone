@@ -14,6 +14,23 @@ jobs:
       matrix:
         python-version: ["3.10", "3.12"]
 
+    services:
+      # Live Postgres+pgvector so the PgVectorProxy tests run instead of
+      # skipping (they skip cleanly wherever RAGSTONE_PG_URL is unset).
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ragstone
+          POSTGRES_PASSWORD: ragstone
+          POSTGRES_DB: ragstone
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ragstone"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,8 +46,9 @@ jobs:
           # sqlite extra included so mypy can resolve langgraph.checkpoint.sqlite
           # (optional-backend import in rag/memory.py) and so the SQLite
           # persistence test runs instead of being skipped. api extra included
-          # so the REST API tests run instead of being skipped.
-          pip install -e ".[dev,sqlite,api]"
+          # so the REST API tests run instead of being skipped. qdrant runs
+          # embedded (no server); pgvector talks to the service container.
+          pip install -e ".[dev,sqlite,api,qdrant,pgvector]"
 
       - name: Lint (black, isort, flake8)
         run: |
@@ -42,6 +60,8 @@ jobs:
         run: mypy src/ragstone
 
       - name: Run tests
+        env:
+          RAGSTONE_PG_URL: postgresql+psycopg://ragstone:ragstone@localhost:5432/ragstone
         run: pytest tests/ -v
 
   eval-retrieval:

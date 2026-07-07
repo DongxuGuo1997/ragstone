@@ -31,6 +31,26 @@ class DatabaseConfig:
     )
     chroma_persist_dir: str = "store/chroma_db"
     faiss_index_name: str = "faiss_index"
+    # Qdrant backend: embedded local mode by default (no server needed);
+    # set QDRANT_URL to talk to a real Qdrant server instead — same code
+    # path, one env var (docker-compose.yml provides one).
+    qdrant_path: str = field(
+        default_factory=lambda: os.getenv("QDRANT_PATH", "store/qdrant")
+    )
+    qdrant_url: Optional[str] = field(
+        default_factory=lambda: os.getenv("QDRANT_URL") or None
+    )
+    # Stable collection/table name for deployments that want the index to
+    # survive restarts and be shared across processes. Unset (default) =
+    # a unique name per pipeline, which is the safe multi-pipeline choice.
+    collection_name: Optional[str] = field(
+        default_factory=lambda: os.getenv("RAGSTONE_COLLECTION") or None
+    )
+    # pgvector backend: connection string to a Postgres with the pgvector
+    # extension (docker-compose.yml provides one).
+    pg_url: Optional[str] = field(
+        default_factory=lambda: os.getenv("RAGSTONE_PG_URL") or None
+    )
     # Texts per embedding request during ingestion; batches are issued
     # concurrently by embed_workers threads (see rag/embeddings.py).
     batch_size: int = field(
@@ -54,11 +74,16 @@ class DatabaseConfig:
 
     def __post_init__(self):
         """Validate database configuration."""
-        if self.default_type not in ["faiss", "chroma"]:
+        if self.default_type not in ["faiss", "chroma", "qdrant", "pgvector"]:
             raise ConfigurationError(
                 f"Invalid database type: {self.default_type!r}. "
-                "Valid values are 'faiss' and 'chroma' "
-                "(set via VECTOR_STORE_TYPE or config)."
+                "Valid values are 'faiss', 'chroma', 'qdrant', and "
+                "'pgvector' (set via VECTOR_STORE_TYPE or config)."
+            )
+        if self.default_type == "pgvector" and not self.pg_url:
+            raise ConfigurationError(
+                "VECTOR_STORE_TYPE=pgvector requires RAGSTONE_PG_URL "
+                "(e.g. postgresql+psycopg://user:pass@localhost:5432/ragstone)"
             )
         if self.batch_size <= 0:
             raise ConfigurationError("Batch size must be positive")
@@ -157,12 +182,15 @@ class LoaderConfig:
     )
     chunk_size: int = 1000
     chunk_overlap: int = 200
-    # Contextual chunk enrichment (ROADMAP 1.1): "off", "source" (prepend
-    # the document identity — free), or "llm" (prepend a generated
-    # situating sentence — one utility-model call per chunk at ingest).
+    # Contextual chunk enrichment: "off", "source" (prepend the document
+    # identity — free), or "llm" (prepend a generated situating sentence —
+    # one utility-model call per chunk at ingest). Default "source":
+    # measured at n=224 it lifted hit_rate +1.5pp, MRR +2.0, and
+    # faithfulness +2.9pp for +5.7% tokens — retrieval and end-to-end
+    # moved TOGETHER, unlike the k=6 trap. See Experiment 12.
     chunk_context: str = field(
         default_factory=lambda: (
-            os.getenv("RAGSTONE_CHUNK_CONTEXT", "off").strip().lower()
+            os.getenv("RAGSTONE_CHUNK_CONTEXT", "source").strip().lower()
         )
     )
 
@@ -387,6 +415,10 @@ class Config:
                 "default_type": self.database.default_type,
                 "chroma_persist_dir": self.database.chroma_persist_dir,
                 "faiss_index_name": self.database.faiss_index_name,
+                "qdrant_path": self.database.qdrant_path,
+                "qdrant_url": self.database.qdrant_url,
+                "collection_name": self.database.collection_name,
+                # pg_url is omitted: connection strings embed credentials.
                 "batch_size": self.database.batch_size,
                 "embed_workers": self.database.embed_workers,
                 "similarity_k": self.database.similarity_k,

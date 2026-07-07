@@ -95,10 +95,13 @@ def build_pipeline(args):
     if args.chunk_context is not None:
         config.loader.chunk_context = args.chunk_context
 
+    store_kwargs = {}
+    if args.vector_store is not None:
+        store_kwargs["vector_store_type"] = args.vector_store
     if args.provider == "openai":
-        pipeline = OpenAIPipeline(model=args.model)
+        pipeline = OpenAIPipeline(model=args.model, **store_kwargs)
     else:
-        pipeline = OllamaPipeline(model=args.model)
+        pipeline = OllamaPipeline(model=args.model, **store_kwargs)
 
     corpus_dir = CORPUS_DIR
     if args.set == "large":
@@ -539,7 +542,13 @@ def main():
         "--chunk-context",
         choices=["off", "source", "llm"],
         default=None,
-        help="contextual chunk enrichment mode (ROADMAP 1.1)",
+        help="contextual chunk enrichment mode (Experiment 12)",
+    )
+    parser.add_argument(
+        "--vector-store",
+        choices=["faiss", "chroma", "qdrant", "pgvector"],
+        default=None,
+        help="vector store backend (Experiment 13; needs the matching extra)",
     )
     args = parser.parse_args()
 

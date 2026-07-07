@@ -92,21 +92,31 @@ class TestPipelineDocumentLoading:
 
     def test_load_and_split_with_data_dir(self):
         """Test load_and_split with data directory."""
+        from langchain_core.documents import Document
+
         pipeline = Pipeline()
 
         # Replace the pipeline's loader instances (they are created lazily in
-        # __init__, so patching the classes after construction has no effect)
+        # __init__, so patching the classes after construction has no effect).
+        # Real Documents, not Mocks: the enrichment step reads page_content
+        # and metadata for every chunk.
         pipeline.local_loader = Mock()
         pipeline.local_loader.get_documents.return_value = [
-            Mock(page_content="test content")
+            Document(page_content="test content", metadata={"source": "t.md"})
         ]
         pipeline.remote_loader = Mock()
         pipeline.remote_loader.get_documents.return_value = []
 
         with patch("ragstone.rag.pipeline.split_documents") as mock_split:
-            mock_split.return_value = [Mock(page_content="split content")]
+            mock_split.return_value = [
+                Document(page_content="split content", metadata={"source": "t.md"})
+            ]
             result = pipeline.load_and_split(data_dir="test_data")
 
             assert result is not None
             assert len(result) == 1
             assert pipeline.texts is not None
+            # The default chunk-context mode stamps the document identity
+            # into the chunk text (Experiment 12).
+            assert "split content" in result[0].page_content
+            assert "t.md" in result[0].page_content

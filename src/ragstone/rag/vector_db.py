@@ -645,7 +645,9 @@ def create_vector_store_proxy(store_type: str, **kwargs) -> VectorStoreProxy:
     Factory function to create vector store proxies with lazy loading.
 
     Args:
-        store_type: Type of vector store ("chroma" or "faiss").
+        store_type: "faiss", "chroma", "qdrant", or "pgvector". The
+            server-backed types live in vector_db_servers.py and need
+            their optional extras installed.
         **kwargs: Additional arguments for the vector store.
 
     Returns:
@@ -660,8 +662,16 @@ def create_vector_store_proxy(store_type: str, **kwargs) -> VectorStoreProxy:
         return ChromaProxy(**kwargs)
     elif store_type_lower == "faiss":
         return FaissProxy(**kwargs)
+    elif store_type_lower == "qdrant":
+        from .vector_db_servers import QdrantProxy
+
+        return QdrantProxy(**kwargs)
+    elif store_type_lower == "pgvector":
+        from .vector_db_servers import PgVectorProxy
+
+        return PgVectorProxy(**kwargs)
     else:
-        supported_types = ["chroma", "faiss"]
+        supported_types = ["chroma", "faiss", "qdrant", "pgvector"]
         raise ValueError(
             f"Unsupported vector store type: {store_type}. Supported types: {supported_types}"
         )

@@ -484,6 +484,85 @@ judge remains the stronger version of this check (roadmap 3.1 follow-up).
 
 ---
 
+## Experiment 12 — Contextual chunk enrichment (document identity in the chunk)
+
+**Hypothesis.** The dominant failure cluster at n=224 is engineered
+distractors: "clean every 4 months with a microfiber cloth" embeds almost
+identically whether it came from the Helios or the Corona manual. A chunk
+that *carries its document identity in its own text* ("[Source document:
+corona_solar_guide.md]") should disambiguate at retrieval time — and,
+because the line also reaches the generator, at answer time too.
+
+**Method.** `RAGSTONE_CHUNK_CONTEXT=source` prepends the identity line to
+every chunk before embedding/BM25 indexing (free, deterministic; an
+"llm" mode generates a richer situating sentence per chunk at ~1 utility
+call each). One large-set run vs the v4 baseline, identical everything
+else.
+
+| n=224, simple | baseline (off) | source enrichment |
+|---|---|---|
+| hit_rate | 0.955 ±0.029 | **0.970 ±0.024** |
+| mrr | 0.824 | **0.844** |
+| correct_rate | 0.943 ±0.031 | 0.948 ±0.030 |
+| faithful_rate | 0.938 ±0.033 | **0.967 ±0.024** |
+| multi_turn_faithful | 0.846 | 0.923 |
+| total tokens | 246 k | 260 k (+5.7%) |
+| avg latency | 1.57 s | 1.56 s |
+
+**Result.** Every metric moved in the predicted direction at once:
+retrieval misses fell 9 → 6, MRR rose 2 points, faithfulness gained
+2.9 pp. Each individual delta sits at or inside its CI edge — but four
+independent metrics agreeing with the mechanism is stronger evidence
+than any one of them, and it is the *contrast with Experiment 10* that
+matters: k=6 bought the retrieval slice by poisoning generation, while
+enrichment improved both layers together, because it adds *identity*
+rather than *volume* to the context. Cost: +5.7% tokens, zero latency.
+
+**Decision.** `chunk_context=source` becomes the **default**; baselines
+re-recorded. The "llm" mode stays opt-in for corpora whose filenames
+carry no meaning (ours encode the entity, so the cheap mode captures
+most of the value — test the expensive mode before paying for it).
+
+---
+
+## Experiment 13 — Vector-store backends: parity before features
+
+**Question.** Qdrant and pgvector backends were added behind the same
+`VectorStoreProxy` ABC as FAISS (ROADMAP 4.1) for durability, filtering,
+and multi-process access. The acceptance rule was set before writing any
+code: **retrieval metrics must be identical to FAISS at equal k** — a
+store that changes what gets retrieved isn't a backend, it's a different
+system.
+
+**Method.** The large-set retrieval slice (202 scorable cases, real
+embeddings, k=4, enrichment on) once per backend via `--vector-store`;
+identical corpus, chunks, and ensemble on every run. Qdrant ran in
+embedded local mode; pgvector against the compose Postgres. A unit-level
+parity test (deterministic embeddings, tie-free by construction) guards
+the same property offline on every CI run.
+
+| n=202, k=4 | FAISS (in-process) | Qdrant (embedded) | pgvector (server) |
+|---|---|---|---|
+| hit_rate | 0.970 | 0.970 | 0.970 |
+| mrr | 0.844 | 0.844 | 0.844 |
+| wall time (ingest + 202 queries) | 36.5 s | 37.1 s | 34.8 s |
+
+**Result.** Bit-for-bit metric parity, and wall times within ±5% —
+dominated by the embedding API on all three, which is the honest reading:
+at 231 chunks, backend performance differences are noise. What the
+backends buy is *operational*: the index survives restarts, lives outside
+the process, and (Qdrant server mode / pgvector) can be shared — the
+properties that start mattering exactly where this corpus ends.
+
+**Decision.** FAISS stays the default (zero setup, right for demos and
+evals). `VECTOR_STORE_TYPE=qdrant|pgvector` are supported first-class:
+parity is enforced by test, both reuse the parallel-embedding ingest, and
+`docker compose up` provides both servers. One deliberate naming rule
+carried over from the Chroma incident: collections are unique per
+pipeline unless `RAGSTONE_COLLECTION` pins a stable name.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |
@@ -496,6 +575,7 @@ judge remains the stronger version of this check (roadmap 3.1 follow-up).
 | Chunking          | `1000 / 200`                 | Experiment 5 | smaller chunks split facts from their subjects |
 | Ensemble weights  | BM25 `0.4` / vector `0.6`    | Experiment 6 | more BM25 costs coverage on paraphrases        |
 | Ingestion         | parallel batches (4 × 500)   | Experiment 7 | 3.1× faster embedding, identical vectors       |
+| Chunk context     | `source` identity line       | Experiment 12 | hit +1.5pp, faithful +2.9pp, +5.7% tokens     |
 
 Every one of these will be re-examined the moment the corpus changes — which
 is the point: the harness makes "should this default change?" a measurable

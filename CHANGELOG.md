@@ -7,6 +7,27 @@ Notable changes to Ragstone. The format follows
 ## [Unreleased]
 
 ### Added
+- **Server-backed vector stores** (ROADMAP 4.1): `VECTOR_STORE_TYPE=qdrant`
+  (embedded local mode by default, `QDRANT_URL` for a server — same code
+  path) and `VECTOR_STORE_TYPE=pgvector` (`RAGSTONE_PG_URL`), behind the
+  existing `VectorStoreProxy` ABC as optional extras `[qdrant]` /
+  `[pgvector]`. Retrieval parity with FAISS is enforced by test and
+  measured on the full eval set (Experiment 13: identical hit_rate/MRR).
+- **Docker deployment option** (reinstated): `Dockerfile` for the API
+  plus `docker compose up` for API + Qdrant server + Postgres/pgvector
+  with healthchecks and persistent volumes. Local development remains
+  venv-based; no secrets are baked into images.
+- **Contextual chunk enrichment** (`RAGSTONE_CHUNK_CONTEXT`, Experiment
+  12): document identity prepended to every chunk before indexing.
+  Measured at n=224: hit_rate +1.5pp, MRR +2.0, faithfulness +2.9pp for
+  +5.7% tokens — now the default (`source`); `llm` mode opt-in.
+- **Rich terminal chat** (`ragstone-chat`): streamed answers with live
+  progress events, glass-box trace (latency, tokens, cost, stage
+  breakdown), and /sources /trace /chain /compare /cache /new commands.
+- **Eval harness statistics**: rate metrics carry 95% binomial CIs and
+  sample sizes; the baseline gate says whether a drop is outside the CI.
+  Judge self-preference bounded by a cross-model judge run (Experiment
+  11: −2.4pp correctness under gpt-4.1-mini; no conclusion flips).
 - **Agent mode** (`chain_type="agent"`): tool-calling retrieval loop via
   LangGraph `create_agent`, measured head-to-head against the fixed
   pipeline (Experiments, README).

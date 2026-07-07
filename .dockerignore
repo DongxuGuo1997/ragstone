@@ -1,0 +1,26 @@
+# Never bake secrets or local state into the image.
+.env
+.env.*
+store/
+faiss_index/
+vs_data/
+
+# Not needed at runtime.
+.git/
+.github/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+tests/
+evals/
+docs/
+scripts/
+logs/
+*.md
+!README.md
+Dockerfile
+docker-compose.yml

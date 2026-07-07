@@ -1,0 +1,64 @@
+# Optional full-stack deployment: API + Qdrant server + Postgres/pgvector.
+#
+#   OPENAI_API_KEY=sk-... docker compose up --build
+#
+# Local corpus: put documents in ./data (mounted read-only into the API).
+# The API defaults to the Qdrant server here; switch VECTOR_STORE_TYPE to
+# pgvector (or faiss) without touching code. Local dev does NOT need any
+# of this — the venv flow and embedded Qdrant (QDRANT_PATH) stay primary.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.15.1
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333" # REST (handy for the Qdrant dashboard)
+    healthcheck:
+      # The qdrant image has no curl/wget; TCP connect is enough for "up".
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ragstone
+      POSTGRES_PASSWORD: ragstone
+      POSTGRES_DB: ragstone
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432" # exposed so host-side tests can use RAGSTONE_PG_URL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ragstone"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: .
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in the environment}
+      RAGSTONE_API_KEY: ${RAGSTONE_API_KEY:-}
+      VECTOR_STORE_TYPE: ${VECTOR_STORE_TYPE:-qdrant}
+      QDRANT_URL: http://qdrant:6333
+      RAGSTONE_PG_URL: postgresql+psycopg://ragstone:ragstone@postgres:5432/ragstone
+      # One deployment owns these stores: pin a stable collection so the
+      # index survives restarts (unset = unique-per-pipeline isolation).
+      RAGSTONE_COLLECTION: ragstone
+      RAGSTONE_DATA_ROOT: /app/data
+    volumes:
+      - ./data:/app/data:ro
+    ports:
+      - "8000:8000"
+
+volumes:
+  qdrant_data:
+  pg_data:
