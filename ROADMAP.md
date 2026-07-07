@@ -82,7 +82,7 @@ events (the event side-channel already supports it).
 quality AND token cost. Expect it to lose on simple lookups — that's what
 routing (1.5) is for.
 
-### 2.2 Answer self-check pass — S/M
+### 2.2 Answer self-check pass — CLOSED: built, measured harmful, deleted (Experiment 17: correctness −3.8pp outside the CI; caveats from an imperfect checker poison correct answers)
 After generation, one cheap-model pass: "does every claim in this answer
 appear in the context?" — flag or strip unsupported claims before
 returning. This is corrective RAG applied to the *output* side, and it

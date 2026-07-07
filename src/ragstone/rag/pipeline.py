@@ -588,26 +588,6 @@ class Pipeline:
         corpus = self._vector_db_fingerprint or "no-index"
         return f"{corpus}|{self._chain_type or 'none'}"
 
-    def _maybe_check_answer(self, response: str) -> Optional[str]:
-        """Run the answer self-check, returning a caveat block or None.
-
-        Chain-agnostic: verifies against the documents this ask actually
-        retrieved (the record), on the cheap utility model, timed as the
-        "check" stage. Runs only on the generation path — cached answers
-        already carry their caveats.
-        """
-        if not get_config().llm.answer_check_enabled:
-            return None
-        main_llm = self.llm_proxy.get_llm() if self.llm_proxy else None
-        if main_llm is None:
-            return None
-        from .answer_check import check_answer
-        from .memory import _make_rephrase_llm
-
-        utility = _make_rephrase_llm(main_llm, get_config().llm.rephrase_model)
-        with time_stage("check"):
-            return check_answer(response, self.get_last_retrieved_documents(), utility)
-
     def _cache_usable(self, use_cache: bool, session_id: str) -> bool:
         """Whether the response cache may serve or store this ask.
 
@@ -670,11 +650,6 @@ class Pipeline:
                 response = self._chain.ask_question(
                     query=question, session_id=session_id
                 )
-
-                if response:
-                    caveat = self._maybe_check_answer(response)
-                    if caveat:
-                        response += caveat
 
                 if response and cache_enabled:
                     # Cache the successful response
@@ -771,14 +746,6 @@ class Pipeline:
                         parts.append(chunk)
                     yield chunk
                 response = "".join(parts)
-                if response:
-                    caveat = self._maybe_check_answer(response)
-                    if caveat:
-                        # The caveat is part of the shipped answer: stream
-                        # it as a final text chunk and cache it with the
-                        # rest.
-                        yield caveat
-                        response += caveat
                 if response and cache_enabled:
                     _get_query_cache().cache_response(question, response, cache_scope)
             except Exception as e:

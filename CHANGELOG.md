@@ -21,6 +21,14 @@ Notable changes to Ragstone. The format follows
   OMP_NUM_THREADS=1 (libomp instability, bisected and documented;
   Linux/Docker unaffected).
 
+### Removed
+- **Answer self-check** (added and deleted within this cycle): Experiment
+  17 measured it harming both correctness (-3.8pp, outside the CI) and
+  faithfulness (-3.3pp) at 2x tokens - an imperfect checker's caveats
+  poison correct answers by disclaiming true claims. The first measured
+  deletion under the kept-though-rejected policy; the lesson lives in
+  EXPERIMENTS.md.
+
 ### Changed
 - **The REST API is stateless by default**: `session_id` now defaults to
   a fresh per-request session instead of a shared "api_session" — the

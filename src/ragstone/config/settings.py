@@ -165,14 +165,6 @@ class LLMConfig:
     rephrase_model: Optional[str] = field(
         default_factory=lambda: os.getenv("RAGSTONE_REPHRASE_MODEL") or None
     )
-    # Answer self-check (Experiment 17): one utility-model call verifies
-    # the answer's claims against the retrieved context and appends a
-    # visible caveat for unsupported ones. Off pending its gate.
-    answer_check_enabled: bool = field(
-        default_factory=lambda: (
-            os.getenv("RAGSTONE_ANSWER_CHECK", "off").strip().lower() == "on"
-        )
-    )
 
     def __post_init__(self):
         """Validate LLM configuration."""

@@ -737,6 +737,56 @@ not just slow paths.
 
 ---
 
+## Experiment 17 — Answer self-check: built, measured harmful, deleted
+
+**Hypothesis.** Corrective RAG verifies retrieval before answering; a
+post-generation check should be able to verify the ANSWER — one
+utility-model call comparing its claims against the context actually
+used, appending a visible caveat for unsupported ones. Target:
+faithfulness, the metric with measured headroom. Pre-registered before
+the run: the token gate (≤1.15×) was already unpassable by arithmetic
+(the checker re-reads the context), so the question was whether
+faithfulness gains ≥ +1.5 pp — enough for the opt-in to exist at all.
+
+| n=224 | simple | with self-check |
+|---|---|---|
+| correct_rate | 0.948 ±0.030 | **0.910 ±0.039** |
+| faithful_rate | 0.967 ±0.024 | **0.934 ±0.034** |
+| total tokens | 260 k | 509 k (1.96×) |
+| avg latency | 1.56 s | 2.02 s (+771 ms check) |
+
+**Result: it made everything worse** — correctness fell 3.8 pp (outside
+the CI: a real regression, not noise), faithfulness fell 3.3 pp, at
+double the tokens. The failure reports show the mechanism, and it
+generalizes beyond this corpus:
+
+1. **The checker's precision is the ceiling.** A same-class model
+   verifying full contexts produces false positives — it flagged claims
+   that were true and present (the fare handbook's children's/seniors'
+   prices) as unsupported.
+2. **Caveats anchor the reader against the answer.** Once an answer
+   disclaims its own (true) statements, the judge — and any human —
+   follows the self-doubt: "the answer itself admits these claims are
+   unsupported" → failed for correctness AND faithfulness. A caveat is
+   itself a factual claim ("X is not in the documents"), and when false
+   it is a hallucination appended to a correct answer.
+
+**Decision: deleted, same day, under the kept-though-rejected policy's
+rule 3** (ARCHITECTURE.md): this is not a corpus-conditional trade-off
+like corrective or routing — the mechanism is defective at its core
+unless the checker is substantially more accurate than the generator,
+which a same-family utility model is not. Corrective RAG remains the
+right way to buy faithfulness: it verifies retrieval and answers from
+*better evidence*, instead of second-guessing finished text with a
+weaker model. The transferable lesson: **output-side verification needs
+a verifier meaningfully stronger than the generator, or it subtracts
+value; input-side verification (grade-then-retry) degrades gracefully
+because its failure mode is a wasted retrieval, not a poisoned answer.**
+The first measured deletion — the policy binding its own author, one
+experiment after it was written.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |
