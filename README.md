@@ -42,7 +42,8 @@ opinion:
 | Is concurrent embedding safe? | **3.1× faster** ingestion, identical vectors and retrieval metrics |
 
 Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
-reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md)
+reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md) · What's
+next, with acceptance criteria: [ROADMAP.md](ROADMAP.md)
 
 ## Features
 

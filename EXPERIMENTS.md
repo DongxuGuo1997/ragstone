@@ -403,6 +403,47 @@ what the other k−1 chunks do to the answer. (And its corollary from the
 gmt184 confound: **never edit the golden set and the system under test in
 the same measured comparison.**)
 
+### Postscript — v4 baselines on the fixed harness
+
+A code-quality audit then found two measurement defects in the harness
+itself, both fixed before the current baselines were recorded:
+
+1. **Faithfulness was judged against the wrong context for non-simple
+   chains.** Single-turn cases re-retrieved with the raw question and
+   judged against that — but a corrective answer may be grounded in a
+   *rewritten*-query retrieval the judge never saw. The judge now sees
+   exactly the documents the pipeline used (all of them, deduplicated).
+   This bias ran AGAINST corrective in Experiments 8–9.
+2. **Two "unanswerable" cases were answerable** (`g172` warranty, `g173`
+   fare — both stated in the corpus), so they failed correct answers and
+   rewarded false refusals. Converted to factual cases with verified
+   needles. Eval sessions are also namespaced per run now, so persistent
+   checkpoint backends cannot leak history between runs.
+
+Both chains re-measured on the fixed harness and corrected golden set
+(identical prompts, k=4):
+
+| n=224, v4 | simple | corrective |
+|---|---|---|
+| correct_rate | 0.943 | 0.948 |
+| faithful_rate | 0.938 | **0.957** |
+| multi_turn_correct | 0.846 | 0.846 |
+| multi_turn_faithful | 0.846 | 0.923 |
+| avg latency | **1.57 s** | 2.34 s |
+| total tokens | **246 k** | 493 k |
+
+Read fairly: with the anti-corrective judging bias removed, corrective's
+faithfulness edge (+1.9 pp, ~4 cases) looks more consistent than
+Experiment 9 suggested — its grade-then-answer loop really does refuse or
+re-ground some answers `simple` gets slightly wrong. But +1.9 pp is still
+at the edge of the ±3 pp noise band, the correctness gap (+0.5 pp) is one
+case, and the 2× token cost is exact. The Experiment-9 verdict stands:
+**no quality gain large enough to buy at double cost; `simple` stays the
+default** — now with the caveat that corrective's *faithfulness* value on
+adversarial corpora is plausible rather than refuted. The meta-lesson
+compounds: the harness is part of the system under test; audit it with
+the same rigor as the pipeline.
+
 ---
 
 ## Defaults, decided by the numbers above

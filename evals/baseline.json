@@ -38,9 +38,9 @@
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|set=large": {
     "metrics": {
       "hit_rate": 0.955,
-      "mrr": 0.828,
-      "correct_rate": 0.929,
-      "faithful_rate": 0.915,
+      "mrr": 0.824,
+      "correct_rate": 0.943,
+      "faithful_rate": 0.938,
       "multi_turn_correct_rate": 0.846,
       "multi_turn_faithful_rate": 0.846
     },
@@ -49,11 +49,11 @@
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=corrective|mode=full|set=large": {
     "metrics": {
       "hit_rate": 0.955,
-      "mrr": 0.828,
-      "correct_rate": 0.934,
-      "faithful_rate": 0.929,
-      "multi_turn_correct_rate": 0.769,
-      "multi_turn_faithful_rate": 0.769
+      "mrr": 0.824,
+      "correct_rate": 0.948,
+      "faithful_rate": 0.957,
+      "multi_turn_correct_rate": 0.846,
+      "multi_turn_faithful_rate": 0.923
     },
     "date": "2026-07-07"
   }
