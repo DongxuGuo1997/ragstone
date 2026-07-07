@@ -12,7 +12,26 @@ Notable changes to Ragstone. The format follows
   words the answer reuses — post-hoc answer-to-source alignment with
   exact character offsets, no prompt or generation change.
 
+- **Load and scale benchmarks** (Experiment 16): `bench_concurrency.py`
+  and `bench_scale.py` measure the previously argued claims — server
+  overhead 1.7ms p50 on cache hits, flat p50 to 32 concurrent clients
+  with clean 429 backpressure, ~7x parallel-generation payoff; FAISS
+  ~10ms at 100k chunks, BM25 the ensemble bottleneck at scale, embedded
+  Qdrant for small corpora only. On macOS, large FAISS indexes need
+  OMP_NUM_THREADS=1 (libomp instability, bisected and documented;
+  Linux/Docker unaffected).
+
 ### Changed
+- **The REST API is stateless by default**: `session_id` now defaults to
+  a fresh per-request session instead of a shared "api_session" — the
+  shared default accumulated one conversation across ALL clients, letting
+  follow-up rephrasing reinterpret a question against a stranger's
+  history. Pass a session_id explicitly to opt into conversation memory;
+  the response is unchanged in shape and returns the session used.
+- **Response-cache scope is corpus+chain (session removed)**: only
+  history-free turns ever touch the cache, so identical questions on the
+  same corpus and chain now share entries across clients — the
+  session-scoped key was blocking every cross-client hit.
 - **Router tuned and its default-status question closed** (Experiment
   15b): stricter classifier + the cheap utility model reaches
   faithfulness 0.981 at 1.25x tokens — still over the pre-registered

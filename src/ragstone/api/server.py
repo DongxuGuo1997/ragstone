@@ -25,6 +25,7 @@ import logging
 import os
 import queue
 import threading
+import uuid
 from typing import Iterator, List, Literal, Optional, Tuple
 
 try:
@@ -83,7 +84,20 @@ class SetupRetrieverRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str
-    session_id: str = "api_session"
+    # None = stateless: each request gets a fresh session. The old shared
+    # default ("api_session") quietly accumulated ONE conversation across
+    # every client: follow-up rephrasing could reinterpret your question
+    # against someone else's history, and the response cache was
+    # permanently disabled after the first request (history-bearing turns
+    # bypass it by design). Pass a session_id explicitly to opt into
+    # conversation memory.
+    session_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Conversation id for follow-up questions; omit for stateless "
+            "one-shot asks (fresh session per request)."
+        ),
+    )
     stream: bool = False
     use_cache: bool = True
 
@@ -253,22 +267,25 @@ def create_app(
                 status_code=429,
                 detail="Server is at capacity; retry shortly.",
             )
+        # Stateless by default: a fresh session per request unless the
+        # client opted into conversation memory with an explicit id.
+        session_id = body.session_id or f"api_{uuid.uuid4().hex[:12]}"
         try:
             if body.stream:
                 # The stream's worker thread owns the slot and releases it
                 # exactly once, when the pipeline call finishes.
                 return StreamingResponse(
-                    _sse_stream(pipeline, body, ask_slots),
+                    _sse_stream(pipeline, body, ask_slots, session_id),
                     media_type="text/event-stream",
                 )
             answer = await to_thread.run_sync(
                 lambda: pipeline.ask_question(
                     body.question,
-                    session_id=body.session_id,
+                    session_id=session_id,
                     use_cache=body.use_cache,
                 )
             )
-            return {"answer": answer, "session_id": body.session_id}
+            return {"answer": answer, "session_id": session_id}
         finally:
             if not body.stream and ask_slots is not None:
                 ask_slots.release()
@@ -293,7 +310,9 @@ def _sse_data(text: str) -> str:
     return "".join(f"data: {line}\n" for line in text.split("\n")) + "\n"
 
 
-def _sse_stream(pipeline, body: AskRequest, ask_slots) -> Iterator[str]:
+def _sse_stream(
+    pipeline, body: AskRequest, ask_slots, session_id: str
+) -> Iterator[str]:
     """Yield the answer as Server-Sent Events.
 
     The pipeline generator runs on ONE dedicated worker thread and hands
@@ -310,7 +329,7 @@ def _sse_stream(pipeline, body: AskRequest, ask_slots) -> Iterator[str]:
     def _produce() -> None:
         try:
             for chunk in pipeline.ask_question_stream(
-                body.question, session_id=body.session_id, use_cache=body.use_cache
+                body.question, session_id=session_id, use_cache=body.use_cache
             ):
                 if cancelled.is_set():
                     # Client is gone: stop at the next chunk boundary so an

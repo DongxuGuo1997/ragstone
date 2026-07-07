@@ -572,16 +572,21 @@ class Pipeline:
         if self.vector_db is not None:
             self.vector_db.cleanup()
 
-    def _cache_scope(self, session_id: str) -> str:
-        """Scope component for response-cache keys.
+    def _cache_scope(self) -> str:
+        """Scope component for response-cache keys: corpus + chain.
 
-        The response cache is shared process-wide, so the key must encode
-        WHICH corpus and chain produced an answer, not just the session —
-        otherwise two pipelines serving different document sets could trade
-        answers for the same question text.
+        The cache is shared process-wide, so the key must encode WHICH
+        corpus and chain produced an answer — two pipelines over different
+        document sets must never trade answers. The session is
+        deliberately NOT part of the scope: only history-free turns ever
+        touch the cache (_cache_usable), and a history-free ask of the
+        same question on the same corpus and chain is the same
+        computation regardless of who asks — cross-session serving is
+        what makes a server-side cache useful at all. (The scope was
+        session-bound until the history gate made that redundant.)
         """
         corpus = self._vector_db_fingerprint or "no-index"
-        return f"{session_id}|{corpus}|{self._chain_type or 'none'}"
+        return f"{corpus}|{self._chain_type or 'none'}"
 
     def _cache_usable(self, use_cache: bool, session_id: str) -> bool:
         """Whether the response cache may serve or store this ask.
@@ -631,7 +636,7 @@ class Pipeline:
             # last_metrics (after this method returns), it is fully filled.
             self._last_metrics = metrics
             cache_enabled = self._cache_usable(use_cache, session_id)
-            cache_scope = self._cache_scope(session_id)
+            cache_scope = self._cache_scope()
             if cache_enabled:
                 cached_response = _get_query_cache().get_response(question, cache_scope)
                 if cached_response:
@@ -716,7 +721,7 @@ class Pipeline:
         with track_request(session_id, chain_type=self._chain_type) as metrics:
             self._last_metrics = metrics  # completed when the stream ends
             cache_enabled = self._cache_usable(use_cache, session_id)
-            cache_scope = self._cache_scope(session_id)
+            cache_scope = self._cache_scope()
             if cache_enabled:
                 cached_response = _get_query_cache().get_response(question, cache_scope)
                 if cached_response:

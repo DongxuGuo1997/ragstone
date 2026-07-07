@@ -668,6 +668,77 @@ n=13, the small-slice noise this file keeps warning about. The tuning
 avenue is now closed with data: `auto` is for deployments that value
 faithfulness over cost, and the numbers to make that call are above.
 
+---
+
+## Experiment 16 — Load and scale: measuring the claims that were only argued
+
+**Question.** Two performance claims had never been measured: the API's
+thread model under concurrent load, and the retrieval stack beyond the
+231-chunk eval corpus. Benchmarks: `evals/bench_concurrency.py` (real
+server, real pipeline; a cached phase for server mechanics and an
+uncached wave for end-to-end concurrency) and `evals/bench_scale.py`
+(synthetic 1536-dim vectors — the embedding API's cost is linear and
+known; the unknowns were OUR code).
+
+**Concurrency (cap = 8).** Cache-hit requests measure the server itself:
+
+| workers | ok | 429 | p50 (ms) | p95 (ms) |
+|---|---|---|---|---|
+| 1 | 12/12 | 0 | 1.7 | — |
+| 8 | 96/96 | 0 | 4.8 | 7.6 |
+| 16 | 184/192 | 8 | 8.0 | 11.4 |
+| 32 | 310/384 | 74 | 17.1 | 21.6 |
+
+Server overhead is single-digit milliseconds and degrades gracefully.
+Under REAL generation load, p50 stayed flat (~2.2–2.6 s) from 1 to 32
+workers while the semaphore refused overload instantly — hard
+backpressure, no queue collapse, exactly as designed. Eight truly
+concurrent generations completed in 2.0–2.7 s wall against 10–15 s
+sequential: a 3.8–7.4× payoff (the spread is OpenAI latency variance).
+The sync-core + worker-thread model is vindicated at its cap; the async
+rewrite (ROADMAP 4.2) stays unjustified by data.
+
+**Scale** (macOS, `OMP_NUM_THREADS=1` — see below; Linux needs no flag):
+
+| chunks | FAISS p50 | Qdrant embedded p50 | BM25 p50 | FAISS build |
+|---|---|---|---|---|
+| 1k | 0.3 ms | 1.8 ms | 0.2 ms | 0.2 s |
+| 10k | 1.1 ms | 17.7 ms | 2.8 ms | 1.8 s |
+| 100k | 9.5 ms | 169.6 ms | **70.1 ms** | 18.5 s |
+
+Three verdicts: (1) flat FAISS is linear and comfortably fine to 100k —
+no ANN index needed at this scale; (2) embedded Qdrant is a small-corpus
+convenience, not a scale path — at 100k it is 18× slower than FAISS and
+qdrant-client itself warns above 20k points (server mode, one env var
+away, is the scale path); (3) the sleeper: **BM25 becomes the ensemble's
+bottleneck at 100k** (70 ms vs 9.5 ms vector) — rank-bm25's pure-Python
+scoring is linear in corpus size, so the hybrid retriever's latency
+story at scale is a lexical problem, not a vector one.
+
+**The crash the benchmark earned.** On macOS, repeated FAISS searches on
+the 100k index segfaulted within ten queries — bisected to faiss-cpu's
+OpenMP parallel search (single queries fine, 10k fine, the LangChain
+wrapper irrelevant). `OMP_NUM_THREADS=1` eliminates it at no practical
+cost (9.5 ms p50 single-threaded), and the identical test inside the
+Linux container passes with default threading — macOS-specific, likely
+the documented risk of the `KMP_DUPLICATE_LIB_OK` coexistence
+workaround. README documents the flag for large macOS indexes; Docker
+deployments are unaffected.
+
+**What load testing found beyond performance.** The benchmark exposed
+two real API design flaws: the shared default `session_id` meant every
+stateless client contributed to ONE conversation (follow-up rephrasing
+could reinterpret your question against a stranger's history) — the API
+is now stateless by default, generating a fresh session per request
+unless a client opts in; and the response cache's session-scoped key,
+made redundant by the history gate, was blocking all cross-client cache
+hits — the scope is now corpus+chain only. Load tests find design bugs,
+not just slow paths.
+
+---
+
+## Defaults, decided by the numbers above
+
 | Choice            | Default                      | Decided by   | Why                                            |
 |-------------------|------------------------------|--------------|------------------------------------------------|
 | Embedding model   | `text-embedding-3-small`     | Experiment 1 | full coverage, ~5× cheaper than ada-002        |

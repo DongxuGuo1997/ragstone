@@ -126,3 +126,17 @@ class TestPipelineCacheScoping:
 
         scopes = {scope for _, scope in cache.puts}
         assert len(scopes) == 2  # distinct keys despite same question+session
+
+    def test_history_free_sessions_share_cache_entries(self, monkeypatch):
+        # The session is deliberately NOT in the cache scope: only
+        # history-free turns reach the cache, and the same question on the
+        # same corpus+chain is the same computation for every client —
+        # cross-session serving is the point of a server-side cache.
+        cache = self._RecordingCache()
+        pipeline = self._pipeline(monkeypatch, cache)
+
+        pipeline.ask_question("What is the warranty?", session_id="client-a")
+        pipeline.ask_question("What is the warranty?", session_id="client-b")
+
+        scopes = {scope for _, scope in cache.gets}
+        assert len(scopes) == 1  # both probes used the same key

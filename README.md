@@ -42,6 +42,7 @@ opinion:
 | Is concurrent embedding safe? | **3.1× faster** ingestion, identical vectors and retrieval metrics |
 | Does chunk enrichment beat more context? | Document identity in the chunk: hit **+1.5pp**, faithfulness **+2.9pp** at +5.7% tokens — now the default; k=6's extra volume had *hurt* |
 | Can a router capture self-correction's edge cheaply? | Quality held (faithfulness up to **0.981** tuned), but **1.25× tokens** still fails the pre-set gate after tuning → `auto` ships opt-in, `simple` stays default (Exp 15/15b) |
+| Does the thread model survive real load? | p50 flat to **32 concurrent clients**, instant 429s beyond the cap, **~7× payoff** on parallel generation; the load test also caught two API design bugs (Exp 16) |
 
 Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
 reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md) · What's
@@ -510,7 +511,12 @@ time, and `.dockerignore` excludes `.env`.
 
 Retrieval quality is backend-independent by construction and by test —
 a parity test asserts identical rankings to FAISS, and Experiment 13
-measures it on the full eval set. Set `RAGSTONE_COLLECTION` to pin a
+measures it on the full eval set. Scale behavior is measured too
+(Experiment 16): FAISS holds ~10 ms at 100k chunks; embedded Qdrant is
+for small corpora (its own client warns above 20k points — use server
+mode); and on macOS, large FAISS indexes (~100k vectors) need
+`OMP_NUM_THREADS=1` to avoid a libomp instability (Linux/Docker
+unaffected). Set `RAGSTONE_COLLECTION` to pin a
 stable collection name when one deployment owns the store (unset =
 unique per pipeline, the safe multi-tenant default).
 
