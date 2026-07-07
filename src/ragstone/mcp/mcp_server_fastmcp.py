@@ -166,7 +166,7 @@ async def setup_retriever(
     Args:
         pipeline_id: Pipeline identifier to set up
         use_ensemble: Whether to use ensemble retriever (BM25 + Vector)
-        chain_type: Type of RAG chain (simple, multi_query, fusion, agent, corrective)
+        chain_type: RAG chain (simple, multi_query, fusion, agent, corrective, auto)
         use_reranker: Add a cross-encoder reranking stage (requires the rerank extra)
 
     Returns:
@@ -179,7 +179,14 @@ async def setup_retriever(
     # An unknown chain_type would silently build a "simple" chain while
     # this tool reports the requested name as configured — reject typos
     # instead (mirrors the REST API's Literal validation).
-    known_chain_types = {"simple", "multi_query", "fusion", "agent", "corrective"}
+    known_chain_types = {
+        "simple",
+        "multi_query",
+        "fusion",
+        "agent",
+        "corrective",
+        "auto",
+    }
     if chain_type not in known_chain_types:
         return (
             f"Unknown chain_type '{chain_type}'. "

@@ -519,7 +519,7 @@ def main():
     parser.add_argument(
         "--chain-type",
         default="simple",
-        choices=["simple", "multi_query", "fusion", "agent", "corrective"],
+        choices=["simple", "multi_query", "fusion", "agent", "corrective", "auto"],
     )
     parser.add_argument(
         "--rerank",

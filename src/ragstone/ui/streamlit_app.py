@@ -422,6 +422,8 @@ class StreamlitApp:
             return f"⚖️ Graded results: {verdict}"
         if kind == "rewrite":
             return f'✏️ Rewriting query: "{event.get("query", "")}"'
+        if kind == "route":
+            return f"🧭 Routed to the {event.get('strategy', '?')} path"
         return None
 
     def _stream_answer(self, prompt: str) -> str:

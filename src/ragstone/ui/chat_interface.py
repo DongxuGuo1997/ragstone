@@ -41,7 +41,7 @@ try:  # arrow-key history and line editing; absent on some platforms
 except ImportError:  # pragma: no cover
     pass
 
-CHAIN_TYPES = ("simple", "multi_query", "fusion", "agent", "corrective")
+CHAIN_TYPES = ("simple", "multi_query", "fusion", "agent", "corrective", "auto")
 
 HELP_TEXT = """commands:
   /sources             show the citations behind the last answer
@@ -93,6 +93,8 @@ def format_event_line(event: Dict[str, Any]) -> Optional[str]:
         return f"grading passages: {verdict}"
     if kind == "rewrite":
         return f"rewriting query: {event.get('query', '')}"
+    if kind == "route":
+        return f"routed to the {event.get('strategy', '?')} path"
     return None
 
 

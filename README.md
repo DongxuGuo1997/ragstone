@@ -45,6 +45,12 @@ Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
 reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md) · What's
 next, with acceptance criteria: [ROADMAP.md](ROADMAP.md)
 
+Because baselines are committed with every quality change, the repo can
+chart its own measured trajectory — generated from git history, no
+hand-typed numbers (`python evals/quality_history.py`):
+
+![Measured quality over the project's git history](docs/quality_history.svg)
+
 ## Features
 
 ### Multiple LLM Providers

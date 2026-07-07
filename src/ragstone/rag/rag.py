@@ -283,6 +283,32 @@ class RagProxy:
         logger.info("Corrective RAG chain created.")
         return chain
 
+    def make_router_chain(self) -> Runnable:
+        """
+        Creates the auto-routing chain (chain_type="auto"): a cheap
+        utility-model classifier sends direct factual lookups to the
+        simple chain and confusion-prone questions (comparisons,
+        multi-entity, possibly-unanswerable) to the corrective chain —
+        paying the 2x self-correction cost only where the measurements
+        (Experiments 9 and 12) showed it can help. Classification
+        failures fall back to simple.
+
+        The input contract matches the other chains: a question string or
+        a dict {"question": "..."}.
+        """
+        # Imported lazily: router.py imports helpers from this module.
+        from .memory import _make_rephrase_llm
+        from .router import RouterRagChain
+
+        utility_llm = _make_rephrase_llm(self._llm, get_config().llm.rephrase_model)
+        chain = RouterRagChain(
+            simple_chain=self.make_chain(),
+            careful_chain=self.make_corrective_chain(),
+            utility_llm=utility_llm,
+        )
+        logger.info("Router chain created (simple | corrective).")
+        return chain
+
     @staticmethod
     def _doc_key(doc: Document) -> Tuple[str, str]:
         """Hashable identity for a document (content + metadata)."""

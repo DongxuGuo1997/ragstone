@@ -74,9 +74,9 @@ class LoadDocumentsRequest(BaseModel):
 
 class SetupRetrieverRequest(BaseModel):
     use_ensemble: bool = True
-    chain_type: Literal["simple", "multi_query", "fusion", "agent", "corrective"] = (
-        "simple"
-    )
+    chain_type: Literal[
+        "simple", "multi_query", "fusion", "agent", "corrective", "auto"
+    ] = "simple"
     use_reranker: bool = False
 
 
