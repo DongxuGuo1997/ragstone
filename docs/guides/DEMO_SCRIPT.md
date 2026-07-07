@@ -58,6 +58,55 @@ Switch to the **⚔️ Compare** view. Left `simple`, right `agent`. Ask:
   measure them. On this corpus the agent buys nothing and costs double —
   so the simple pipeline is the default. On your corpus? Run it and see."*
 
+## Extended cut (when you have ten minutes, not three)
+
+### Act 5 — Self-correction refuses honestly (45 s)
+
+Sidebar → chain type **corrective** (rebuild). Ask something the corpus
+cannot answer: **"What is the price of the Helios MK-3?"**
+
+- Watch the status lines: `📥 Retrieving…` → `⚖️ Graded results:
+  irrelevant ✗` → `✏️ Rewriting query…` → a refusal that *cites what it
+  searched for* instead of hallucinating a price.
+- Talking point: *"The grade-and-retry loop spends zero answer tokens on
+  a doomed question. And when we measured it at n=224, self-correction's
+  edge was faithfulness, not correctness — so it's an option, not the
+  default. The router (chain type `auto`) makes that call per question;
+  its own cost gate kept it opt-in. Every one of those sentences is a
+  committed measurement."*
+
+### Act 6 — The same engine in a terminal (30 s)
+
+```bash
+ragstone-chat --provider openai --model gpt-4o-mini --data-dir evals/corpus
+```
+
+Ask a question, then `/sources`, then `/compare corrective <question>`.
+
+- Talking point: *"Same pipeline, same glass-box trace, zero extra
+  dependencies — the streaming events and metrics are side channels, so
+  every interface gets them for free."*
+
+### Act 7 — The closer: the repo charts its own history (20 s)
+
+Show the README's quality chart (or run
+`python evals/quality_history.py`).
+
+- Talking point: *"Baselines are committed with every quality change, so
+  this chart is generated from git history — the embedding upgrade, the
+  enrichment win, nothing hand-typed. That's the whole engineering
+  culture in one image."*
+
+### If they ask "does it deploy?"
+
+```bash
+OPENAI_API_KEY=... docker compose up   # API + Qdrant server + Postgres/pgvector
+```
+
+Same code path as the laptop demo — `VECTOR_STORE_TYPE` is the whole
+switch, and retrieval parity across backends is enforced by test
+(Experiment 13).
+
 ## Recording the GIF (macOS)
 
 - [Kap](https://getkap.co/) (free) or QuickTime + [gifski](https://gif.ski/).

@@ -39,6 +39,7 @@ except ImportError as exc:  # pragma: no cover - exercised only without extra
 
 from anyio import to_thread
 
+from ragstone import __version__
 from ragstone.config.settings import get_config
 from ragstone.rag.pipeline import DEFAULT_MODELS, build_pipeline
 from ragstone.utils.exceptions import PipelineError, ValidationError
@@ -121,7 +122,7 @@ def create_app(
     # queueing it behind an unbounded backlog.
     ask_slots = threading.BoundedSemaphore(cap) if cap > 0 else None
 
-    app = FastAPI(title="Ragstone", version="2.0.0")
+    app = FastAPI(title="Ragstone", version=__version__)
     app.state.ask_slots = ask_slots  # exposed for tests/inspection
 
     def _require_key(request: Request) -> None:

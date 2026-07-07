@@ -236,6 +236,13 @@ this safe.
 - **Deduplicate API/MCP pipeline setup** (provider dispatch + retriever
   configure closures are near-identical in both servers) into a shared
   helper module. S/M.
+- **langchain-community exit plan**: BM25, the web/wiki loaders, and
+  the FAISS wrapper all import from langchain-community, which upstream
+  is sunsetting — and none have standalone package homes yet (checked
+  2026-07). The version pin holds a working line and the compatibility
+  canary suite is the tripwire; when standalone packages appear, migrate
+  import-by-import with the retrieval eval proving metric parity. S/M,
+  blocked on upstream.
 - **mypy --strict ratchet**: the codebase is clean under current
   settings; ratchet per-module strictness the same way the original
   mypy debt was paid down. M, background.

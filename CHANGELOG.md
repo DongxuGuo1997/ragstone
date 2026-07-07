@@ -4,7 +4,7 @@ Notable changes to Ragstone. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.1.0] — 2026-07-07
 
 ### Added
 - **Server-backed vector stores** (ROADMAP 4.1): `VECTOR_STORE_TYPE=qdrant`

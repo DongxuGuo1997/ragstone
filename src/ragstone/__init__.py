@@ -15,7 +15,7 @@ import sys
 if sys.platform == "darwin":
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 __author__ = "Dongxu Guo"
 __email__ = "ericguohit@outlook.com"
 __license__ = "MIT"

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragstone"
-version = "2.0.0"
+version = "2.1.0"
 description = "Efficient RAG engine for grounded Q&A — OpenAI/Ollama backends, FAISS/Chroma stores, built-in eval harness, Streamlit UI, and MCP server"
 readme = "README.md"
 license = {text = "MIT"}
@@ -37,6 +37,11 @@ dependencies = [
     # Compatibility smoke tests: pytest tests/test_langchain_compatibility.py
     "langchain>=1.0,<2.0",
     "langchain-core>=1.0,<2.0",
+    # langchain-community is being sunset upstream; we use it for BM25,
+    # the web/wiki loaders, and the FAISS wrapper, none of which have
+    # standalone package homes yet (checked 2026-07). The pin holds the
+    # working line and tests/test_langchain_compatibility.py is the
+    # tripwire; migrate when upstream ships replacements (ROADMAP 7).
     "langchain-community>=0.4,<0.5",
     "langchain-classic>=1.0,<2.0",
     "langchain-openai>=1.0,<2.0",
