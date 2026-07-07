@@ -39,10 +39,10 @@
     "metrics": {
       "hit_rate": 0.955,
       "mrr": 0.828,
-      "correct_rate": 0.943,
-      "faithful_rate": 0.91,
-      "multi_turn_correct_rate": 0.769,
-      "multi_turn_faithful_rate": 0.923
+      "correct_rate": 0.929,
+      "faithful_rate": 0.915,
+      "multi_turn_correct_rate": 0.846,
+      "multi_turn_faithful_rate": 0.846
     },
     "date": "2026-07-07"
   },

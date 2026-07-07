@@ -337,6 +337,58 @@ was — a fast per-commit regression gate, not an instrument for verdicts.
 
 ---
 
+## Experiment 10 — The retrieval-slice trap, and two prompt fixes measured
+
+**Question.** Two things needed settling after Experiment 9's failure
+taxonomy: (a) the large-set `--k` sweep suggested `k=6` beats `k=4` on hit
+rate (0.955 → 0.980) — should the default change? (b) two targeted prompt
+fixes — the rephrase prompt now forces comparative follow-ups to name
+every compared entity, and the answer prompt forbids inventing identifiers
+not in the context — do they help at scale?
+
+**Method.** Three full runs on `--set large`, `chain=simple`:
+v1 (baseline, k=4, old prompts), v2 (k=6 + new prompts), v3 (k=4 + new
+prompts — isolating the prompts from the k change).
+
+| n=224 | v1 (k=4, old prompts) | v2 (k=6) | v3 (k=4, new prompts) |
+|---|---|---|---|
+| hit_rate | 0.955 | 0.940 | 0.955 |
+| correct_rate | 0.943 | 0.938 | 0.929 |
+| faithful_rate | 0.910 | 0.905 | 0.915 |
+| multi_turn_correct | 0.769 | 0.692 | **0.846** |
+| multi_turn_faithful | 0.923 | 0.692 | 0.846 |
+| total tokens | 242 k | **352 k (+46%)** | 246 k |
+
+**The k=6 regression is the headline.** The sweep that recommended k=6
+only re-scored the *evaluation slice* — which chunks land in the top-k of
+a standalone retrieval call. Setting `similarity_k=6` changes something
+else entirely: what the **generator actually reads**. Two extra chunks of
+engineered distractors (Corona K-7 specs next to Helios questions,
+Aurora-11 next to Aurora-9) diluted the context; the model started
+blending entities, multi-turn faithfulness collapsed 0.923 → 0.692, and
+every answer paid +46% context tokens. `k=4` was reverted the same day,
+with the reasoning recorded on the config field itself.
+
+**The prompt fixes are a modest, real win where they were aimed.**
+At identical retrieval (v1 vs v3, both k=4): multi-turn correctness rose
+0.769 → 0.846 — the comparative follow-up `gmt184` now retrieves both
+compared entities and passes. The two remaining multi-turn failures are
+the known hard cases (`mt05`, `gmt181` — a genuine corpus coverage gap).
+Single-turn correctness moved −1.4 pp (three cases, inside the ±3 pp noise
+band) while faithfulness ticked up +0.5 pp — consistent with the
+no-invented-identifiers clause trading a little eagerness for grounding.
+On the smoke set the same prompts had already lifted multi-turn from
+0.8 → 1.0.
+
+**Decision.** `similarity_k` stays **4**; both prompt changes ship; the
+large-simple baseline is re-recorded at v3 values. The transferable
+lesson — now a standing rule for this repo: **a knob that changes what
+the generator reads must be judged end-to-end, never by a retrieval-slice
+metric.** The slice metric answers "did the needle land in top-k?"; it is
+silent about what the other k−1 chunks do to the answer.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

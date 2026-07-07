@@ -191,8 +191,11 @@ class MemoryProxy:
             "which might reference context in the chat history, formulate a standalone question "
             "which can be understood without the chat history. Replace pronouns and vague "
             "references (like 'it', 'her', 'that', 'the panels') with the specific names, "
-            "products, or entities they refer to in the history. Do NOT answer the question, "
-            "just reformulate it if needed and otherwise return it as is."
+            "products, or entities they refer to in the history. For comparative questions "
+            "('compared to its predecessor', 'versus the other model'), name EVERY entity "
+            "being compared explicitly, so a document search can find each one. "
+            "Do NOT answer the question, just reformulate it if needed and otherwise "
+            "return it as is."
         )
 
         contextualize_q_prompt = ChatPromptTemplate.from_messages(

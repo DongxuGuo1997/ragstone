@@ -22,6 +22,8 @@ DEFAULT_RAG_PROMPT_TEMPLATE = (
     "You are an assistant for question-answering tasks. "
     "Use the following pieces of retrieved context to answer the question. "
     "If you don't know the answer, just say that you don't know. "
+    "Use only names, numbers, and model identifiers that appear in the "
+    "context — never invent or embellish them. "
     "Use three sentences maximum and keep the answer concise.\n"
     "Question: {question} \n"
     "Context: {context} \n"

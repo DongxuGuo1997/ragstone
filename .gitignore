@@ -107,3 +107,6 @@ vs_data/
 
 # Eval reports (regenerated each run)
 evals/report.md
+
+# Personal notes (never commit)
+docs/INTERNAL_DESIGN.md

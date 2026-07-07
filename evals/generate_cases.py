@@ -150,7 +150,9 @@ Rules:
 - must_contain: 1-2 SHORT strings copied VERBATIM from the document that
   the answering chunk must contain (numbers, names, codes). Exact
   substrings — they are checked mechanically.
-- gold_answer: one short sentence.
+- gold_answer: one short sentence that is SPECIFIC — name the exact
+  entities, numbers, or model codes from the document. A vague gold
+  answer ("a compatible inverter system") fails correct system answers.
 Return ONLY the JSON array."""
 
 CROSS_DOC_PROMPT = """You are writing evaluation cases for a retrieval QA

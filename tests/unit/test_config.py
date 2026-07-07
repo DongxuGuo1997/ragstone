@@ -29,7 +29,7 @@ class TestDatabaseConfig:
         assert config.faiss_index_name == "faiss_index"
         assert config.batch_size == 500  # texts per embedding request
         assert config.embed_workers == 4  # concurrent embedding batches
-        assert config.similarity_k == 4
+        assert config.similarity_k == 4  # k=6 degraded end-to-end quality (Exp 10)
 
     def test_database_config_validation_valid_type(self):
         """Test database config validation with valid type."""
