@@ -271,15 +271,69 @@ rewriting run on the utility model.
 | avg latency | ~1.5 s | 2.7 s | 2.8 s |
 | total tokens | ~45 k | ~57 k | 94 k |
 
-**Decision.** The first technique in this repo that *bought* correctness:
-q31 (the Violet Line fare — the one case every other chain failed on
-every run) passes under corrective, because the rewrite found phrasing
-the first retrieval missed. The price is ~1.9× latency and ~2.1× tokens
-(a grade call on every answer, rewrites on retries). `simple` stays the
-default — but where the last few points of correctness are worth double
-the cost, `corrective` is the measured way to buy them. Contrast with
-agent mode, which paid similar costs for zero quality gain: *how* you
-spend extra LLM calls matters more than *that* you spend them.
+**Decision (as of n=43).** The first technique in this repo that appeared
+to *buy* correctness: q31 (the Violet Line fare — the one case every
+other chain failed) passed under corrective, because the rewrite found
+phrasing the first retrieval missed. The price: ~1.9× latency and ~2.1×
+tokens.
+
+> **Superseded by Experiment 9.** The +0.027 here is exactly one flipped
+> case at n=43. On the 224-case set the win does not replicate — the
+> quality difference lands inside sampling noise while the 2× cost
+> remains. Kept unedited above as a worked example of why sample size
+> gates conclusions.
+
+---
+
+## Experiment 9 — Scaling the golden set: does the corrective win replicate?
+
+**Hypothesis (meta):** at n=43, one flipped case moves correct_rate by
+~2.6 points, so Experiment 8's verdict ("corrective buys +0.027") rests
+on a single question. A larger set should either confirm it or expose it
+as sampling noise.
+
+**Method:** the golden set was scaled to **224 cases** (`--set large`)
+over an extended 16-document fictional corpus with engineered distractors
+(a third solar panel one digit away from the other two, sibling missions,
+a rival company). Generated cases are validated mechanically: every
+`must_contain` needle must appear verbatim in its claimed source document
+(11 generator hallucinations were auto-rejected). The smoke set and its
+6-document corpus are untouched, so all prior baselines stay comparable.
+
+First, the harder corpus recalibrates everything:
+
+| simple | smoke (n=43) | large (n=224) |
+|---|---|---|
+| hit_rate | 1.0 | 0.955 |
+| MRR | 0.895 | 0.828 |
+| multi_turn_correct | 1.0 (n=5) | 0.769 (n=13) |
+
+Retrieval misses are dominated by the engineered distractors (Helios
+torque losing to Corona/Borealis torque chunks), and the multi-turn 1.0
+was small-n flattery — comparative follow-ups ("how does it compare to
+its predecessor?") emerge as a real failure class.
+
+The rematch, at ~0.5 pp resolution:
+
+| n=224 | simple | corrective |
+|---|---|---|
+| correct_rate | **0.943** | 0.934 |
+| faithful_rate | 0.910 | 0.929 |
+| multi_turn_correct | 0.769 | 0.769 |
+| avg latency | **1.33 s** | 2.28 s |
+| total tokens | **242 k** | 486 k |
+
+**Decision.** Experiment 8's conclusion **does not replicate**: at n=224
+the correctness difference (−0.9 pp) and faithfulness difference
+(+1.9 pp) are both inside the ±3 pp binomial noise band, while the 2×
+cost is not noise. `corrective` is re-classified from "buys correctness"
+to "no measured quality gain on this corpus, at double the cost" — and
+`simple` keeps the default with a stronger mandate than before.
+
+The meta-lesson is the real result: **the n=43 verdict was wrong in a
+way only a bigger sample could reveal.** Design-option comparisons now
+run on `--set large` by policy; the smoke set remains what it always
+was — a fast per-commit regression gate, not an instrument for verdicts.
 
 ---
 

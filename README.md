@@ -35,7 +35,8 @@ opinion:
 | Question | Verdict |
 |---|---|
 | Does an agent loop beat the fixed pipeline? | Identical quality, **1.8× latency, 1.45× tokens** → the pipeline stays default |
-| Does self-correcting retrieval (CRAG) pay? | **+0.027 correctness** — rescued the one case everything else failed — at 2× cost → opt-in, measured |
+| Does self-correcting retrieval (CRAG) pay? | Looked like +0.027 at n=43; **failed to replicate at n=224** — quality within noise, 2× cost is not → opt-in, honestly labeled |
+| Was the small eval set lying to us? | Yes, once: scaling 43 → 224 cases reversed a conclusion (Exp 9) — design verdicts now require `--set large` |
 | Where do follow-up seconds go? | **926 ms** in one rephrase LLM call → prompt + model fix: multi-turn quality **0.8 → 1.0**, rephrase **−40%** |
 | Are smaller chunks sharper? | No — hit rate **drops** 1.0 → 0.914 at 500 chars |
 | Is concurrent embedding safe? | **3.1× faster** ingestion, identical vectors and retrieval metrics |
@@ -62,7 +63,7 @@ reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Ensemble Retrieval**: Combines BM25 and vector similarity
 - **Cross-Encoder Reranking** (optional): Two-stage retrieval for higher precision
 - **Agent Mode**: LLM-driven retrieval loop, for measured comparison against the fixed pipeline
-- **Corrective RAG**: retrieval grades itself, rewrites failed queries, and refuses with evidence — the only technique here that measurably bought correctness (+0.027 at 2× cost)
+- **Corrective RAG**: retrieval grades itself, rewrites failed queries, and refuses with evidence — its apparent quality win at n=43 failed to replicate at n=224 (Experiment 9), which is the point of measuring
 
 ### Vector Store Support
 - **FAISS**: Fast similarity search with local storage
