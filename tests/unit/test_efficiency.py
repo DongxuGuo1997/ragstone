@@ -16,7 +16,8 @@ from ragstone.rag.memory import (
     MemoryProxy,
     SimpleTextRetriever,
 )
-from ragstone.rag.pipeline import Pipeline, _SourceRecordingRetriever
+from ragstone.rag.ask_context import SourceRecordingRetriever
+from ragstone.rag.pipeline import Pipeline
 from ragstone.rag.rag import RagProxy
 from ragstone.utils.full_chain import FullChain
 
@@ -39,7 +40,9 @@ class _FakeLLMProxy:
 
 def _make_pipeline(llm, inner_retriever):
     pipeline = Pipeline()
-    pipeline._retriever = _SourceRecordingRetriever(wrapped=inner_retriever)
+    pipeline._retriever = SourceRecordingRetriever(
+        wrapped=inner_retriever, owner_id=id(pipeline)
+    )
     rag = RagProxy(model=llm, retriever=pipeline._retriever)
     full_chain = FullChain(_FakeLLMProxy(llm), rag, MemoryProxy())
     full_chain.create_full_chain("simple")

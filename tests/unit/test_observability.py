@@ -131,11 +131,11 @@ class TestStageTiming:
 
 class TestRetrievalStageCapture:
     def test_source_recording_retriever_times_retrieval(self):
+        from ragstone.rag.ask_context import SourceRecordingRetriever
         from ragstone.rag.memory import SimpleTextRetriever
-        from ragstone.rag.pipeline import _SourceRecordingRetriever
 
         wrapped = SimpleTextRetriever.from_texts(["Paris is the capital."])
-        retriever = _SourceRecordingRetriever(wrapped=wrapped, record=[])
+        retriever = SourceRecordingRetriever(wrapped=wrapped)
 
         with track_request("s1") as metrics:
             docs = retriever.invoke("capital?")

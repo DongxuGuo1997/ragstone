@@ -1,15 +1,13 @@
 import hashlib
 import logging
-import os
 import time
 from typing import Any, Dict, List, Optional
 
-from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
 from ..config.settings import get_config
-from ..models.base_model import LLMProxy, OllamaProxy, OpenAIProxy
+from ..models.base_model import LLMProxy
 from ..utils.exceptions import (
     ChainExecutionError,
     ChainInitializationError,
@@ -17,12 +15,17 @@ from ..utils.exceptions import (
     VectorStoreInitializationError,
 )
 from ..utils.full_chain import FullChain
-from ..utils.observability import RequestMetrics, time_stage, track_request
+from ..utils.observability import RequestMetrics, track_request
 from ..utils.security import validate_data_dir, validate_page_url
+from .ask_context import (
+    AskContext,
+    SourceRecordingRetriever,
+    begin_ask,
+    current_ask,
+)
 from .cache import QueryResultCache  # noqa: F401  re-exported; tests import here
 from .cache import get_query_cache as _get_query_cache
 from .cache import is_response_cache_enabled as _is_response_cache_enabled
-from .embeddings import get_smart_embeddings, make_openai_embeddings
 from .memory import MemoryProxy
 from .rag import RagProxy, validate_question
 from .splitter import split_documents
@@ -74,40 +77,16 @@ def _get_cached_pipeline_import(import_type: str):
     return _pipeline_cache[import_type]
 
 
-class _SourceRecordingRetriever(BaseRetriever):
-    """Wraps the final retriever and records the documents it returns.
-
-    Lets get_sources() reuse the documents retrieved while answering instead
-    of paying for a second retrieval (query embedding + ensemble + reranker)
-    per question. The record is cleared at the start of each ask.
-    """
-
-    wrapped: BaseRetriever
-    record: List[Document] = []
-
-    def _get_relevant_documents(
-        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
-    ) -> List[Document]:
-        # Timed as the "retrieval" stage: this wraps the FINAL retriever,
-        # so query embedding, ensemble merge, and any reranking are all
-        # included. Multiple invocations (agent mode) accumulate.
-        with time_stage("retrieval"):
-            docs = self.wrapped.invoke(query)
-        self.record.extend(docs)
-        return docs
-
-
 class Pipeline:
     """Base pipeline class with lazy loading and optimized performance.
 
-    Concurrency contract: distinct sessions may ask concurrently — answers
-    and conversation memory are isolated per session_id, and per-request
-    metrics are contextvar-scoped. The INTROSPECTION helpers, however
-    (get_sources, get_last_retrieved_documents, last_metrics,
-    get_last_interpretation), reflect "the most recent ask" and are
-    single-writer: call them from the same thread of control as the ask
-    they describe. Under concurrent asks on one pipeline they may reflect
-    a mix of requests.
+    Concurrency contract: asks are safe to run concurrently on one
+    pipeline. Answers and conversation memory are isolated per
+    session_id; metrics and the introspection helpers (get_sources,
+    get_last_retrieved_documents, last_metrics) are scoped to the ask
+    via a ContextVar — read them from the call flow that asked and you
+    get THAT ask's data, even under concurrency. From an unrelated
+    thread they fall back to the most recently started ask.
     """
 
     def __init__(
@@ -154,8 +133,7 @@ class Pipeline:
         self._chain: Optional[FullChain] = None
         self._chain_type: Optional[str] = None
         self.llm_proxy: Optional[LLMProxy] = None
-        self._last_question: Optional[str] = None
-        self._last_metrics: Optional[RequestMetrics] = None
+        self._last_ask: Optional[AskContext] = None
         self._vector_db_fingerprint: Optional[str] = None
         self._bm25_retriever: Optional[Any] = None
         self._bm25_texts: Optional[List[Document]] = None  # identity for reuse
@@ -372,7 +350,9 @@ class Pipeline:
         if self._retriever is not None:
             # Outermost wrapper: records final retrieved docs so get_sources
             # can reuse them without a second retrieval.
-            self._retriever = _SourceRecordingRetriever(wrapped=self._retriever)
+            self._retriever = SourceRecordingRetriever(
+                wrapped=self._retriever, owner_id=id(self)
+            )
 
         # A different retriever (new corpus, toggled ensemble/reranker) can
         # change answers — cached responses from the old setup are stale.
@@ -404,21 +384,35 @@ class Pipeline:
         """Return the configured retriever, or None if not set."""
         return self._retriever
 
-    def _begin_ask(self, question: str) -> None:
-        """Validate the question and reset per-question state.
+    def _context_for_read(self) -> Optional[AskContext]:
+        """This pipeline's ask context for introspection reads.
+
+        The current call flow's context wins ONLY if this pipeline opened
+        it (owner check — the ContextVar is process-global); otherwise
+        fall back to this pipeline's most recently started ask.
+        """
+        context = current_ask()
+        if context is not None and context.owner_id == id(self):
+            return context
+        return self._last_ask
+
+    def _begin_ask(self, question: str) -> AskContext:
+        """Validate the question and open this ask's context.
 
         Validation runs here — before the cache lookup and before any
         retrieval/LLM call — so malformed or oversized input is rejected
-        without spending anything.
+        without spending anything. The returned AskContext owns the ask's
+        record and metrics; it is also kept as the pipeline's
+        last-started ask for cross-thread introspection.
 
         Raises:
             ValidationError: If the question is empty, not a string, or
                 exceeds the configured length cap.
         """
         validate_question(question)
-        self._last_question = question
-        if isinstance(self._retriever, _SourceRecordingRetriever):
-            self._retriever.record.clear()
+        context = begin_ask(question, owner_id=id(self))
+        self._last_ask = context
+        return context
 
     def get_sources(self, question: str, k: int = 4) -> List[Dict[str, str]]:
         """
@@ -440,12 +434,9 @@ class Pipeline:
             logger.warning("Cannot get sources: retriever is not set.")
             return []
 
-        if (
-            question == self._last_question
-            and isinstance(self._retriever, _SourceRecordingRetriever)
-            and self._retriever.record
-        ):
-            docs = list(self._retriever.record)
+        context = self._context_for_read()
+        if context is not None and context.question == question and context.record:
+            docs = list(context.record)
         else:
             try:
                 docs = self._retriever.invoke(question)
@@ -625,7 +616,7 @@ class Pipeline:
                 "and call create_rag_chain() first."
             )
 
-        self._begin_ask(question)
+        ask_context = self._begin_ask(question)
         logger.info(
             f"Asking question (session: {session_id}): '{question[:100]}{'...' if len(question) > 100 else ''}'"
         )
@@ -634,7 +625,7 @@ class Pipeline:
             # The metrics object is mutable and completed when the context
             # closes, so exposing it now is safe: by the time a caller reads
             # last_metrics (after this method returns), it is fully filled.
-            self._last_metrics = metrics
+            ask_context.metrics = metrics
             cache_enabled = self._cache_usable(use_cache, session_id)
             cache_scope = self._cache_scope()
             if cache_enabled:
@@ -717,9 +708,9 @@ class Pipeline:
                 "and call create_rag_chain() first."
             )
 
-        self._begin_ask(question)
+        ask_context = self._begin_ask(question)
         with track_request(session_id, chain_type=self._chain_type) as metrics:
-            self._last_metrics = metrics  # completed when the stream ends
+            ask_context.metrics = metrics  # completed when the stream ends
             cache_enabled = self._cache_usable(use_cache, session_id)
             cache_scope = self._cache_scope()
             if cache_enabled:
@@ -754,26 +745,35 @@ class Pipeline:
                     f"Failed to generate a response: {e}", original_exception=e
                 ) from e
 
-    def get_last_retrieved_documents(self) -> List[Any]:
-        """Documents retrieved while answering the most recent question.
+    def get_last_retrieved_documents(self) -> List[Document]:
+        """Documents retrieved while answering this call flow's ask.
 
         This is the ACTUAL context the answer was grounded in — including
         the effect of the rephrase step on follow-up turns, which a fresh
-        ``retriever.invoke(raw_question)`` would miss. Empty before the
-        first ask or when no recording retriever is configured.
+        ``retriever.invoke(raw_question)`` would miss. From the call flow
+        that asked, this is THAT ask's record (concurrency-safe); from an
+        unrelated thread it is the most recently started ask's. Empty
+        before the first ask (including after a cache hit, which
+        retrieves nothing).
         """
-        if isinstance(self._retriever, _SourceRecordingRetriever):
-            return list(self._retriever.record)
+        context = self._context_for_read()
+        if context is not None:
+            return list(context.record)
+        if isinstance(self._retriever, SourceRecordingRetriever):
+            return self._retriever.fallback_record
         return []
 
     @property
     def last_metrics(self) -> Optional[RequestMetrics]:
-        """Metrics of the most recent ask (latency, tokens, cache hit).
+        """Metrics of this call flow's ask (latency, tokens, cache hit).
 
         Complete once the ask returns (or, for streaming, once the stream
-        is fully consumed). None before the first ask.
+        is fully consumed). Scoped like the other introspection helpers:
+        the asking call flow sees its own ask; unrelated threads see the
+        most recently started one. None before the first ask.
         """
-        return self._last_metrics
+        context = self._context_for_read()
+        return context.metrics if context is not None else None
 
     def get_last_interpretation(self, session_id: str) -> Optional[str]:
         """The standalone question the rephrase step produced for the most
@@ -821,174 +821,20 @@ class Pipeline:
         )
 
 
-# Per-provider default models — the ONE place they are defined; the REST
-# API, MCP server, and terminal chat all resolve defaults through here.
-DEFAULT_MODELS = {"openai": "gpt-4o-mini", "ollama": "llama3"}
+# Provider subclasses and the provider factory live in providers.py;
+# re-exported here because this module is their historical import home.
+from .providers import (  # noqa: E402
+    DEFAULT_MODELS,
+    OllamaPipeline,
+    OpenAIPipeline,
+    build_pipeline,
+)
 
-
-def build_pipeline(provider: str, model: Optional[str] = None) -> Pipeline:
-    """Construct the right pipeline subclass for a provider name.
-
-    The single home of the provider dispatch: every server and UI builds
-    pipelines through this function (tests stub it as their seam).
-
-    Args:
-        provider: "openai" or "ollama" (case-insensitive).
-        model: Model name; defaults to the provider's entry in
-            DEFAULT_MODELS.
-
-    Raises:
-        ValueError: If the provider is not recognized.
-    """
-    provider = provider.strip().lower()
-    if provider not in DEFAULT_MODELS:
-        raise ValueError(
-            f"Unknown provider {provider!r}; expected one of "
-            f"{sorted(DEFAULT_MODELS)}."
-        )
-    resolved_model = model or DEFAULT_MODELS[provider]
-    if provider == "openai":
-        return OpenAIPipeline(model=resolved_model)
-    return OllamaPipeline(model=resolved_model)
-
-
-class OpenAIPipeline(Pipeline):
-    """OpenAI-based pipeline with lazy loading and performance optimizations."""
-
-    provider = "openai"
-
-    def __init__(
-        self,
-        model: str = "gpt-4o-mini",
-        loader_name: str = "local",
-        vector_store_type: Optional[str] = None,
-        optimize_loading: bool = True,
-        max_workers: int = 4,
-    ):
-        """
-        Initialize the OpenAIPipeline with the specified model and loader name.
-
-        Args:
-            model (str): The model to use. Defaults to "gpt-4o-mini".
-            loader_name (str): The name of the loader. Defaults to "local".
-            vector_store_type (Optional[str]): Type of vector store to use.
-            optimize_loading (bool): Whether to use optimized parallel loading. Defaults to True.
-            max_workers (int): Number of parallel workers for optimized loading. Defaults to 4.
-        """
-        super().__init__(
-            loader_name=loader_name,
-            vector_store_type=vector_store_type,
-            optimize_loading=optimize_loading,
-            max_workers=max_workers,
-        )
-
-        if not os.getenv("OPENAI_API_KEY"):
-            raise ValueError("OPENAI_API_KEY is required for OpenAIPipeline")
-
-        # Initialize OpenAI LLM with lazy loading
-        self.llm_proxy = OpenAIProxy()
-        self.llm_proxy.set_llm(model_name=model)
-        logger.info(f"OpenAIPipeline initialized with model: {model}")
-
-    def set_retriever_openai(
-        self, use_ensemble: bool = True, use_reranker: bool = False
-    ) -> None:
-        """
-        Set the retriever for OpenAI pipeline with OpenAI embeddings.
-        This method ALWAYS uses OpenAI embeddings, bypassing any Ollama preferences.
-        Includes timeout handling to prevent hanging.
-
-        Args:
-            use_ensemble (bool): Whether to use ensemble retriever. Defaults to True.
-            use_reranker (bool): Add a cross-encoder reranking stage
-                (requires the `rerank` extra). Defaults to False.
-        """
-        if not os.getenv("OPENAI_API_KEY"):
-            raise RetrieverInitializationError(
-                "OPENAI_API_KEY not found — cannot create OpenAI embeddings. "
-                "Set it in your .env file, or use set_retriever_ollama() for "
-                "a fully local setup."
-            )
-
-        logger.info("Creating OpenAI embeddings...")
-        embeddings = make_openai_embeddings()
-        self._set_retriever(
-            embeddings=embeddings,
-            use_ensemble=use_ensemble,
-            use_reranker=use_reranker,
-        )
-
-    def setup_retriever(
-        self, use_ensemble: bool = True, use_reranker: bool = False
-    ) -> None:
-        """Provider-neutral alias for set_retriever_openai (see Pipeline)."""
-        self.set_retriever_openai(use_ensemble=use_ensemble, use_reranker=use_reranker)
-
-
-class OllamaPipeline(Pipeline):
-    """Ollama-based pipeline with lazy loading and performance optimizations."""
-
-    provider = "ollama"
-
-    def __init__(
-        self,
-        model: str = "llama3",
-        loader_name: str = "local",
-        vector_store_type: Optional[str] = None,
-        optimize_loading: bool = True,
-        max_workers: int = 4,
-    ):
-        """
-        Initialize the OllamaPipeline with the specified model and loader name.
-
-        Args:
-            model (str): The model to use. Defaults to "llama3".
-            loader_name (str): The name of the loader. Defaults to "local".
-            vector_store_type (Optional[str]): Type of vector store to use.
-            optimize_loading (bool): Whether to use optimized parallel loading. Defaults to True.
-            max_workers (int): Number of parallel workers for optimized loading. Defaults to 4.
-        """
-        super().__init__(
-            loader_name=loader_name,
-            vector_store_type=vector_store_type,
-            optimize_loading=optimize_loading,
-            max_workers=max_workers,
-        )
-
-        # Initialize Ollama LLM with lazy loading
-        self.llm_proxy = OllamaProxy()
-        self.llm_proxy.set_llm(model_name=model)
-        logger.info(f"OllamaPipeline initialized with model: {model}")
-
-    def set_retriever_ollama(
-        self, use_ensemble: bool = True, use_reranker: bool = False
-    ) -> None:
-        """
-        Set the retriever for Ollama pipeline with smart embedding fallback.
-        Tries Ollama embeddings first, falls back to OpenAI embeddings if unavailable.
-
-        Args:
-            use_ensemble (bool): Whether to use ensemble retriever. Defaults to True.
-            use_reranker (bool): Add a cross-encoder reranking stage
-                (requires the `rerank` extra). Defaults to False.
-        """
-        embeddings = get_smart_embeddings(
-            self.llm_proxy.get_model_name() if self.llm_proxy else None
-        )
-        if not embeddings:
-            raise RetrieverInitializationError(
-                "Failed to create any embeddings: no Ollama embedding model "
-                "responded and no OPENAI_API_KEY is set for fallback. "
-                "Is Ollama running? (ollama serve)"
-            )
-        self._set_retriever(
-            embeddings=embeddings,
-            use_ensemble=use_ensemble,
-            use_reranker=use_reranker,
-        )
-
-    def setup_retriever(
-        self, use_ensemble: bool = True, use_reranker: bool = False
-    ) -> None:
-        """Provider-neutral alias for set_retriever_ollama (see Pipeline)."""
-        self.set_retriever_ollama(use_ensemble=use_ensemble, use_reranker=use_reranker)
+__all__ = [
+    "Pipeline",
+    "OpenAIPipeline",
+    "OllamaPipeline",
+    "build_pipeline",
+    "DEFAULT_MODELS",
+    "QueryResultCache",
+]
