@@ -23,10 +23,21 @@ from datetime import date
 from pathlib import Path
 
 EVALS_DIR = Path(__file__).parent
-CORPUS_DIR = EVALS_DIR / "corpus"
-GOLDEN_PATH = EVALS_DIR / "golden.jsonl"
+CORPUS_DIR = EVALS_DIR / "corpus"  # original 6 docs — the smoke gate's world
+# Extended fictional universe (generated, distractor-engineered) used only
+# by the large set, so smoke baselines keep measuring the same corpus.
+EXTENDED_CORPUS_DIR = EVALS_DIR / "corpus_extended"
 BASELINE_PATH = EVALS_DIR / "baseline.json"
 REPORT_PATH = EVALS_DIR / "report.md"
+
+# Golden-set tiers. "smoke" (43 cases) is the fast per-commit CI gate;
+# "large" (~200 cases, generated + programmatically validated) is the
+# on-demand tier for design-option verdicts: at n~200 one flipped case
+# moves correct_rate by ~0.5pp instead of ~2.6pp.
+GOLDEN_SETS = {
+    "smoke": EVALS_DIR / "golden.jsonl",
+    "large": EVALS_DIR / "golden_large.jsonl",
+}
 
 # How far a metric may drop below the baseline before the run fails.
 TOLERANCE = 0.05
@@ -52,8 +63,14 @@ sys.path.insert(0, str(EVALS_DIR.parent / "src"))  # allow running without insta
 sys.path.insert(0, str(EVALS_DIR))  # for `import judge`
 
 
-def load_cases() -> list:
-    with open(GOLDEN_PATH, encoding="utf-8") as f:
+def load_cases(golden_set: str = "smoke") -> list:
+    path = GOLDEN_SETS[golden_set]
+    if not path.exists():
+        sys.exit(
+            f"error: golden set '{golden_set}' not found at {path}. "
+            "Generate it with: python evals/generate_cases.py"
+        )
+    with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 
@@ -78,10 +95,23 @@ def build_pipeline(args):
     else:
         pipeline = OllamaPipeline(model=args.model)
 
-    texts = pipeline.load_and_split(data_dir=str(CORPUS_DIR))
+    corpus_dir = CORPUS_DIR
+    if args.set == "large":
+        # The large set spans both corpus dirs; merge into a temp dir since
+        # the loader takes a single directory.
+        import shutil
+        import tempfile
+
+        merged = Path(tempfile.mkdtemp(prefix="ragstone_eval_corpus_"))
+        for source_dir in (CORPUS_DIR, EXTENDED_CORPUS_DIR):
+            for doc in source_dir.glob("*.md"):
+                shutil.copy(doc, merged / doc.name)
+        corpus_dir = merged
+
+    texts = pipeline.load_and_split(data_dir=str(corpus_dir))
     if not texts:
-        sys.exit(f"error: no documents loaded from {CORPUS_DIR}")
-    print(f"Loaded corpus: {len(texts)} chunks from {CORPUS_DIR}")
+        sys.exit(f"error: no documents loaded from {corpus_dir}")
+    print(f"Loaded corpus: {len(texts)} chunks from {corpus_dir}")
 
     if args.provider == "openai":
         pipeline.set_retriever_openai(use_ensemble=True, use_reranker=args.rerank)
@@ -351,6 +381,8 @@ def baseline_key(args) -> str:
         f"{args.provider}:{args.model}|judge:{args.judge_provider}:{args.judge_model}"
         f"|k={args.k}|chain={args.chain_type}|mode={args.mode}"
         + ("|rerank" if args.rerank else "")
+        # "smoke" omitted so historical baseline keys keep working.
+        + (f"|set={args.set}" if args.set != "smoke" else "")
     )
 
 
@@ -408,6 +440,12 @@ def main():
         action="store_true",
         help="enable the cross-encoder reranker (requires the rerank extra)",
     )
+    parser.add_argument(
+        "--set",
+        choices=sorted(GOLDEN_SETS),
+        default="smoke",
+        help="golden-set tier: smoke (fast CI gate) or large (~200 cases)",
+    )
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--no-baseline-check", action="store_true")
     # Experiment knobs (pair with --no-baseline-check for sweeps):
@@ -416,7 +454,7 @@ def main():
     parser.add_argument("--bm25-weight", type=float, default=None)
     args = parser.parse_args()
 
-    cases = load_cases()
+    cases = load_cases(args.set)
     print(f"Loaded {len(cases)} golden cases")
     pipeline = build_pipeline(args)
 
