@@ -668,6 +668,14 @@ n=13, the small-slice noise this file keeps warning about. The tuning
 avenue is now closed with data: `auto` is for deployments that value
 faithfulness over cost, and the numbers to make that call are above.
 
+*Postscript (2026-07):* the nano utility model — measured here and in the
+follow-up-latency work at −40 % rephrase time with identical quality —
+was later promoted from recommendation to **per-provider default**
+(gpt-4.1-nano on OpenAI; Ollama keeps the main model, having no
+universally installed cheap sibling). The promotion was gated by a smoke
+run: every metric landed exactly on baseline, avg rephrase 553 ms.
+`RAGSTONE_REPHRASE_MODEL` still overrides.
+
 ---
 
 ## Experiment 16 — Load and scale: measuring the claims that were only argued

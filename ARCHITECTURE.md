@@ -91,8 +91,9 @@ Decisions worth defending:
   can start). Instrumentation showed it costing ~926 ms per follow-up —
   the single largest fixable latency in the system. Two measured fixes:
   an entity-substitution prompt (took multi-turn correctness 0.8 → 1.0)
-  and an optional cheaper model (`RAGSTONE_REPHRASE_MODEL`, −40 % rephrase
-  time, identical quality).
+  and a cheaper utility model (−40 % rephrase time, identical quality) —
+  now the per-provider default: gpt-4.1-nano on OpenAI, the main model on
+  Ollama, `RAGSTONE_REPHRASE_MODEL` to override.
 - **State is bounded**: sessions trim to 40 messages via `RemoveMessage`;
   the rephrase window is capped at 10. Durable checkpointing (SQLite) is
   an extra, not a default.
