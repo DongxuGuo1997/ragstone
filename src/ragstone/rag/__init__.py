@@ -8,6 +8,9 @@ vector stores, document loaders, splitters, memory, and RAG operations.
 # Agentic RAG (LLM-driven retrieval loop)
 from .agent import AgentRagChain
 
+# Corrective RAG (self-grading retrieval with bounded retry)
+from .corrective import CorrectiveRagChain
+
 # Document loading and processing (from former services)
 from .loader import LocalLoader, RemoteLoader
 from .memory import MemoryProxy, SimpleTextRetriever
@@ -47,4 +50,5 @@ __all__ = [
     # RAG operations
     "RagProxy",
     "AgentRagChain",
+    "CorrectiveRagChain",
 ]

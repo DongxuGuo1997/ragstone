@@ -23,5 +23,16 @@
       "mrr": 0.964
     },
     "date": "2026-06-12"
+  },
+  "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=corrective|mode=full": {
+    "metrics": {
+      "hit_rate": 1.0,
+      "mrr": 0.895,
+      "correct_rate": 0.974,
+      "faithful_rate": 0.974,
+      "multi_turn_correct_rate": 1.0,
+      "multi_turn_faithful_rate": 1.0
+    },
+    "date": "2026-07-07"
   }
 }

@@ -262,6 +262,25 @@ class RagProxy:
         logger.info("Agentic RAG chain created.")
         return chain
 
+    def make_corrective_chain(self) -> Runnable:
+        """
+        Creates a self-correcting RAG chain (Corrective RAG): retrieved
+        passages are graded before answering; on a poor grade the query is
+        rewritten and retrieval retried (bounded cycle), and when no
+        attempt produces relevant context the chain refuses with the
+        evidence of what it searched — instead of hallucinating from
+        irrelevant chunks.
+
+        The input contract matches the other chains: a question string or
+        a dict {"question": "..."}.
+        """
+        # Imported lazily: corrective.py imports helpers from this module.
+        from .corrective import CorrectiveRagChain
+
+        chain = CorrectiveRagChain(self._llm, self._retriever)
+        logger.info("Corrective RAG chain created.")
+        return chain
+
     @staticmethod
     def _doc_key(doc: Document) -> Tuple[str, str]:
         """Hashable identity for a document (content + metadata)."""

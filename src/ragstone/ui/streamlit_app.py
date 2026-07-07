@@ -203,7 +203,7 @@ class StreamlitApp:
 
                 chain_type = st.selectbox(
                     "RAG Chain Type",
-                    ["simple", "multi_query", "fusion", "agent"],
+                    ["simple", "multi_query", "fusion", "agent", "corrective"],
                     help=(
                         "Choose the RAG technique to use. 'agent' lets the "
                         "LLM drive retrieval via a search tool (slower, "
@@ -409,12 +409,28 @@ class StreamlitApp:
                     st.markdown(f"**{src['source']}**")
                     st.caption(src["snippet"])
 
-    def _stream_answer(self, prompt: str) -> str:
-        """Stream the answer, rendering agent progress events live.
+    @staticmethod
+    def _event_line(event: Dict[str, Any]) -> Optional[str]:
+        """Human-readable line for a progress event, or None to skip it."""
+        kind = event.get("event")
+        if kind == "search":
+            return f'🔍 Searching: "{event.get("query", "")}"'
+        if kind == "retrieve":
+            return f'📥 Retrieving: "{event.get("query", "")}"'
+        if kind == "grade":
+            verdict = "relevant ✓" if event.get("relevant") else "irrelevant ✗"
+            return f"⚖️ Graded results: {verdict}"
+        if kind == "rewrite":
+            return f'✏️ Rewriting query: "{event.get("query", "")}"'
+        return None
 
-        Text chunks accumulate into the answer; dict events (the agent
-        chain's live searches) render as status lines above it, so the
-        user watches the agent think before the answer streams in.
+    def _stream_answer(self, prompt: str) -> str:
+        """Stream the answer, rendering progress events live.
+
+        Text chunks accumulate into the answer; dict events (agent
+        searches, corrective-loop grades/rewrites) render as status lines
+        above it, so the user watches the system think before the answer
+        streams in.
         """
         status = None
         placeholder = st.empty()
@@ -425,10 +441,11 @@ class StreamlitApp:
             prompt, session_id=st.session_state.chat_session_id
         ):
             if isinstance(chunk, dict):
-                if chunk.get("event") == "search":
+                line = self._event_line(chunk)
+                if line:
                     if status is None:
-                        status = st.status("🤖 Agent researching…", expanded=True)
-                    status.write(f'🔍 Searching: "{chunk.get("query", "")}"')
+                        status = st.status("🤖 Working…", expanded=True)
+                    status.write(line)
             elif chunk:
                 parts.append(chunk)
                 # Throttle redraws: a markdown round-trip per token adds
@@ -439,7 +456,7 @@ class StreamlitApp:
                     last_render = now
 
         if status is not None:
-            status.update(label="🤖 Agent research", state="complete", expanded=False)
+            status.update(label="🤖 Working", state="complete", expanded=False)
         answer = "".join(parts)
         placeholder.markdown(answer)
         return answer
@@ -490,7 +507,7 @@ class StreamlitApp:
             "One question, two techniques, the same corpus. Judge the "
             "answers yourself — latency and cost are measured for you."
         )
-        options = ["simple", "multi_query", "fusion", "agent"]
+        options = ["simple", "multi_query", "fusion", "agent", "corrective"]
         select_left, select_right = st.columns(2)
         with select_left:
             left = st.selectbox("Left chain", options, index=0, key="cmp_left")
@@ -555,10 +572,9 @@ class StreamlitApp:
                     progressed = True
                     if kind == "chunk":
                         if isinstance(payload, dict):
-                            if payload.get("event") == "search":
-                                events[i].append(
-                                    f'🔍 _searching: "{payload.get("query", "")}"_'
-                                )
+                            line = self._event_line(payload)
+                            if line:
+                                events[i].append(f"_{line}_")
                         else:
                             parts[i].append(payload)
                     elif kind == "error":

@@ -251,6 +251,38 @@ round-trip overlap) and is bounded only by provider rate limits.
 
 ---
 
+## Experiment 8 — Corrective RAG: does self-correction pay?
+
+**Hypothesis:** grading retrieved passages before answering — and
+rewriting the query when they fail the grade — should recover questions
+whose phrasing misses the corpus wording, and make "I don't know" an
+evidence-based verdict instead of a model mood.
+
+**Method:** `--chain-type corrective` vs the `simple` baseline, full
+judged eval. The corrective chain is a LangGraph with a conditional
+grade → (answer | rewrite→retrieve cycle | refuse) topology; grading and
+rewriting run on the utility model.
+
+| | simple | agent (Exp 4 follow-up) | **corrective** |
+|---|---|---|---|
+| correct_rate | 0.947 | 0.947 | **0.974** |
+| faithful_rate | 0.947–0.974 | 0.974 | 0.974 |
+| multi_turn_correct | 1.0 | — | 1.0 |
+| avg latency | ~1.5 s | 2.7 s | 2.8 s |
+| total tokens | ~45 k | ~57 k | 94 k |
+
+**Decision.** The first technique in this repo that *bought* correctness:
+q31 (the Violet Line fare — the one case every other chain failed on
+every run) passes under corrective, because the rewrite found phrasing
+the first retrieval missed. The price is ~1.9× latency and ~2.1× tokens
+(a grade call on every answer, rewrites on retries). `simple` stays the
+default — but where the last few points of correctness are worth double
+the cost, `corrective` is the measured way to buy them. Contrast with
+agent mode, which paid similar costs for zero quality gain: *how* you
+spend extra LLM calls matters more than *that* you spend them.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

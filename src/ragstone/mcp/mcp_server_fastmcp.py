@@ -157,7 +157,7 @@ async def setup_retriever(
     Args:
         pipeline_id: Pipeline identifier to set up
         use_ensemble: Whether to use ensemble retriever (BM25 + Vector)
-        chain_type: Type of RAG chain (simple, multi_query, fusion, agent)
+        chain_type: Type of RAG chain (simple, multi_query, fusion, agent, corrective)
         use_reranker: Add a cross-encoder reranking stage (requires the rerank extra)
 
     Returns:
