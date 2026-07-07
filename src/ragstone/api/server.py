@@ -19,6 +19,7 @@ Run it:
     ragstone-api                       # binds 127.0.0.1:8000 by default
 """
 
+import hmac
 import json
 import logging
 import os
@@ -118,7 +119,10 @@ def create_app(
     app.state.ask_slots = ask_slots  # exposed for tests/inspection
 
     def _require_key(request: Request) -> None:
-        if key and request.headers.get("x-api-key") != key:
+        # compare_digest: constant-time comparison, so response timing
+        # cannot be used to guess the key byte by byte.
+        provided = request.headers.get("x-api-key") or ""
+        if key and not hmac.compare_digest(provided, key):
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
     @app.exception_handler(PipelineError)

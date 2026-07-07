@@ -16,6 +16,7 @@ from ..utils.exceptions import (
 )
 from ..utils.full_chain import FullChain
 from ..utils.observability import RequestMetrics, time_stage, track_request
+from ..utils.security import validate_data_dir, validate_page_url
 from .cache import QueryResultCache  # noqa: F401  re-exported; tests import here
 from .cache import get_query_cache as _get_query_cache
 from .cache import is_response_cache_enabled as _is_response_cache_enabled
@@ -170,6 +171,14 @@ class Pipeline:
         Returns:
             Optional[List]: The list of split documents, or None if no documents were processed.
         """
+        # Boundary checks BEFORE any loader runs: data_dir must stay
+        # inside RAGSTONE_DATA_ROOT (when set), and page URLs must not
+        # reach private/internal addresses. Servers pass these values
+        # straight from clients, so this is the trust boundary.
+        validate_data_dir(data_dir)
+        for url in page_urls or []:
+            validate_page_url(url)
+
         docs: List = []
         logger.info(
             f"Starting document loading. data_dir='{data_dir}', uploaded_files={'yes' if uploaded_files else 'no'}, page_urls={'yes' if page_urls else 'no'}, wiki_query='{wiki_query if wiki_query else 'no'}'"

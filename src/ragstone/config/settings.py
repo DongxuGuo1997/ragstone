@@ -39,6 +39,11 @@ class DatabaseConfig:
     embed_workers: int = field(
         default_factory=lambda: int(os.getenv("RAGSTONE_EMBED_WORKERS", "4"))
     )
+    # Retrieval depth. k=6 looked better on the retrieval-slice metric
+    # (hit rate 0.955 -> 0.980) but degraded END-TO-END quality at n=224:
+    # the two extra chunks are mostly distractor text that dilutes the
+    # prompt (faithfulness -2pp, multi-turn faithfulness -23pp, +46%
+    # tokens). Kept at 4 — see Experiment 10.
     similarity_k: int = 4
     max_query_length: int = 10000
     # BM25's share in the ensemble retriever; the vector store gets the
@@ -145,6 +150,11 @@ class LoaderConfig:
     )
     max_file_size_mb: int = 100
     enable_ocr: bool = False
+    # When set, document ingestion is confined to this directory tree —
+    # recommended for MCP/API deployments, where clients choose data_dir.
+    allowed_data_root: Optional[str] = field(
+        default_factory=lambda: os.getenv("RAGSTONE_DATA_ROOT") or None
+    )
     chunk_size: int = 1000
     chunk_overlap: int = 200
 
