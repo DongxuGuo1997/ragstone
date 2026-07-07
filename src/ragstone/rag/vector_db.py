@@ -463,11 +463,11 @@ class FaissProxy(VectorStoreProxy):
             # attached for query-time embedding, exactly as from_documents
             # would have done.
             logger.info(f"Creating FAISS vector store from {len(docs)} documents...")
-            from .embeddings import embed_texts_parallel
+            from .embeddings import embed_texts_cached
 
             db_cfg = get_config().database
             texts = [doc.page_content for doc in docs]
-            vectors = embed_texts_parallel(
+            vectors = embed_texts_cached(
                 embeddings, texts, db_cfg.batch_size, db_cfg.embed_workers
             )
             self._db = FAISS.from_embeddings(

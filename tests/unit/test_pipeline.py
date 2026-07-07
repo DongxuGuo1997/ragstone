@@ -83,10 +83,15 @@ class TestOllamaPipeline:
 class TestPipelineDocumentLoading:
     """Test suite for document loading functionality."""
 
-    def test_load_and_split_no_sources(self):
-        """Test load_and_split with no data sources."""
+    def test_load_and_split_no_sources(self, tmp_path):
+        """Test load_and_split with no data sources.
+
+        Points at an empty tmp dir: the default "data/" may legitimately
+        hold documents on a dev machine (e.g. for the compose stack), and
+        this test is about the no-sources behavior, not the working tree.
+        """
         pipeline = Pipeline()
-        result = pipeline.load_and_split()
+        result = pipeline.load_and_split(data_dir=str(tmp_path))
         assert result is None
         assert pipeline.texts is None
 

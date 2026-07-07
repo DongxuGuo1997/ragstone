@@ -82,6 +82,46 @@ def embed_texts_parallel(
     return [vector for batch in results if batch for vector in batch]
 
 
+def embed_texts_cached(
+    embeddings: Any,
+    texts: List[str],
+    batch_size: int,
+    max_workers: int,
+) -> List[List[float]]:
+    """Embed texts, serving unchanged ones from the content-addressed cache.
+
+    This is what makes re-ingestion incremental (Experiment 14): only
+    cache misses — new or edited chunks — reach the embedding API; their
+    vectors are computed via :func:`embed_texts_parallel` and written
+    back. Cached vectors round-trip exactly, so the resulting index is
+    bit-identical to an uncached build. With the cache disabled
+    (RAGSTONE_EMBED_CACHE=off) this is embed_texts_parallel verbatim.
+    """
+    from .embedding_cache import get_embedding_cache, model_id_for
+
+    cache = get_embedding_cache()
+    if cache is None:
+        return embed_texts_parallel(embeddings, texts, batch_size, max_workers)
+
+    model_id = model_id_for(embeddings)
+    cached = cache.get_many(model_id, texts)
+    miss_indices = [i for i in range(len(texts)) if i not in cached]
+    logger.info(
+        f"Embedding cache: {len(cached)} hits, {len(miss_indices)} misses "
+        f"({model_id})"
+    )
+    if miss_indices:
+        miss_texts = [texts[i] for i in miss_indices]
+        miss_vectors = embed_texts_parallel(
+            embeddings, miss_texts, batch_size, max_workers
+        )
+        cache.put_many(model_id, miss_texts, miss_vectors)
+        for index, vector in zip(miss_indices, miss_vectors):
+            cached[index] = vector
+
+    return [cached[i] for i in range(len(texts))]
+
+
 def make_openai_embeddings() -> Any:
     """Construct OpenAI embeddings from configuration.
 

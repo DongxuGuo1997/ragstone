@@ -51,6 +51,19 @@ class DatabaseConfig:
     pg_url: Optional[str] = field(
         default_factory=lambda: os.getenv("RAGSTONE_PG_URL") or None
     )
+    # Content-addressed embedding cache (Experiment 14): re-ingesting a
+    # corpus embeds only changed chunks. Exact-match by model+text, so it
+    # cannot alter retrieval results — disable only for benchmarking.
+    embed_cache_enabled: bool = field(
+        default_factory=lambda: (
+            os.getenv("RAGSTONE_EMBED_CACHE", "on").strip().lower() != "off"
+        )
+    )
+    embed_cache_path: str = field(
+        default_factory=lambda: os.getenv(
+            "RAGSTONE_EMBED_CACHE_PATH", "store/embedding_cache.sqlite"
+        )
+    )
     # Texts per embedding request during ingestion; batches are issued
     # concurrently by embed_workers threads (see rag/embeddings.py).
     batch_size: int = field(

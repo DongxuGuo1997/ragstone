@@ -28,6 +28,11 @@ Notable changes to Ragstone. The format follows
   sample sizes; the baseline gate says whether a drop is outside the CI.
   Judge self-preference bounded by a cross-model judge run (Experiment
   11: −2.4pp correctness under gpt-4.1-mini; no conclusion flips).
+- **Incremental ingestion** (`RAGSTONE_EMBED_CACHE`, on by default): a
+  content-addressed embedding cache keyed by model + exact chunk text —
+  re-ingesting a corpus embeds only new or edited chunks, across all
+  vector-store backends, with bit-identical vectors (float64
+  round-trip), so retrieval results cannot change.
 - **Agent mode** (`chain_type="agent"`): tool-calling retrieval loop via
   LangGraph `create_agent`, measured head-to-head against the fixed
   pipeline (Experiments, README).

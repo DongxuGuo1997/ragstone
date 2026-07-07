@@ -19,7 +19,7 @@ EXPERIMENTS.md):
 
 ## 1. Retrieval quality
 
-### 1.1 Contextual chunk enrichment — M, high expected impact
+### 1.1 Contextual chunk enrichment — DELIVERED (Experiment 12; `source` mode is the default)
 Prepend a short LLM-generated context line to each chunk before embedding
 ("This chunk is from the Corona K-7 installation guide, section:
 warranty"), so chunks carry their document identity into the vector
@@ -63,7 +63,7 @@ its refusal behavior is valuable on the right slice. Routing spends the
 2× only where it might pay.
 *Measure:* end-to-end large-set quality at ≤1.2× simple-chain tokens.
 
-### 1.6 Incremental indexing / freshness — M
+### 1.6 Incremental indexing / freshness — DELIVERED via the embedding cache (Experiment 14)
 `load_and_split` rebuilds the world. Index per-document with content
 hashes (the corpus fingerprint machinery already exists) so adding one
 document embeds one document; delete/update likewise.
@@ -97,7 +97,7 @@ Each is a `@tool` function away with the existing streaming events.
 
 ## 3. Evaluation science
 
-### 3.1 Cross-family judge — S, do this first
+### 3.1 Cross-family judge — DELIVERED same-provider (Experiment 11); different-provider judge still open
 The judge and the answering model are both gpt-4o-mini; self-preference
 inflation is a known LLM-as-judge bias, and it is now disclosed in
 EXPERIMENTS.md but not bounded. Run one full large-set pass with a
@@ -106,7 +106,7 @@ columns; keep the cross-family judge as an option (`--judge-provider`
 already exists).
 *Measure:* the delta between judges IS the result — publish it.
 
-### 3.2 Confidence intervals in reports — S
+### 3.2 Confidence intervals in reports — DELIVERED
 Every score in `report.md` should carry its binomial 95% CI
 (`±1.96·√(p(1−p)/n)`), and the baseline gate should annotate whether a
 drop is outside the CI, not just outside TOLERANCE. This mechanizes the
@@ -136,7 +136,7 @@ once (mrr will drop honestly).
 
 ## 4. Performance and scale
 
-### 4.1 pgvector / Qdrant backend — M/L
+### 4.1 pgvector / Qdrant backend — DELIVERED, both (Experiment 13; compose stack included)
 FAISS is in-process and rebuilt per session; a server-backed store gives
 persistence, metadata filtering, and multi-process access. The
 `VectorStoreProxy` ABC is the seam — implement `PgVectorProxy` behind it.
@@ -153,7 +153,7 @@ would cut thread overhead and let the API scale past the semaphore cap.
 Do it only with a load test proving the thread model is the bottleneck.
 *Measure:* p95 latency at 8/32/64 concurrent asks, before vs after.
 
-### 4.3 Embedding cache & quantization — S/M
+### 4.3 Embedding cache & quantization — cache DELIVERED (with 1.6); quantization still open
 Cache embeddings by content hash (survives re-ingest of unchanged docs;
 pairs with 1.6). For large corpora, int8/binary quantization halves memory
 at small recall cost.

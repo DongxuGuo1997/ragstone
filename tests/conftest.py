@@ -15,6 +15,9 @@ os.environ["OPENAI_API_KEY"] = "sk-test-dummy-key-for-testing"
 os.environ["VECTOR_STORE_TYPE"] = "faiss"
 os.environ["MCP_LOG_LEVEL"] = "DEBUG"
 os.environ["ENVIRONMENT"] = "testing"
+# Tests must not write store/embedding_cache.sqlite into the repo; the
+# cache's own tests enable it against tmp_path explicitly.
+os.environ["RAGSTONE_EMBED_CACHE"] = "off"
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

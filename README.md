@@ -227,6 +227,8 @@ RAGSTONE_LLM_TIMEOUT=60  # per-request timeout in seconds
 RAGSTONE_MAX_QUESTION_CHARS=4000  # questions above this are rejected pre-API
 RAGSTONE_REPHRASE_MODEL=gpt-4.1-nano  # optional: faster follow-up rephrasing
 RAGSTONE_CHUNK_CONTEXT=source  # document identity in chunks (Exp 12); off/llm
+RAGSTONE_EMBED_CACHE=on  # re-ingesting embeds only changed chunks (Exp 14)
+RAGSTONE_EMBED_CACHE_PATH=store/embedding_cache.sqlite
 ```
 
 > **Note:** Persisted vector stores (FAISS indices, Chroma collections) must be

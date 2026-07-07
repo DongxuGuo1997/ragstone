@@ -33,7 +33,7 @@ from ..utils.exceptions import (
     VectorStoreInitializationError,
     VectorStoreOperationError,
 )
-from .embeddings import embed_texts_parallel, make_openai_embeddings
+from .embeddings import embed_texts_cached, make_openai_embeddings
 from .vector_db import VectorStoreProxy
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ def _collection_name(prefix: str) -> str:
 class QdrantProxy(VectorStoreProxy):
     """Qdrant vector store: embedded local mode, or a server via QDRANT_URL.
 
-    Ingestion reuses `embed_texts_parallel` (precomputed vectors are
+    Ingestion reuses the cached parallel embedder (precomputed vectors are
     upserted through the raw client), then wraps the collection in
     LangChain's `QdrantVectorStore` for the retriever interface.
     """
@@ -123,7 +123,7 @@ class QdrantProxy(VectorStoreProxy):
 
             db_cfg = get_config().database
             texts = [doc.page_content for doc in docs]
-            vectors = embed_texts_parallel(
+            vectors = embed_texts_cached(
                 embeddings,
                 texts,
                 batch_size=db_cfg.batch_size,
@@ -213,7 +213,7 @@ class PgVectorProxy(VectorStoreProxy):
     (`RAGSTONE_PG_URL`, e.g.
     postgresql+psycopg://ragstone:ragstone@localhost:5432/ragstone —
     docker-compose.yml provides one). Ingestion reuses
-    `embed_texts_parallel` via PGVector.add_embeddings.
+    the cached parallel embedder via PGVector.add_embeddings.
     """
 
     def __init__(
@@ -267,7 +267,7 @@ class PgVectorProxy(VectorStoreProxy):
 
             db_cfg = get_config().database
             texts = [doc.page_content for doc in docs]
-            vectors = embed_texts_parallel(
+            vectors = embed_texts_cached(
                 embeddings,
                 texts,
                 batch_size=db_cfg.batch_size,
