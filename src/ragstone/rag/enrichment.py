@@ -47,6 +47,10 @@ with ONLY the sentence."""
 # Ingest-time concurrency for llm mode; embedding uses its own pool.
 _LLM_WORKERS = 8
 
+# How much of the parent document the llm mode shows the model: the lead
+# of a document names its subject, which is what disambiguation needs.
+_DOC_CONTEXT_CHARS = 4000
+
 
 def _source_label(doc: Document) -> str:
     """Human-readable document identity from metadata."""
@@ -105,7 +109,7 @@ def enrich_chunks(
     doc_text: Dict[str, str] = {}
     for doc in source_docs or []:
         key = str(doc.metadata.get("source", ""))
-        doc_text.setdefault(key, doc.page_content[:4000])
+        doc_text.setdefault(key, doc.page_content[:_DOC_CONTEXT_CHARS])
 
     chain = ChatPromptTemplate.from_template(CONTEXT_PROMPT) | llm | StrOutputParser()
 
@@ -121,10 +125,19 @@ def enrich_chunks(
                 raise ValueError("empty context line")
             return _prefixed(chunk, line)
         except Exception as exc:  # per-chunk fallback: never break ingest
-            logger.warning("Chunk context generation failed (%s); using source", exc)
+            logger.warning(f"Chunk context generation failed ({exc}); using source")
             return _prefixed(chunk, f"Source document: {_source_label(chunk)}")
 
     with ThreadPoolExecutor(max_workers=_LLM_WORKERS) as pool:
         enriched = list(pool.map(_context_for, chunks))
-    logger.info("Enriched %d chunks with LLM context lines", len(enriched))
+    # Honest accounting: chunks without a matching source doc (or whose
+    # LLM call failed) fell back to source labels — the log must not
+    # claim LLM lines that were never generated.
+    fallbacks = sum(
+        1 for doc in enriched if doc.page_content.startswith("[Source document:")
+    )
+    logger.info(
+        f"Chunk context: {len(enriched) - fallbacks} LLM lines, "
+        f"{fallbacks} source-label fallbacks"
+    )
     return enriched

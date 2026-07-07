@@ -101,6 +101,11 @@ pgvector = [
     "langchain-postgres>=0.0.15,<0.1",
     "psycopg[binary]>=3.1,<4.0",
 ]
+all = [
+    # Every runtime extra (not dev tooling). Keep in sync with the
+    # feature extras above.
+    "ragstone[rerank,sqlite,api,qdrant,pgvector]",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

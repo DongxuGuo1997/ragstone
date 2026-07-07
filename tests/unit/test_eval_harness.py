@@ -72,6 +72,8 @@ def _case(case_id, category, question, turns=None):
 
 
 class TestMultiTurnGeneration:
+    """Session handling and metric split for scripted conversations."""
+
     def test_turns_run_in_order_in_one_session(self, run_eval):
         pipeline = _ScriptedPipeline()
         cases = [
@@ -123,6 +125,8 @@ class TestMultiTurnGeneration:
 
 
 class TestRetrievalLayerSkips:
+    """Layer 1 must skip categories it cannot score fairly."""
+
     def test_multi_turn_and_unanswerable_are_skipped(self, run_eval):
         pipeline = _ScriptedPipeline()
         cases = [

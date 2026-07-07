@@ -62,6 +62,8 @@ def _chat(pipeline=None):
 
 
 class TestHelpers:
+    """Pure rendering/parsing helpers: no pipeline, no terminal."""
+
     def test_parse_command_splits_slash_commands(self):
         assert parse_command("/chain corrective") == ("chain", "corrective")
         assert parse_command("/help") == ("help", "")
@@ -96,6 +98,8 @@ class TestHelpers:
 
 
 class TestCommands:
+    """The slash-command surface, driven with an injected stub pipeline."""
+
     def test_ask_streams_events_answer_trace_and_sources(self, capsys):
         chat = _chat()
         chat.ask("what is the warranty?")

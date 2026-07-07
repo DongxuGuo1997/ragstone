@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov eval eval-retrieval lint format clean build dev-setup run-streamlit run-mcp-server run-chat check prepare-release
+.PHONY: help install install-dev test test-cov eval eval-retrieval lint format clean build dev-setup run-streamlit run-mcp-server run-chat run-api docker-build docker-up docker-down check prepare-release
 
 # Default target
 help:
@@ -7,10 +7,16 @@ help:
 	@echo "  install-dev   Install package with development dependencies"
 	@echo "  test          Run test suite"
 	@echo "  test-cov      Run tests with coverage"
+	@echo "  eval          Full LLM-judged eval (smoke set, costs cents)"
+	@echo "  eval-retrieval  Free retrieval-slice eval against baseline"
 	@echo "  lint          Run code linting"
 	@echo "  format        Format code with black and isort"
 	@echo "  clean         Clean build artifacts"
 	@echo "  build         Build package"
+	@echo "  run-streamlit / run-api / run-mcp-server / run-chat"
+	@echo "  docker-build  Build the API image"
+	@echo "  docker-up     API + Qdrant + Postgres/pgvector stack"
+	@echo "  docker-down   Stop the compose stack"
 
 install:
 	pip install -e .
@@ -63,6 +69,19 @@ run-mcp-server:
 
 run-chat:
 	python -m ragstone.ui.chat_interface
+
+run-api:
+	python -m ragstone.api.server
+
+# Optional Docker deployment (local dev never needs it)
+docker-build:
+	docker build -t ragstone-api .
+
+docker-up:
+	docker compose up --build
+
+docker-down:
+	docker compose down
 
 # Quality checks
 check: lint test

@@ -32,7 +32,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from ragstone.config.settings import get_config
-from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline
+from ragstone.rag.pipeline import build_pipeline
 from ragstone.utils.exceptions import DocumentLoadingError, PipelineError
 from ragstone.utils.observability import estimate_cost_usd, track_request
 
@@ -164,10 +164,7 @@ class ChatInterface:
             self.pipeline = pipeline
             return
 
-        if pipeline_type.lower() == "ollama":
-            self.pipeline = OllamaPipeline(model=model)
-        else:
-            self.pipeline = OpenAIPipeline(model=model)
+        self.pipeline = build_pipeline(pipeline_type, model)
         print(f"Initialized {pipeline_type} pipeline with {model}")
 
         print("Loading documents...")
@@ -181,10 +178,7 @@ class ChatInterface:
         print(f"Loaded {len(texts)} document chunks")
 
         print("Setting up retriever...")
-        if pipeline_type.lower() == "ollama":
-            self.pipeline.set_retriever_ollama(use_ensemble=True)
-        else:
-            self.pipeline.set_retriever_openai(use_ensemble=True)
+        self.pipeline.setup_retriever(use_ensemble=True)
 
         print(f"Creating RAG chain ({chain_type})...")
         self.pipeline.create_rag_chain(chain_type=chain_type)
@@ -383,8 +377,8 @@ class ChatInterface:
                 print(self.style.yellow(f"Error: {exc}"))
 
 
-def get_available_ollama_models():
-    """Get list of available Ollama models."""
+def get_available_ollama_models() -> List[str]:
+    """Names of models the local Ollama server reports, or [] offline."""
     try:
         import requests
 
@@ -398,8 +392,8 @@ def get_available_ollama_models():
     return []
 
 
-def select_model_interactive():
-    """Interactive model selection."""
+def select_model_interactive() -> Tuple[str, str]:
+    """Prompt for provider and model; returns (pipeline_type, model)."""
     print("\nSelect Pipeline Type:")
     print("1. Ollama (Local models)")
     print("2. OpenAI (Cloud models)")

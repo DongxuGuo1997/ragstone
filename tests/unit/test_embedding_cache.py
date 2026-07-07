@@ -53,6 +53,8 @@ TEXTS = ["solar warranty is 28 years", "coffee rests 10 days", "thrust is 4.2 MN
 
 
 class TestIncrementalIngest:
+    """Only changed chunks may reach the embedding API (Experiment 14)."""
+
     def test_second_ingest_embeds_nothing(self, cache_path):
         embeddings = _CountingEmbeddings()
         first = embed_texts_cached(embeddings, TEXTS, batch_size=2, max_workers=2)
@@ -109,6 +111,8 @@ class TestIncrementalIngest:
 
 
 class TestModelIdentity:
+    """Cache keys must separate embedding models."""
+
     def test_model_id_includes_class_and_model_name(self):
         embeddings = _CountingEmbeddings("text-embedding-3-small")
         assert model_id_for(embeddings) == (

@@ -855,14 +855,9 @@ class StreamlitApp:
                 if pipeline:
                     # Set retriever
                     try:
-                        if isinstance(pipeline, OpenAIPipeline):
-                            pipeline.set_retriever_openai(
-                                use_ensemble=use_ensemble, use_reranker=use_reranker
-                            )
-                        else:
-                            pipeline.set_retriever_ollama(
-                                use_ensemble=use_ensemble, use_reranker=use_reranker
-                            )
+                        pipeline.setup_retriever(
+                            use_ensemble=use_ensemble, use_reranker=use_reranker
+                        )
                     except ImportError as e:
                         # The rerank extra is not installed — explain and stop
                         st.error(f"❌ {e}")

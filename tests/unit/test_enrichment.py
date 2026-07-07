@@ -22,6 +22,8 @@ def _chunk(text, source="corona_solar_guide.md", title=None):
 
 
 class TestOffMode:
+    """mode=off must be a strict identity."""
+
     def test_off_is_identity(self):
         chunks = [_chunk("torque is 18 Nm")]
         assert enrich_chunks(chunks, mode="off") is chunks
@@ -31,6 +33,8 @@ class TestOffMode:
 
 
 class TestSourceMode:
+    """Deterministic document-identity prefixes (the Experiment-12 default)."""
+
     def test_prefixes_document_identity(self):
         [enriched] = enrich_chunks([_chunk("clean every 4 months")], mode="source")
         assert enriched.page_content == (
@@ -55,6 +59,8 @@ class TestSourceMode:
 
 
 class TestLlmMode:
+    """Generated context lines, with per-chunk fallback on any failure."""
+
     def test_prepends_generated_context_line(self):
         llm = FakeListChatModel(
             responses=["This chunk covers the Corona K-7 cleaning schedule."]

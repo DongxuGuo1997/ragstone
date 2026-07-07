@@ -25,8 +25,9 @@ Both extras are optional installs:
 
 import logging
 import os
+import threading
 import uuid
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..config.settings import get_config
 from ..utils.exceptions import (
@@ -50,6 +51,23 @@ def _collection_name(prefix: str) -> str:
     return configured or f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
+# Embedded Qdrant clients are shared per path and live for the process:
+# local mode holds an EXCLUSIVE filesystem lock on the storage folder, so
+# a client per proxy would crash the SECOND pipeline on the same path.
+# Collections stay isolated per proxy; only the client handle is shared.
+_local_clients: Dict[str, Any] = {}
+_local_clients_lock = threading.Lock()
+
+
+def _shared_local_client(path: str):
+    from qdrant_client import QdrantClient
+
+    with _local_clients_lock:
+        if path not in _local_clients:
+            _local_clients[path] = QdrantClient(path=path)
+        return _local_clients[path]
+
+
 class QdrantProxy(VectorStoreProxy):
     """Qdrant vector store: embedded local mode, or a server via QDRANT_URL.
 
@@ -68,6 +86,12 @@ class QdrantProxy(VectorStoreProxy):
         self._path = path or db_cfg.qdrant_path
         self._url = url or db_cfg.qdrant_url
         self._collection = collection_name or _collection_name("ragstone")
+        # Pin state is captured NOW: cleanup() must not re-read config,
+        # or a config reload between init and cleanup could drop a pinned
+        # deployment index (or leak an unpinned scratch collection).
+        self._owns_collection = (
+            collection_name is None and db_cfg.collection_name is None
+        )
         self._client: Optional[Any] = None
         self._db: Optional[Any] = None
         self._is_initialized = False
@@ -100,9 +124,10 @@ class QdrantProxy(VectorStoreProxy):
                     url=self._url, api_key=os.getenv("QDRANT_API_KEY")
                 )
             else:
-                # Embedded mode: persists to disk, no server process. Holds
-                # a file lock, so cleanup() must close it.
-                self._client = QdrantClient(path=self._path)
+                # Embedded mode: persists to disk, no server process. The
+                # client is SHARED per path (exclusive folder lock) and
+                # lives for the process — cleanup() must not close it.
+                self._client = _shared_local_client(self._path)
         return self._client
 
     def create_db(
@@ -183,21 +208,22 @@ class QdrantProxy(VectorStoreProxy):
             raise VectorStoreOperationError(f"Qdrant search failed: {e}") from e
 
     def cleanup(self) -> None:
-        """Drop this proxy's collection and release the client.
+        """Drop this proxy's collection (if it owns it) and detach.
 
-        Embedded mode holds a filesystem lock on QDRANT_PATH; without the
-        close() a deleted pipeline would block every later one. Pinned
-        (configured) collection names are preserved — they are the
+        Pinned (configured) collection names are preserved — they are the
         deployment's persistent index, not this instance's scratch space.
+        Embedded-mode clients are shared per path and stay open for the
+        process (closing would yank the handle from other pipelines);
+        server-mode clients are per-proxy and are closed here.
         """
         try:
             if self._client is not None:
-                if (
-                    get_config().database.collection_name is None
-                    and self._client.collection_exists(self._collection)
+                if self._owns_collection and self._client.collection_exists(
+                    self._collection
                 ):
                     self._client.delete_collection(self._collection)
-                self._client.close()
+                if self._url:  # per-proxy server client; local ones are shared
+                    self._client.close()
                 self._client = None
             self._db = None
             self._is_initialized = False
@@ -228,6 +254,11 @@ class PgVectorProxy(VectorStoreProxy):
                 "pgvector requires a connection string: set RAGSTONE_PG_URL"
             )
         self._collection = collection_name or _collection_name("ragstone")
+        # Captured at init for the same reason as QdrantProxy: cleanup()
+        # must not change its drop/preserve decision on a config reload.
+        self._owns_collection = (
+            collection_name is None and db_cfg.collection_name is None
+        )
         self._db: Optional[Any] = None
         self._is_initialized = False
         logger.info(f"PgVectorProxy initialized (collection {self._collection})")
@@ -312,7 +343,7 @@ class PgVectorProxy(VectorStoreProxy):
     def cleanup(self) -> None:
         """Drop this proxy's collection (unless pinned) and release the store."""
         try:
-            if self._db is not None and get_config().database.collection_name is None:
+            if self._db is not None and self._owns_collection:
                 self._db.delete_collection()
             self._db = None
             self._is_initialized = False

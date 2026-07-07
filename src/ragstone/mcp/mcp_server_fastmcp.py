@@ -14,7 +14,7 @@ from anyio import to_thread
 from mcp.server.fastmcp import FastMCP
 
 from ragstone.config.settings import get_config
-from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline
+from ragstone.rag.pipeline import build_pipeline
 from ragstone.utils.exceptions import PipelineError
 
 # The registry (shared with the REST API) is thread-safe: tools run
@@ -51,6 +51,14 @@ def _safe_error(action: str, exc: Exception) -> str:
 mcp = FastMCP("Ragstone")
 
 
+_PROVIDER_LABELS = {"openai": "OpenAI", "ollama": "Ollama"}
+
+
+def _provider_label(pipeline) -> str:
+    """Display name for a pipeline's provider ("OpenAI"/"Ollama")."""
+    return _PROVIDER_LABELS.get(getattr(pipeline, "provider", ""), "unknown")
+
+
 @mcp.tool()
 def create_openai_pipeline(
     model: str = "gpt-4o-mini", pipeline_id: str = "default_openai"
@@ -65,7 +73,7 @@ def create_openai_pipeline(
         Success message with pipeline details
     """
     try:
-        pipeline = OpenAIPipeline(model=model)
+        pipeline = build_pipeline("openai", model)
         _put_pipeline(pipeline_id, pipeline)
         return (
             f"OpenAI pipeline '{pipeline_id}' created successfully with model {model}"
@@ -88,7 +96,7 @@ def create_ollama_pipeline(
         Success message with pipeline details
     """
     try:
-        pipeline = OllamaPipeline(model=model)
+        pipeline = build_pipeline("ollama", model)
         _put_pipeline(pipeline_id, pipeline)
         return (
             f"Ollama pipeline '{pipeline_id}' created successfully with model {model}"
@@ -183,14 +191,9 @@ async def setup_retriever(
         def _configure():
             # Embeds the corpus and may download the cross-encoder model —
             # too slow to run on the server's event loop.
-            if isinstance(pipeline, OpenAIPipeline):
-                pipeline.set_retriever_openai(
-                    use_ensemble=use_ensemble, use_reranker=use_reranker
-                )
-            elif isinstance(pipeline, OllamaPipeline):
-                pipeline.set_retriever_ollama(
-                    use_ensemble=use_ensemble, use_reranker=use_reranker
-                )
+            pipeline.setup_retriever(
+                use_ensemble=use_ensemble, use_reranker=use_reranker
+            )
             pipeline.create_rag_chain(chain_type=chain_type)
 
         await to_thread.run_sync(_configure)
@@ -250,7 +253,7 @@ def list_pipelines() -> str:
 
     result = "**Available Pipelines:**\n\n"
     for pipeline_id, pipeline in pipelines:
-        pipeline_type = "OpenAI" if isinstance(pipeline, OpenAIPipeline) else "Ollama"
+        pipeline_type = _provider_label(pipeline)
         model = pipeline.llm_proxy.get_model_name() if pipeline.llm_proxy else "Not set"
         has_docs = "Yes" if pipeline.texts else "No"
         has_chain = "Yes" if pipeline.get_chain() else "No"
@@ -278,7 +281,7 @@ def get_pipeline_info(pipeline_id: str) -> str:
     if pipeline is None:
         return f"Pipeline '{pipeline_id}' not found."
 
-    pipeline_type = "OpenAI" if isinstance(pipeline, OpenAIPipeline) else "Ollama"
+    pipeline_type = _provider_label(pipeline)
     model = pipeline.llm_proxy.get_model_name() if pipeline.llm_proxy else "Not set"
     doc_count = len(pipeline.texts) if pipeline.texts else 0
     has_chain = pipeline.get_chain() is not None

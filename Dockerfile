@@ -19,6 +19,8 @@ WORKDIR /app
 # Dependency layer first so code edits don't bust the pip cache.
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
+# api + both server-backed stores; rerank/sqlite excluded to keep the
+# image lean (add them here if your deployment uses those features).
 RUN pip install --no-cache-dir ".[api,qdrant,pgvector]"
 
 # Non-root: the API needs no privileges, and store/ must stay writable.

@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 # processes itself. Reads are cheap and also funneled here for simplicity.
 _LOCK = threading.Lock()
 
+# Keys per IN (...) query — comfortably under SQLite's host-parameter
+# limit (999 in older builds).
+_SQLITE_IN_LIMIT = 500
+
 
 def model_id_for(embeddings: Any) -> str:
     """Stable identity of the embedding model for cache keys.
@@ -63,45 +67,68 @@ class EmbeddingCache:
     def __init__(self, path: str) -> None:
         self._path = path
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        with _LOCK, self._connect() as conn:
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS embeddings "
-                "(key TEXT PRIMARY KEY, vector BLOB NOT NULL)"
-            )
+        with _LOCK:
+            conn = self._connect()
+            try:
+                with conn:
+                    # WAL lets a reader proceed while another PROCESS is
+                    # mid-write — two pipelines ingesting concurrently must
+                    # not abort with "database is locked". Persistent, so
+                    # set once here.
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute(
+                        "CREATE TABLE IF NOT EXISTS embeddings "
+                        "(key TEXT PRIMARY KEY, vector BLOB NOT NULL)"
+                    )
+            finally:
+                conn.close()
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._path)
+        # Generous busy timeout: a concurrent process's large write
+        # transaction must make this connection wait, not fail.
+        return sqlite3.connect(self._path, timeout=30.0)
 
     def get_many(self, model_id: str, texts: List[str]) -> Dict[int, List[float]]:
         """Cached vectors by input index, for the texts that have one."""
         keys = [_key(model_id, text) for text in texts]
         found: Dict[int, List[float]] = {}
-        with _LOCK, self._connect() as conn:
-            for i in range(0, len(keys), 500):  # stay under host param limits
-                batch = keys[i : i + 500]
-                placeholders = ",".join("?" * len(batch))
-                rows = conn.execute(
-                    f"SELECT key, vector FROM embeddings "  # noqa: S608
-                    f"WHERE key IN ({placeholders})",
-                    batch,
-                ).fetchall()
-                by_key = {key: blob for key, blob in rows}
-                for j, key in enumerate(batch):
-                    if key in by_key:
-                        found[i + j] = _unpack(by_key[key])
+        with _LOCK:
+            conn = self._connect()
+            try:
+                for i in range(0, len(keys), _SQLITE_IN_LIMIT):
+                    batch = keys[i : i + _SQLITE_IN_LIMIT]
+                    placeholders = ",".join("?" * len(batch))
+                    rows = conn.execute(
+                        f"SELECT key, vector FROM embeddings "  # noqa: S608
+                        f"WHERE key IN ({placeholders})",
+                        batch,
+                    ).fetchall()
+                    by_key = {key: blob for key, blob in rows}
+                    for j, key in enumerate(batch):
+                        if key in by_key:
+                            found[i + j] = _unpack(by_key[key])
+            finally:
+                conn.close()
         return found
 
     def put_many(
         self, model_id: str, texts: List[str], vectors: List[List[float]]
     ) -> None:
-        with _LOCK, self._connect() as conn:
-            conn.executemany(
-                "INSERT OR REPLACE INTO embeddings (key, vector) VALUES (?, ?)",
-                [
-                    (_key(model_id, text), _pack(vector))
-                    for text, vector in zip(texts, vectors)
-                ],
-            )
+        """Store vectors for texts; last writer wins on duplicate keys."""
+        with _LOCK:
+            conn = self._connect()
+            try:
+                with conn:
+                    conn.executemany(
+                        "INSERT OR REPLACE INTO embeddings (key, vector) "
+                        "VALUES (?, ?)",
+                        [
+                            (_key(model_id, text), _pack(vector))
+                            for text, vector in zip(texts, vectors)
+                        ],
+                    )
+            finally:
+                conn.close()
 
 
 _cache: Optional[EmbeddingCache] = None
@@ -109,7 +136,11 @@ _cache_path: Optional[str] = None
 
 
 def get_embedding_cache() -> Optional[EmbeddingCache]:
-    """Process-wide cache instance, or None when disabled by config."""
+    """Process-wide cache instance, or None when disabled by config.
+
+    First-call races can construct two instances; that is benign (same
+    file, idempotent schema, last assignment wins), so no lock here.
+    """
     from ..config.settings import get_config
 
     db_cfg = get_config().database

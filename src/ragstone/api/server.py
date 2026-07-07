@@ -40,10 +40,9 @@ except ImportError as exc:  # pragma: no cover - exercised only without extra
 from anyio import to_thread
 
 from ragstone.config.settings import get_config
-from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline
+from ragstone.rag.pipeline import DEFAULT_MODELS, build_pipeline
 from ragstone.utils.exceptions import PipelineError, ValidationError
 from ragstone.utils.registry import (
-    Pipeline,
     get_pipeline,
     pop_pipeline,
     put_pipeline,
@@ -165,18 +164,12 @@ def create_app(
     @app.post("/pipelines", status_code=201)
     async def create_pipeline(body: CreatePipelineRequest, request: Request):
         _require_key(request)
-        pipeline: Pipeline
-        if body.provider == "openai":
-            model = body.model or "gpt-4o-mini"
-            pipeline = OpenAIPipeline(model=model)
-        else:
-            model = body.model or "llama3"
-            pipeline = OllamaPipeline(model=model)
+        pipeline = build_pipeline(body.provider, body.model)
         put_pipeline(body.pipeline_id, pipeline)
         return {
             "pipeline_id": body.pipeline_id,
             "provider": body.provider,
-            "model": model,
+            "model": body.model or DEFAULT_MODELS[body.provider],
         }
 
     @app.get("/pipelines")
@@ -187,9 +180,7 @@ def create_app(
             result.append(
                 {
                     "pipeline_id": pipeline_id,
-                    "provider": (
-                        "openai" if isinstance(pipeline, OpenAIPipeline) else "ollama"
-                    ),
+                    "provider": getattr(pipeline, "provider", "unknown"),
                     "model": (
                         pipeline.llm_proxy.get_model_name()
                         if pipeline.llm_proxy
@@ -236,14 +227,9 @@ def create_app(
         pipeline = _get_or_404(pipeline_id)
 
         def _configure():
-            if isinstance(pipeline, OpenAIPipeline):
-                pipeline.set_retriever_openai(
-                    use_ensemble=body.use_ensemble, use_reranker=body.use_reranker
-                )
-            else:
-                pipeline.set_retriever_ollama(
-                    use_ensemble=body.use_ensemble, use_reranker=body.use_reranker
-                )
+            pipeline.setup_retriever(
+                use_ensemble=body.use_ensemble, use_reranker=body.use_reranker
+            )
             pipeline.create_rag_chain(chain_type=body.chain_type)
 
         await to_thread.run_sync(_configure)
@@ -318,12 +304,19 @@ def _sse_stream(pipeline, body: AskRequest, ask_slots) -> Iterator[str]:
     pipeline call actually finishes.
     """
     handoff: "queue.Queue[Tuple[str, object]]" = queue.Queue()
+    cancelled = threading.Event()
 
     def _produce() -> None:
         try:
             for chunk in pipeline.ask_question_stream(
                 body.question, session_id=body.session_id, use_cache=body.use_cache
             ):
+                if cancelled.is_set():
+                    # Client is gone: stop at the next chunk boundary so an
+                    # abandoned request doesn't pin a concurrency slot (and
+                    # burn tokens) for the rest of a full generation.
+                    logger.info("Client disconnected; abandoning stream")
+                    break
                 handoff.put(("chunk", chunk))
             handoff.put(("done", None))
         except PipelineError as exc:
@@ -347,22 +340,27 @@ def _sse_stream(pipeline, body: AskRequest, ask_slots) -> Iterator[str]:
             ask_slots.release()
         raise
 
-    while True:
-        kind, payload = handoff.get()
-        if kind == "chunk":
-            if isinstance(payload, dict):
-                # Progress events (e.g. the agent chain's live searches)
-                # become named SSE events, distinct from answer data.
-                name = payload.get("event", "progress")
-                yield f"event: {name}\ndata: {json.dumps(payload)}\n\n"
-            else:
-                yield _sse_data(str(payload))
-        elif kind == "error":
-            yield f"event: error\n{_sse_data(str(payload))}"
-            return
-        else:  # done
-            yield "data: [DONE]\n\n"
-            return
+    try:
+        while True:
+            kind, payload = handoff.get()
+            if kind == "chunk":
+                if isinstance(payload, dict):
+                    # Progress events (e.g. the agent chain's live searches)
+                    # become named SSE events, distinct from answer data.
+                    name = payload.get("event", "progress")
+                    yield f"event: {name}\ndata: {json.dumps(payload)}\n\n"
+                else:
+                    yield _sse_data(str(payload))
+            elif kind == "error":
+                yield f"event: error\n{_sse_data(str(payload))}"
+                return
+            else:  # done
+                yield "data: [DONE]\n\n"
+                return
+    finally:
+        # Runs on normal completion AND on GeneratorExit when the client
+        # disconnects mid-stream — the worker checks this flag per chunk.
+        cancelled.set()
 
 
 def main() -> None:

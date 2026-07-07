@@ -12,11 +12,9 @@ in-flight call, it only removes it from the registry.
 """
 
 import threading
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
-from ..rag.pipeline import OllamaPipeline, OpenAIPipeline
-
-Pipeline = Union[OpenAIPipeline, OllamaPipeline]
+from ..rag.pipeline import Pipeline
 
 _pipelines: Dict[str, Pipeline] = {}
 _pipelines_lock = threading.Lock()

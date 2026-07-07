@@ -50,19 +50,27 @@ class _StubPipeline:
 
 
 class _StubOpenAIPipeline(_StubPipeline):
-    def set_retriever_openai(self, use_ensemble=True, use_reranker=False):
+    provider = "openai"
+
+    def setup_retriever(self, use_ensemble=True, use_reranker=False):
         pass
 
 
 class _StubOllamaPipeline(_StubPipeline):
-    def set_retriever_ollama(self, use_ensemble=True, use_reranker=False):
+    provider = "ollama"
+
+    def setup_retriever(self, use_ensemble=True, use_reranker=False):
         pass
+
+
+def _stub_build_pipeline(provider, model=None):
+    cls = _StubOpenAIPipeline if provider == "openai" else _StubOllamaPipeline
+    return cls(model=model or "stub-model")
 
 
 @pytest.fixture(autouse=True)
 def stub_pipelines(monkeypatch):
-    monkeypatch.setattr(server, "OpenAIPipeline", _StubOpenAIPipeline)
-    monkeypatch.setattr(server, "OllamaPipeline", _StubOllamaPipeline)
+    monkeypatch.setattr(server, "build_pipeline", _stub_build_pipeline)
     registry.clear_pipelines()
     yield
     registry.clear_pipelines()

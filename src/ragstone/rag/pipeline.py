@@ -802,9 +802,55 @@ class Pipeline:
         """Clear the response cache."""
         _get_query_cache().clear_cache()
 
+    def setup_retriever(
+        self, use_ensemble: bool = True, use_reranker: bool = False
+    ) -> None:
+        """Configure the retriever with this pipeline's embedding provider.
+
+        Provider-neutral entry point: subclasses dispatch to their
+        set_retriever_openai / set_retriever_ollama, so callers (REST API,
+        MCP server, UIs) never need isinstance checks.
+        """
+        raise NotImplementedError(
+            "Use OpenAIPipeline or OllamaPipeline, which bind a provider."
+        )
+
+
+# Per-provider default models — the ONE place they are defined; the REST
+# API, MCP server, and terminal chat all resolve defaults through here.
+DEFAULT_MODELS = {"openai": "gpt-4o-mini", "ollama": "llama3"}
+
+
+def build_pipeline(provider: str, model: Optional[str] = None) -> Pipeline:
+    """Construct the right pipeline subclass for a provider name.
+
+    The single home of the provider dispatch: every server and UI builds
+    pipelines through this function (tests stub it as their seam).
+
+    Args:
+        provider: "openai" or "ollama" (case-insensitive).
+        model: Model name; defaults to the provider's entry in
+            DEFAULT_MODELS.
+
+    Raises:
+        ValueError: If the provider is not recognized.
+    """
+    provider = provider.strip().lower()
+    if provider not in DEFAULT_MODELS:
+        raise ValueError(
+            f"Unknown provider {provider!r}; expected one of "
+            f"{sorted(DEFAULT_MODELS)}."
+        )
+    resolved_model = model or DEFAULT_MODELS[provider]
+    if provider == "openai":
+        return OpenAIPipeline(model=resolved_model)
+    return OllamaPipeline(model=resolved_model)
+
 
 class OpenAIPipeline(Pipeline):
     """OpenAI-based pipeline with lazy loading and performance optimizations."""
+
+    provider = "openai"
 
     def __init__(
         self,
@@ -867,9 +913,17 @@ class OpenAIPipeline(Pipeline):
             use_reranker=use_reranker,
         )
 
+    def setup_retriever(
+        self, use_ensemble: bool = True, use_reranker: bool = False
+    ) -> None:
+        """Provider-neutral alias for set_retriever_openai (see Pipeline)."""
+        self.set_retriever_openai(use_ensemble=use_ensemble, use_reranker=use_reranker)
+
 
 class OllamaPipeline(Pipeline):
     """Ollama-based pipeline with lazy loading and performance optimizations."""
+
+    provider = "ollama"
 
     def __init__(
         self,
@@ -927,3 +981,9 @@ class OllamaPipeline(Pipeline):
             use_ensemble=use_ensemble,
             use_reranker=use_reranker,
         )
+
+    def setup_retriever(
+        self, use_ensemble: bool = True, use_reranker: bool = False
+    ) -> None:
+        """Provider-neutral alias for set_retriever_ollama (see Pipeline)."""
+        self.set_retriever_ollama(use_ensemble=use_ensemble, use_reranker=use_reranker)

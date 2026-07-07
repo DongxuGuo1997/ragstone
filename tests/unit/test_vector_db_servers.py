@@ -62,13 +62,19 @@ DOCS = [
 
 @pytest.fixture
 def qdrant_proxy(tmp_path):
-    """A proxy that always releases its embedded-mode file lock."""
+    """A proxy whose scratch collection is always dropped after the test.
+
+    (Embedded clients are shared per path and live for the process, so
+    cleanup() drops the collection but deliberately keeps the client.)
+    """
     proxy = QdrantProxy(path=str(tmp_path / "qdrant"))
     yield proxy
     proxy.cleanup()
 
 
 class TestQdrantProxy:
+    """Embedded-mode Qdrant: offline, isolated, and FAISS-identical."""
+
     def test_create_and_search_returns_nearest_document(self, qdrant_proxy):
         qdrant_proxy.create_db(docs=DOCS, embeddings=_KeywordEmbeddings())
         assert qdrant_proxy.is_initialized
@@ -96,17 +102,31 @@ class TestQdrantProxy:
         results = retriever.invoke("rocket thrust")
         assert "4.2 meganewtons" in results[0].page_content
 
-    def test_cleanup_releases_the_local_file_lock(self, tmp_path):
-        # Embedded mode locks QDRANT_PATH; a second proxy over the same
-        # path must work after the first closes.
+    def test_concurrent_pipelines_share_one_embedded_path(self, tmp_path):
+        # Embedded mode holds an EXCLUSIVE folder lock, so the client is
+        # shared per path — two live pipelines must coexist (a client per
+        # proxy would crash the second one), each in its own collection.
         path = str(tmp_path / "qdrant")
+        embeddings = _KeywordEmbeddings()
         first = QdrantProxy(path=path)
-        first.create_db(docs=DOCS, embeddings=_KeywordEmbeddings())
-        first.cleanup()
+        first.create_db(docs=DOCS, embeddings=embeddings)
 
-        second = QdrantProxy(path=path)
-        second.create_db(docs=DOCS, embeddings=_KeywordEmbeddings())
+        second = QdrantProxy(path=path)  # first is still open
+        second.create_db(
+            docs=[Document(page_content="solar note", metadata={})],
+            embeddings=embeddings,
+        )
         assert second.is_initialized
+        # Isolation: each proxy sees only its own corpus.
+        assert [d.page_content for d in second.find_similar("solar", k=4)] == [
+            "solar note"
+        ]
+        assert len(first.find_similar("solar", k=4)) == len(DOCS)
+
+        # Cleanup drops each proxy's own collection without closing the
+        # shared client out from under the other.
+        first.cleanup()
+        assert second.find_similar("solar", k=1)  # second still works
         second.cleanup()
 
     def test_factory_dispatches_qdrant(self, tmp_path, monkeypatch):
@@ -137,6 +157,8 @@ PG_URL = os.getenv("RAGSTONE_PG_URL")
     not PG_URL, reason="RAGSTONE_PG_URL not set (start the compose postgres)"
 )
 class TestPgVectorProxy:
+    """Live-Postgres checks (compose/CI provide the server)."""
+
     def test_create_search_parity_and_replace(self):
         embeddings = _KeywordEmbeddings()
         proxy = PgVectorProxy(connection=PG_URL)
