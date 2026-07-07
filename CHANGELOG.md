@@ -4,6 +4,22 @@ Notable changes to Ragstone. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Evidence highlighting** (citations v1): source snippets in the
+  Streamlit trace panel and the CLI's `/sources` now highlight the exact
+  words the answer reuses — post-hoc answer-to-source alignment with
+  exact character offsets, no prompt or generation change.
+
+### Changed
+- **Router tuned and its default-status question closed** (Experiment
+  15b): stricter classifier + the cheap utility model reaches
+  faithfulness 0.981 at 1.25x tokens — still over the pre-registered
+  1.2x gate, so `chain_type="auto"` remains opt-in (recommended with
+  `RAGSTONE_REPHRASE_MODEL=gpt-4.1-nano`); the tuned variant replaces
+  the original as it dominates on every axis.
+
 ## [2.1.0] — 2026-07-07
 
 ### Added

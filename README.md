@@ -41,7 +41,7 @@ opinion:
 | Are smaller chunks sharper? | No — hit rate **drops** 1.0 → 0.914 at 500 chars |
 | Is concurrent embedding safe? | **3.1× faster** ingestion, identical vectors and retrieval metrics |
 | Does chunk enrichment beat more context? | Document identity in the chunk: hit **+1.5pp**, faithfulness **+2.9pp** at +5.7% tokens — now the default; k=6's extra volume had *hurt* |
-| Can a router capture self-correction's edge cheaply? | Quality held (multi-turn faithfulness **1.0**), but **1.3× tokens** failed the pre-set gate → `auto` ships opt-in, `simple` stays default |
+| Can a router capture self-correction's edge cheaply? | Quality held (faithfulness up to **0.981** tuned), but **1.25× tokens** still fails the pre-set gate after tuning → `auto` ships opt-in, `simple` stays default (Exp 15/15b) |
 
 Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
 reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md) · What's
@@ -73,10 +73,16 @@ hand-typed numbers (`python evals/quality_history.py`):
 - **Cross-Encoder Reranking** (optional): Two-stage retrieval for higher precision
 - **Agent Mode**: LLM-driven retrieval loop, for measured comparison against the fixed pipeline
 - **Corrective RAG**: retrieval grades itself, rewrites failed queries, and refuses with evidence — its apparent quality win at n=43 failed to replicate at n=224 (Experiment 9), which is the point of measuring
+- **Query Routing** (`auto`, opt-in): a cheap classifier sends each question to simple or corrective — kept opt-in because its own cost gate said so (Experiments 15/15b)
+- **Evidence Highlighting**: source snippets mark the exact words the answer reuses — post-hoc alignment, no prompt changes
 
 ### Vector Store Support
-- **FAISS**: Fast similarity search with local storage
-- **Chroma**: Persistent vector database with advanced features
+- **FAISS** (default): fast in-process similarity search
+- **Qdrant**: embedded local mode or a server via one env var (`[qdrant]` extra)
+- **pgvector**: RAG on the Postgres you already run (`[pgvector]` extra)
+- **Chroma**: embedded persistent store
+- Retrieval parity across backends is enforced by test (Experiment 13);
+  ingestion is incremental everywhere via the embedding cache
 - **Custom Embeddings**: OpenAI embeddings with fallback options
 
 ### Configuration Management

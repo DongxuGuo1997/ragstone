@@ -641,6 +641,33 @@ tokens, +0.85 s). Future tuning that could flip the verdict — a stricter
 classifier, the cheap router model by default, routing only multi-entity
 questions — is parked in ROADMAP 1.5 rather than iterated blindly here.
 
+### Postscript (15b) — the tuning avenue, tried once and closed
+
+The two parked tweaks were measured as one pre-registered package
+(attribution between them was not the question; the gate was): the
+`gpt-4.1-nano` utility model plus a stricter classifier ("careful ONLY
+for clear comparisons or likely-absent facts; when unsure, choose
+simple"). Same gate, one run:
+
+| n=224 | simple | auto (15a) | auto tuned (15b) |
+|---|---|---|---|
+| faithful_rate | 0.967 | 0.976 | **0.981 ±0.018** |
+| correct_rate | 0.948 | 0.943 | 0.943 |
+| total tokens | 260 k | 338 k (1.30×) | 324 k (**1.25×**) |
+| avg latency | 1.56 s | 2.41 s | 2.04 s |
+| route stage | — | 767 ms | 561 ms |
+
+**Verdict: the gate fails again** — closer (1.25× vs the 1.20× bar), but
+routing a meaningful share of questions down a 2× path arithmetically
+cannot get much cheaper than this. The tuned variant strictly dominates
+the original (better faithfulness, fewer tokens, faster), so it IS the
+shipped opt-in implementation, recorded as the `chain=auto` baselines
+with the recommended `RAGSTONE_REPHRASE_MODEL=gpt-4.1-nano` config.
+Multi-turn faithfulness swung 1.0 → 0.846 between runs — one case at
+n=13, the small-slice noise this file keeps warning about. The tuning
+avenue is now closed with data: `auto` is for deployments that value
+faithfulness over cost, and the numbers to make that call are above.
+
 | Choice            | Default                      | Decided by   | Why                                            |
 |-------------------|------------------------------|--------------|------------------------------------------------|
 | Embedding model   | `text-embedding-3-small`     | Experiment 1 | full coverage, ~5× cheaper than ada-002        |

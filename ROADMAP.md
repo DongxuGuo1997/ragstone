@@ -54,7 +54,7 @@ grow it first or the verdict will be noise.
 *Measure:* multi-hop slice at n≥30, plus indexing cost comparison.
 *Refs:* github.com/HKUDS/LightRAG, microsoft/graphrag.
 
-### 1.5 Query routing — SHIPPED opt-in (Experiment 15: quality held, 1.3x tokens failed the default gate; tuning ideas below still open)
+### 1.5 Query routing — SHIPPED opt-in; tuning avenue CLOSED (Experiments 15/15b: tuned variant reaches faithful 0.981 at 1.25x tokens — still over the 1.2x default gate)
 Classify each question (factual lookup / comparative / multi-hop /
 unanswerable-looking) with the cheap utility model and route: simple chain
 for lookups, corrective for likely-miss queries, agent for multi-hop.
