@@ -446,6 +446,44 @@ the same rigor as the pipeline.
 
 ---
 
+## Experiment 11 — Bounding the answerer==judge bias
+
+**Question.** Every judged score in this file was graded by the same
+model that wrote the answers (gpt-4o-mini). LLM judges are known to
+favor their own outputs — so how much of our 0.94-ish is self-flattery?
+
+**Method.** Re-run the large set (simple chain, k=4, identical config)
+with `--judge-model gpt-4.1-mini` — a different model generation from the
+same provider — and compare against the self-judged v4 baseline. One
+caveat stated up front: the pipeline re-generates answers on each run, so
+the deltas below bundle judge disagreement with run-to-run generation
+variance; they are an upper bound on the judge effect, not a pure
+isolation (re-judging *stored* answers would isolate it — noted in the
+roadmap).
+
+| n=224, same system | judged by gpt-4o-mini (self) | judged by gpt-4.1-mini |
+|---|---|---|
+| correct_rate | 0.943 ±0.031 | 0.919 ±0.037 |
+| faithful_rate | 0.938 ±0.033 | 0.934 ±0.034 |
+| multi_turn_correct | 0.846 | 0.846 |
+| multi_turn_faithful | 0.846 | 1.000 |
+
+**Result.** The cross-judge scores land **2.4 pp lower on correctness**
+and 0.4 pp lower on faithfulness — directionally consistent with
+self-preference, small in magnitude, and inside the overlapping CIs. The
+multi-turn faithfulness *rose* two cases under the stricter judge (n=13
+noise, and the opposite direction of self-preference). No conclusion in
+this file flips under the alternate judge.
+
+**Decision.** Absolute judged scores should be read with a ~2 pp
+self-preference haircut in mind; comparative deltas (all decisions in
+this file) are unaffected since both sides share a judge. The
+cross-judge column stays reproducible via
+`--judge-model gpt-4.1-mini --no-baseline-check`. A different-*provider*
+judge remains the stronger version of this check (roadmap 3.1 follow-up).
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |
