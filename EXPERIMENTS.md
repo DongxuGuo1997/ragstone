@@ -911,6 +911,70 @@ references section exists in every paper), so the fix must be too.**
 
 ---
 
+## Experiment 20 — Enterprise overhead: pricing the Arc 1 machinery
+
+**Question.** Arc 1 put real machinery on every request: request-id and
+audit middleware, named-key auth with sliding-window quotas, a
+Prometheus observer, no-op OTel spans, and a registry lookup that can
+lazily restore a pipeline from disk. Each piece was argued cheap at
+review time; none was priced. Did the API get slower?
+
+**Method** (`evals/bench_overhead.py`). The same load against two source
+trees: HEAD and the actual pre-Arc-1 commit (`e8b3772`, via a git
+worktree) — a real before/after, not an emulated baseline. The pipeline
+is a stub that answers instantly, so every microsecond measured is
+server mechanics; the server runs in-process and is hit over loopback
+with keep-alive sessions, request/audit log lines written to a real
+file. Run order A/B/A (new, old, new): the two "new" runs agreed within
+a few microseconds on every phase, so the deltas are not machine drift.
+No API key spent.
+
+| phase (p50) | pre-Arc-1 | Arc 1 | delta |
+|---|---|---|---|
+| GET /health | 0.347 ms | 0.358 ms | **+11 µs** |
+| POST /ask, sequential | 0.460 ms | 0.552 ms | **+92 µs** |
+| POST /ask, 16 workers | 6.1 ms | 7.0 ms | +0.9 ms |
+| stub throughput at saturation | 2,475 rps | 2,164 rps | −12.5% |
+
+Startup to first healthy probe: ~62 ms, unchanged.
+
+**Attribution.** Microbenchmarks account for essentially the whole
+sequential delta, so nothing unexplained is hiding in the stack:
+
+| feature | per call |
+|---|---|
+| worker-thread hop for the registry lookup (5.7) | 67 µs |
+| request instrumentation (usage callback, no-op span, log line) | 9 µs |
+| Prometheus observer on top | +4–6 µs |
+| request-id + audit middleware, response header | ~11 µs |
+| named-key auth, full constant-time scan | 0.2 µs (1 key) → 1.6 µs (25) |
+| quota check (sliding window) | 0.25 µs |
+| warm-path cost of persistence (`get_or_restore` vs `get`) | +0.02 µs |
+| `persist_pipeline`, 1,000 chunks (configure-time, one-off) | 1.9 ms |
+| `list_persisted` per manifest (each `/ready` probe) | 30 µs |
+
+**Verdict.** The full enterprise stack costs **~0.1 ms per request**. A
+real answer takes 1.5–10 s of LLM time, so the overhead is ≤0.007% of
+the cheapest uncached answer; even a semantic-cache hit (~2 ms,
+Experiment 16) pays only ~5%. The −12.5% throughput at synthetic
+saturation is the same +0.1 ms amplified by queueing — and irrelevant at
+the deployment envelope: with the `/ask` cap at 8 and generations taking
+seconds, real traffic tops out around 4 rps, ~500× below the measured
+2,164 rps mechanics floor. Auth cost is linear in key count by design
+(the full scan is what keeps timing constant) and stays under 2 µs at 25
+keys.
+
+**Decision.** No optimization. The one candidate — checking the
+in-memory registry synchronously before paying the 67 µs worker-thread
+hop that guards lazy restore — is recorded here, not taken: it would
+complicate the restore path to reclaim 0.004% of a real request. The
+transferable lesson: **plumbing is priced in microseconds and answers in
+seconds — measure the ratio before "optimizing" infrastructure, and
+benchmark against the real old commit (a worktree costs one command),
+not a hand-stripped imitation of it.**
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |
