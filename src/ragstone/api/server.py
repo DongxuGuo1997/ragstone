@@ -6,6 +6,9 @@ applications, plus liveness/readiness endpoints for orchestrators.
 
 Production behaviors:
 - Blocking pipeline work runs in worker threads, never on the event loop.
+- Every response carries an X-Request-ID (the client's own, if it sent a
+  well-formed one) and the pipeline's ragstone.requests log line uses the
+  same id, so one string traces a request from client to server log.
 - Optional API-key auth: set RAGSTONE_API_KEY and clients must send it in
   the X-API-Key header (health/readiness stay open for probes).
 - A concurrency cap on /ask: when all slots are busy the server answers
@@ -24,6 +27,7 @@ import json
 import logging
 import os
 import queue
+import re
 import threading
 import uuid
 from typing import Iterator, List, Literal, Optional, Tuple
@@ -44,6 +48,7 @@ from ragstone import __version__
 from ragstone.config.settings import get_config
 from ragstone.rag.pipeline import DEFAULT_MODELS, build_pipeline
 from ragstone.utils.exceptions import PipelineError, ValidationError
+from ragstone.utils.observability import current_request_id, use_request_id
 from ragstone.utils.registry import (
     get_pipeline,
     pop_pipeline,
@@ -52,6 +57,50 @@ from ragstone.utils.registry import (
 )
 
 logger = logging.getLogger(__name__)
+
+# A client-supplied X-Request-ID is adopted only if it looks like an id:
+# the value goes into log lines and back out in a response header, so a
+# hostile value must not be able to inject either (no whitespace or
+# control characters, bounded length). Anything else gets a minted id.
+_REQUEST_ID_RE = re.compile(r"[A-Za-z0-9._-]{1,128}")
+
+
+class _RequestIDMiddleware:
+    """Adopt or mint the request id; stamp it on every response.
+
+    Pure ASGI rather than BaseHTTPMiddleware: the ambient id must be set
+    in the same context that runs the endpoint, so it propagates into the
+    worker threads anyio spawns (contextvars copy across) and is readable
+    by exception handlers. BaseHTTPMiddleware runs downstream in a
+    separate task and has documented contextvar-propagation caveats.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        provided = ""
+        for name, value in scope.get("headers", []):
+            if name == b"x-request-id":
+                provided = value.decode("latin-1")
+                break
+        request_id = (
+            provided if _REQUEST_ID_RE.fullmatch(provided) else uuid.uuid4().hex
+        )
+
+        async def send_with_id(message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.append((b"x-request-id", request_id.encode("latin-1")))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        with use_request_id(request_id):
+            await self.app(scope, receive, send_with_id)
 
 
 # --------------------------------------------------------------------------
@@ -137,6 +186,7 @@ def create_app(
     ask_slots = threading.BoundedSemaphore(cap) if cap > 0 else None
 
     app = FastAPI(title="Ragstone", version=__version__)
+    app.add_middleware(_RequestIDMiddleware)
     app.state.ask_slots = ask_slots  # exposed for tests/inspection
 
     def _require_key(request: Request) -> None:
@@ -153,9 +203,18 @@ def create_app(
         # Typed pipeline errors carry user-safe messages (the same contract
         # the MCP server relies on). Anything untyped falls through to
         # FastAPI's generic 500 handler, which reveals nothing.
-        logger.error(f"{request.url.path} failed: {exc}", exc_info=True)
+        request_id = current_request_id()
+        logger.error(
+            f"{request.url.path} failed (request={request_id}): {exc}",
+            exc_info=True,
+        )
         status = 422 if isinstance(exc, ValidationError) else 500
-        return JSONResponse(status_code=status, content={"detail": str(exc)})
+        content = {"detail": str(exc)}
+        if request_id:
+            # The same id is in the X-Request-ID header; repeating it in
+            # the body puts it where clients actually log error payloads.
+            content["request_id"] = request_id
+        return JSONResponse(status_code=status, content=content)
 
     # -- probes (unauthenticated: orchestrators don't carry API keys) ------
 
@@ -275,7 +334,9 @@ def create_app(
                 # The stream's worker thread owns the slot and releases it
                 # exactly once, when the pipeline call finishes.
                 return StreamingResponse(
-                    _sse_stream(pipeline, body, ask_slots, session_id),
+                    _sse_stream(
+                        pipeline, body, ask_slots, session_id, current_request_id()
+                    ),
                     media_type="text/event-stream",
                 )
             answer = await to_thread.run_sync(
@@ -311,7 +372,11 @@ def _sse_data(text: str) -> str:
 
 
 def _sse_stream(
-    pipeline, body: AskRequest, ask_slots, session_id: str
+    pipeline,
+    body: AskRequest,
+    ask_slots,
+    session_id: str,
+    request_id: Optional[str] = None,
 ) -> Iterator[str]:
     """Yield the answer as Server-Sent Events.
 
@@ -321,23 +386,25 @@ def _sse_stream(
     the pipeline's context-local instrumentation (track_request, the token
     usage callback) apart — enter and exit must share a context. The worker
     owns the concurrency slot and releases it exactly once, when the
-    pipeline call actually finishes.
+    pipeline call actually finishes. The request id crosses the thread
+    boundary explicitly — contextvars don't follow manual threads.
     """
     handoff: "queue.Queue[Tuple[str, object]]" = queue.Queue()
     cancelled = threading.Event()
 
     def _produce() -> None:
         try:
-            for chunk in pipeline.ask_question_stream(
-                body.question, session_id=session_id, use_cache=body.use_cache
-            ):
-                if cancelled.is_set():
-                    # Client is gone: stop at the next chunk boundary so an
-                    # abandoned request doesn't pin a concurrency slot (and
-                    # burn tokens) for the rest of a full generation.
-                    logger.info("Client disconnected; abandoning stream")
-                    break
-                handoff.put(("chunk", chunk))
+            with use_request_id(request_id):
+                for chunk in pipeline.ask_question_stream(
+                    body.question, session_id=session_id, use_cache=body.use_cache
+                ):
+                    if cancelled.is_set():
+                        # Client is gone: stop at the next chunk boundary
+                        # so an abandoned request doesn't pin a concurrency
+                        # slot (and burn tokens) for a full generation.
+                        logger.info("Client disconnected; abandoning stream")
+                        break
+                    handoff.put(("chunk", chunk))
             handoff.put(("done", None))
         except PipelineError as exc:
             # Mid-stream failures can't change the status code anymore;

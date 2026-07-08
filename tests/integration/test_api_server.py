@@ -7,6 +7,8 @@ routing, auth, readiness, SSE streaming, the concurrency cap, and error
 mapping.
 """
 
+import re
+
 import pytest
 
 fastapi = pytest.importorskip("fastapi")
@@ -15,6 +17,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 import ragstone.api.server as server  # noqa: E402
 from ragstone.utils import registry  # noqa: E402
+from ragstone.utils.observability import current_request_id  # noqa: E402
 from ragstone.utils.exceptions import (  # noqa: E402
     ChainExecutionError,
     ValidationError,
@@ -210,6 +213,97 @@ class TestStreaming:
         )
         assert "data: - first\ndata: - second\n\n" in response.text
         assert response.text.endswith("data: [DONE]\n\n")
+
+
+class TestRequestId:
+    """One string must trace a request from client to server log: every
+    response carries X-Request-ID, and the pipeline (where track_request
+    logs it) sees the same value — across the thread pool for plain asks
+    and the manual worker thread for SSE."""
+
+    def test_every_response_carries_a_minted_id(self, client):
+        response = client.get("/health")
+        assert re.fullmatch(r"[0-9a-f]{32}", response.headers["x-request-id"])
+
+    def test_client_id_is_echoed_and_reaches_the_pipeline(self, client):
+        _create_ready_pipeline(client)
+        seen = {}
+        pipeline = registry.get_pipeline("p1")
+
+        def _record(question, session_id=None, use_cache=True):
+            seen["request_id"] = current_request_id()
+            return "ok"
+
+        pipeline.ask_question = _record
+        response = client.post(
+            "/pipelines/p1/ask",
+            json={"question": "q"},
+            headers={"X-Request-ID": "trace-42"},
+        )
+        assert response.headers["x-request-id"] == "trace-42"
+        assert seen["request_id"] == "trace-42"
+
+    def test_sse_worker_thread_sees_the_adopted_id(self, client):
+        # The SSE producer runs on a manually created thread; the id must
+        # cross that boundary explicitly, not rely on contextvars.
+        _create_ready_pipeline(client)
+        seen = {}
+        pipeline = registry.get_pipeline("p1")
+
+        def _recording_stream(question, session_id=None, use_cache=True):
+            seen["request_id"] = current_request_id()
+            yield "chunk"
+
+        pipeline.ask_question_stream = _recording_stream
+        response = client.post(
+            "/pipelines/p1/ask",
+            json={"question": "q", "stream": True},
+            headers={"X-Request-ID": "trace-sse"},
+        )
+        assert response.headers["x-request-id"] == "trace-sse"
+        assert response.text.endswith("data: [DONE]\n\n")
+        assert seen["request_id"] == "trace-sse"
+
+    def test_malformed_client_ids_are_replaced_not_echoed(self, client):
+        # The id lands in log lines and a response header; whitespace,
+        # over-length, or exotic characters must never round-trip.
+        for bad in ("has space", "x" * 129, "semi;colon"):
+            response = client.get("/health", headers={"X-Request-ID": bad})
+            echoed = response.headers["x-request-id"]
+            assert echoed != bad
+            assert re.fullmatch(r"[0-9a-f]{32}", echoed)
+        # Non-ASCII header bytes (a real client can send latin-1) must be
+        # replaced too; httpx only sends them pre-encoded.
+        response = client.get(
+            "/health", headers={b"x-request-id": "ünïcode".encode("latin-1")}
+        )
+        assert re.fullmatch(r"[0-9a-f]{32}", response.headers["x-request-id"])
+
+    def test_error_responses_carry_the_id_in_header_and_body(self, client):
+        from ragstone.utils.exceptions import ChainExecutionError
+
+        _create_ready_pipeline(client)
+        pipeline = registry.get_pipeline("p1")
+
+        def _fail(question, session_id=None, use_cache=True):
+            raise ChainExecutionError("boom")
+
+        pipeline.ask_question = _fail
+        response = client.post(
+            "/pipelines/p1/ask",
+            json={"question": "q"},
+            headers={"X-Request-ID": "trace-err"},
+        )
+        assert response.status_code == 500
+        assert response.headers["x-request-id"] == "trace-err"
+        assert response.json()["request_id"] == "trace-err"
+
+    def test_framework_error_responses_carry_the_header(self, client):
+        # 404s (and 401/429) come from exception handlers, not endpoints —
+        # the middleware must stamp those too.
+        response = client.delete("/pipelines/ghost")
+        assert response.status_code == 404
+        assert "x-request-id" in response.headers
 
 
 class TestAuth:

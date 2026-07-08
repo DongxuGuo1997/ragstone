@@ -7,7 +7,9 @@ log line on the ``ragstone.requests`` logger when it finishes:
 latency_ms=1440 tokens=1031
 
 - ``request`` is a per-call correlation id, so all log lines from one call
-  can be tied together.
+  can be tied together. A serving layer can supply the id (the REST API
+  adopts the client's ``X-Request-ID`` via :func:`use_request_id`), so the
+  id a client holds and the id in the server log are the same string.
 - ``tokens`` is aggregated across every LLM call the request needed (the
   rephrase step, agent-mode searches, the answer) via LangChain's
   usage-metadata callback; models that report no usage contribute 0.
@@ -38,6 +40,40 @@ logger = logging.getLogger("ragstone.requests")
 _current_metrics: ContextVar[Optional["RequestMetrics"]] = ContextVar(
     "ragstone_request_metrics", default=None
 )
+
+# Request id supplied by a serving layer (e.g. the REST API adopting the
+# client's X-Request-ID header). track_request adopts it, so the id in the
+# response header and the id in the ragstone.requests line match.
+_ambient_request_id: ContextVar[Optional[str]] = ContextVar(
+    "ragstone_ambient_request_id", default=None
+)
+
+
+def current_request_id() -> Optional[str]:
+    """The serving-layer request id in scope, or None outside one."""
+    return _ambient_request_id.get()
+
+
+@contextmanager
+def use_request_id(request_id: Optional[str]) -> Iterator[None]:
+    """Make ``request_id`` the ambient id for track_request calls within.
+
+    None is a passthrough, so callers on paths without a serving layer
+    (CLI, scripts, tests) never need guards.
+    """
+    if request_id is None:
+        yield
+        return
+    token = _ambient_request_id.set(request_id)
+    try:
+        yield
+    finally:
+        # Same cross-context teardown hazard as track_request: reset()
+        # raises if the scope was entered in a different context.
+        try:
+            _ambient_request_id.reset(token)
+        except ValueError:
+            _ambient_request_id.set(None)
 
 
 def record_stage(stage: str, elapsed_ms: int) -> None:
@@ -129,7 +165,7 @@ def track_request(
     name is recorded and the exception propagates unchanged.
     """
     metrics = RequestMetrics(
-        request_id=uuid.uuid4().hex[:8],
+        request_id=_ambient_request_id.get() or uuid.uuid4().hex[:8],
         session_id=session_id,
         chain_type=chain_type,
     )

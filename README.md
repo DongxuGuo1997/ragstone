@@ -498,6 +498,9 @@ curl -X POST localhost:8000/pipelines/docs/ask -H 'content-type: application/jso
 Production behaviors built in:
 
 - **Streaming**: pass `"stream": true` to `/ask` for Server-Sent Events.
+- **Request correlation**: every response carries an `X-Request-ID`
+  (yours, if you send a well-formed one), and the per-request server log
+  line uses the same id — one string traces a request end to end.
 - **Probes**: `GET /health` (liveness) and `GET /ready` (a pipeline with a
   RAG chain exists) for orchestrators; both stay unauthenticated.
 - **Auth**: set `RAGSTONE_API_KEY` and clients must send it as `X-API-Key`.

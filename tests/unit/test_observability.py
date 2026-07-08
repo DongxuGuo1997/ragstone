@@ -13,10 +13,12 @@ import pytest
 from ragstone.rag.pipeline import OpenAIPipeline
 from ragstone.utils.exceptions import ChainExecutionError
 from ragstone.utils.observability import (
+    current_request_id,
     estimate_cost_usd,
     record_stage,
     time_stage,
     track_request,
+    use_request_id,
 )
 
 REQUEST_LOGGER = "ragstone.requests"
@@ -66,6 +68,40 @@ class TestTrackRequest:
             with track_request("s1") as metrics:
                 metrics.cache_hit = True
         assert "cache_hit=True" in _request_records(caplog)[0].getMessage()
+
+
+class TestAmbientRequestId:
+    """A serving layer can supply the correlation id (the REST API adopts
+    the client's X-Request-ID); the log line must carry that same id."""
+
+    def test_track_request_adopts_ambient_id(self, caplog):
+        with caplog.at_level(logging.INFO, logger=REQUEST_LOGGER):
+            with use_request_id("client-abc"):
+                with track_request("s1") as metrics:
+                    pass
+        assert metrics.request_id == "client-abc"
+        assert "request=client-abc" in _request_records(caplog)[0].getMessage()
+
+    def test_id_does_not_leak_past_its_scope(self):
+        with use_request_id("client-abc"):
+            pass
+        with track_request("s1") as metrics:
+            pass
+        assert metrics.request_id != "client-abc"
+
+    def test_none_is_a_passthrough(self):
+        # Paths without a serving layer (CLI, scripts) pass None and get
+        # a minted per-call id, exactly as if the scope weren't there.
+        with use_request_id(None):
+            with track_request("s1") as metrics:
+                pass
+        assert len(metrics.request_id) == 8
+
+    def test_current_request_id_reflects_scope(self):
+        assert current_request_id() is None
+        with use_request_id("abc"):
+            assert current_request_id() == "abc"
+        assert current_request_id() is None
 
 
 class TestStageTiming:
