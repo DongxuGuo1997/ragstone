@@ -231,10 +231,13 @@ config) and reload lazily on boot; drain in-flight requests on SIGTERM
 *Measure:* kill -TERM under load — zero dropped in-flight requests, and
 a restarted server serves the same corpus ids without re-ingestion.
 
-#### 5.8 Supply-chain CI: pip-audit + image scan — S
-`pip-audit` on every CI run (fail on known CVEs, allowlist with expiry),
-plus a container image scan on the Docker path.
-*Measure:* CI red on a deliberately pinned vulnerable dep.
+#### 5.8 Supply-chain CI: pip-audit + image scan — DELIVERED (July 2026)
+`pip-audit` runs per push/PR over the resolved dependency set; allowlist
+entries carry expiry dates and the job fails when one lapses (or lacks
+one), so exceptions are time-boxed by construction. Trivy scans the
+container image (fixable HIGH/CRITICAL) on Dockerfile/pyproject changes
+and weekly — new CVEs appear against unchanged images. Measure met
+locally: a deliberately vulnerable pin exits non-zero.
 
 ### Arc 2 — Governable: contracts, errors, and the data lifecycle
 
