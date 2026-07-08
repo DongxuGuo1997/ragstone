@@ -7,9 +7,9 @@ name: Image scan
 on:
   push:
     branches: [main]
-    paths: ["Dockerfile", "pyproject.toml"]
+    paths: ["Dockerfile", "pyproject.toml", ".github/workflows/image-scan.yml"]
   pull_request:
-    paths: ["Dockerfile", "pyproject.toml"]
+    paths: ["Dockerfile", "pyproject.toml", ".github/workflows/image-scan.yml"]
   schedule:
     - cron: "0 6 * * 1" # Mondays 06:00 UTC, on the default branch
 
