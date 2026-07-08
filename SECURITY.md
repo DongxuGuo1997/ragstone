@@ -29,6 +29,7 @@ inputs arrive from clients you may not fully control.
 | API key brute-forcing via response timing | Constant-time comparison (`hmac.compare_digest`) | `api/server.py` |
 | Internal detail leakage through error messages | Typed errors carry user-safe messages; anything untyped becomes a generic message, details only in server logs | MCP `_safe_error`, API exception handler |
 | Hung upstream calls holding resources forever | Timeouts + bounded retries on every LLM/embedding client | `models/`, `rag/embeddings.py` |
+| Known CVEs riding in via dependencies | `pip-audit` on every CI run over the resolved dependency set; exceptions live in a time-boxed allowlist that fails the build on expiry. Trivy scans the container image (fixable HIGH/CRITICAL) on image changes and weekly | `.github/workflows/ci.yml`, `image-scan.yml`, `.github/audit-allowlist.txt` |
 
 ## Deployment checklist
 

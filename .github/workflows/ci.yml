@@ -96,3 +96,45 @@ jobs:
             exit 0
           fi
           python evals/run_eval.py --mode retrieval
+
+  supply-chain:
+    # ROADMAP 5.8: fail on known CVEs in the resolved dependency set.
+    # The allowlist (.github/audit-allowlist.txt) grants time-boxed
+    # exceptions only: every entry carries an expiry date and the job
+    # goes red when one lapses, so an ignored CVE can never quietly
+    # become permanent. Audits the same extras the test job installs
+    # (rerank excluded: it pins torch, which no CI job here ships).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install runtime dependency set
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[sqlite,api,qdrant,pgvector,otel]"
+
+      - name: pip-audit with expiring allowlist
+        run: |
+          pip install pip-audit
+          today=$(date -u +%F)
+          ignores=()
+          while read -r vuln expiry _reason; do
+            case "$vuln" in ''|\#*) continue ;; esac
+            if [ -z "$expiry" ]; then
+              echo "::error::Allowlist entry $vuln has no expiry date"
+              exit 1
+            fi
+            if [[ "$expiry" < "$today" ]]; then
+              echo "::error::Allowlist entry $vuln expired on $expiry — upgrade the dep or re-justify the entry"
+              exit 1
+            fi
+            echo "Ignoring $vuln until $expiry"
+            ignores+=(--ignore-vuln "$vuln")
+          done < .github/audit-allowlist.txt
+          pip-audit --skip-editable "${ignores[@]}"

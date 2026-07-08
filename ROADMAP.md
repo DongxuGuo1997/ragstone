@@ -203,14 +203,18 @@ Per-ask state now lives on an ownership-checked AskContext (contextvar),
 ending the single-writer caveat; concurrent asks are regression-tested
 for cross-request bleed.
 
-#### 5.2 Distributed tracing: X-Request-ID + OpenTelemetry + /metrics — M
-`ragstone.requests` lines already carry request id, latency, tokens, and
-per-stage decomposition. Accept/propagate `X-Request-ID` end to end, map
-stages to OTel spans (rephrase/retrieval/generation), and expose a
-Prometheus `/metrics` endpoint (request counts, latency histograms,
-token totals, cache hit rate).
-*Measure:* one request traced end-to-end in local Jaeger; a Grafana
-panel from /metrics alone.
+#### 5.2 Distributed tracing: X-Request-ID + OpenTelemetry + /metrics — DELIVERED (July 2026)
+All three parts shipped: the API adopts a well-formed client
+`X-Request-ID` (mints one otherwise), stamps it on every response, and
+`track_request` logs the same id; `/metrics` exposes Prometheus series
+(requests by chain/cache/error, latency histograms end-to-end/per-stage/
+first-token, token totals) via an exception-isolated observer hook; each
+ask becomes a `ragstone.ask` OTel span with retroactive stage children —
+explicit timestamps, no context attach, so the streaming path can't tear
+it. The `[otel]` extra + `OTEL_EXPORTER_OTLP_ENDPOINT` wire the OTLP
+exporter. Evidence: span topology pinned by in-memory-exporter tests;
+live server smoke shows adopted ids and real collectors on `/metrics`.
+Still open (nice-to-have): a committed Grafana dashboard JSON.
 
 #### 5.3 Named API keys, per-key quotas, audit log — M
 One shared key today (documented limitation). A keyed store with

@@ -1,0 +1,9 @@
+# Time-boxed pip-audit exceptions — one per line:
+#
+#   <VULN_ID> <expiry YYYY-MM-DD> <why waiting is acceptable>
+#
+# Example:
+#   GHSA-xxxx-yyyy-zzzz 2026-09-01 fix needs langchain-core 1.5, pinned until eval re-run
+#
+# CI fails the moment an entry expires, so nothing here is permanent.
+# An entry without an expiry date also fails the build.

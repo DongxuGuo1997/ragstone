@@ -1,0 +1,35 @@
+# ROADMAP 5.8, container half: scan the built image for known CVEs.
+# Separate workflow from ci.yml because the triggers differ: the image
+# only changes when Dockerfile/pyproject do, but new CVEs appear against
+# an UNCHANGED image, so a weekly run covers the gap between pushes.
+name: Image scan
+
+on:
+  push:
+    branches: [main]
+    paths: ["Dockerfile", "pyproject.toml"]
+  pull_request:
+    paths: ["Dockerfile", "pyproject.toml"]
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC, on the default branch
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t ragstone:scan .
+
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ragstone:scan
+          format: table
+          exit-code: "1"
+          # ignore-unfixed: a Debian base always carries CVEs with no
+          # released fix; failing on those would be a permanent red that
+          # trains everyone to ignore the job. Fixable HIGH/CRITICAL only.
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
