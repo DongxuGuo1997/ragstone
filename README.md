@@ -43,6 +43,7 @@ opinion:
 | Does chunk enrichment beat more context? | Document identity in the chunk: hit **+1.5pp**, faithfulness **+2.9pp** at +5.7% tokens — now the default; k=6's extra volume had *hurt* |
 | Can a router capture self-correction's edge cheaply? | Quality held (faithfulness up to **0.981** tuned), but **1.25× tokens** still fails the pre-set gate after tuning → `auto` ships opt-in, `simple` stays default (Exp 15/15b) |
 | Does the thread model survive real load? | p50 flat to **32 concurrent clients**, instant 429s beyond the cap, **~7× payoff** on parallel generation; the load test also caught two API design bugs (Exp 16) |
+| Can a nano model run the rephrase step? | −40% latency and a green gate — then a live transcript showed it echoing answers on "are you sure?" turns the eval set never covered. **Reverted same day**, prompt hardened, blind spot added to the golden set (Exp 18) |
 
 Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
 reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md) · What's

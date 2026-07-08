@@ -668,13 +668,10 @@ n=13, the small-slice noise this file keeps warning about. The tuning
 avenue is now closed with data: `auto` is for deployments that value
 faithfulness over cost, and the numbers to make that call are above.
 
-*Postscript (2026-07):* the nano utility model — measured here and in the
-follow-up-latency work at −40 % rephrase time with identical quality —
-was later promoted from recommendation to **per-provider default**
-(gpt-4.1-nano on OpenAI; Ollama keeps the main model, having no
-universally installed cheap sibling). The promotion was gated by a smoke
-run: every metric landed exactly on baseline, avg rephrase 553 ms.
-`RAGSTONE_REPHRASE_MODEL` still overrides.
+*Postscript (2026-07):* the nano utility model was briefly promoted to
+per-provider default on a green smoke gate — and reverted the same day
+when a live transcript showed it degenerating on challenge turns the
+eval corpus never covered. The full story is Experiment 18.
 
 ---
 
@@ -792,6 +789,66 @@ value; input-side verification (grade-then-retry) degrades gracefully
 because its failure mode is a wasted retrieval, not a poisoned answer.**
 The first measured deletion — the policy binding its own author, one
 experiment after it was written.
+
+---
+
+## Experiment 18 — The nano rephrase default: promoted on a green gate, falsified by a live transcript
+
+**Background.** The nano utility model (`RAGSTONE_REPHRASE_MODEL=
+gpt-4.1-nano`) had been measured at −40 % rephrase latency with
+identical eval quality (Experiments 10/15b) and was promoted from
+recommendation to per-provider default, gated by a smoke run that held
+every baseline exactly. The same day, a real session against a PDF the
+corpus had never seen produced this transcript:
+
+> user: who created deepseek → "I don't know"
+> user: **are you sure?** → *interpreted as:* "The context does not
+> specify who created the DeepSeek-R1 and DeepSeek-V3 models."
+> user: **who are the actors to this paper?** → *interpreted as:* "The
+> context does not specify the authors or contributors…"
+
+The rephraser was echoing the previous ANSWER as the "standalone
+question", and the echoed refusal then became the retrieval query.
+
+**Method.** Replayed the exact conversation history through the
+rephrase chain, A/B across models, 2 trials per turn (temperature 0;
+outputs were deterministic). Then repeated with a hardened prompt
+(challenge turns must restate the question the answer responded to;
+output must always be a single standalone question). Retrieval quality
+of the candidate rephrasings was verified against the actual PDF index.
+
+| turn | gpt-4o-mini | gpt-4.1-nano |
+|---|---|---|
+| "are you sure?" (old prompt) | echoes answer | echoes answer |
+| "who are the actors to this paper?" (old prompt) | **correct question** | echoes answer |
+| "are you sure?" (hardened prompt) | **correct question** | still degenerates |
+| "who are the actors…" (hardened prompt) | **correct question** | still degenerates |
+| pronoun/comparative controls (hardened) | correct | correct |
+
+The correct rephrasing ("Who are the authors of the paper…?") retrieves
+the PDF's contributor-list chunks at ranks 1–2 — the user would have
+gotten their answer. The echo retrieves noise.
+
+**Why the gate missed it.** Both golden sets contained ZERO
+challenge-style follow-ups — all multi-turn cases were pronoun
+substitutions ("what about its population?"), which nano handles
+perfectly. The gate was green because the corpus was blind to the turn
+type. Experiment 9's lesson, third appearance: the eval set defines
+what you can see.
+
+**Decision.** Three actions, in dependency order. (1) The nano default
+is **reverted** — prompt hardening fixes the main model but not nano;
+that is a capability floor, and a conversational turn as common as
+"are you sure?" cannot be a known-broken default. The env var remains
+for non-conversational traffic, where the −40 % is real. (2) The
+hardened rephrase prompt **ships** — it measurably fixes the main
+model on both failing turns with clean controls, and held every smoke
+baseline. (3) Three challenge-turn cases join the smoke golden set
+(mt06–mt08) so this blind spot stays covered; extending the large set
+follows with the ROADMAP 3.0 multi-turn expansion. The transferable
+lesson: **a cheap model earns a default only on eval coverage of the
+turn types it will actually face — and a green gate over a blind
+corpus is consent, not evidence.**
 
 ---
 

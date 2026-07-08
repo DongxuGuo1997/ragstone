@@ -111,7 +111,14 @@ condition is just a shelf.
 *Measure:* re-run Experiments 4/8/12/15 on the new corpus; publish which
 verdicts held and which flipped. Fold the n>=40 multi-turn expansion
 (3.3's sibling) into the new set so the conversation slice stops
-generating one-case noise.
+generating one-case noise. The expansion must include challenge turns
+("are you sure?") and document-metadata questions ("who wrote this?") —
+Experiment 18 proved the corpus was blind to the first class, and the
+same live transcript exposed the second: author blocks are extracted
+and chunked but never rank for "who created X" phrasing in either
+retrieval leg. Candidate fixes to measure alongside: the PDF title in
+the enrichment identity line (today it is just the file name), or a
+document-metadata card chunk written at ingest.
 
 ### 3.1 Cross-family judge — DELIVERED same-provider (Experiment 11); different-provider judge still open
 The judge and the answering model are both gpt-4o-mini; self-preference
