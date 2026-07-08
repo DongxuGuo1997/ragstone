@@ -76,7 +76,9 @@ class TestConcurrentAsks:
             # — the supported pattern — while the other ask is also live.
             results[question] = {
                 "answer": answer,
-                "docs": [d.page_content for d in pipeline.get_last_retrieved_documents()],
+                "docs": [
+                    d.page_content for d in pipeline.get_last_retrieved_documents()
+                ],
                 "sources": pipeline.get_sources(question),
                 "session": pipeline.last_metrics.session_id,
             }
@@ -147,9 +149,7 @@ class TestFallback:
         begin_ask("other", owner_id=1)  # foreign context -> fallback path
         recorder.invoke("first")
         recorder.invoke("second")
-        assert [d.page_content for d in recorder.fallback_record] == [
-            "docs-for:second"
-        ]
+        assert [d.page_content for d in recorder.fallback_record] == ["docs-for:second"]
 
     def test_cache_hit_leaves_an_empty_record(self):
         # A cache hit retrieves nothing; the ask's record must be empty,
