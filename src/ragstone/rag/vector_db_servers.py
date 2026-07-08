@@ -23,6 +23,7 @@ Both extras are optional installs:
     pip install "ragstone[pgvector]"    # langchain-postgres + psycopg
 """
 
+import atexit
 import logging
 import os
 import threading
@@ -66,6 +67,20 @@ def _shared_local_client(path: str):
         if path not in _local_clients:
             _local_clients[path] = QdrantClient(path=path)
         return _local_clients[path]
+
+
+@atexit.register
+def _close_local_clients() -> None:
+    # Embedded clients flush in __del__, which can fire during interpreter
+    # shutdown after the import machinery is gone ("sys.meta_path is None"
+    # tracebacks). Closing them while Python is still whole avoids that.
+    with _local_clients_lock:
+        for client in _local_clients.values():
+            try:
+                client.close()
+            except Exception:  # nosec B110 - best-effort shutdown
+                pass
+        _local_clients.clear()
 
 
 class QdrantProxy(VectorStoreProxy):
