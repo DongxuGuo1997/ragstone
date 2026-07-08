@@ -30,6 +30,24 @@ from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger(__name__)
 
+METADATA_CARD_PROMPT = """You are indexing a document for search. Here is
+the beginning of the document (file name: {source}):
+
+{document_head}
+
+Extract the document's own metadata into exactly this format, one line
+per field:
+
+Title: <the document's title>
+Authors: <the people or organization who WROTE THIS document>
+Date: <publication or writing date>
+Type: <e.g. research paper, manual, report, article>
+
+Rules: copy names and titles VERBATIM from the text. Only report authors
+of THIS document — never names that appear in citations, references, or
+related-work mentions. If a field is not stated in this excerpt, write
+exactly: not stated. Reply with ONLY the four lines."""
+
 CONTEXT_PROMPT = """You are indexing a document for search. Here is the
 full document:
 
@@ -141,3 +159,66 @@ def enrich_chunks(
         f"{fallbacks} source-label fallbacks"
     )
     return enriched
+
+
+def build_metadata_cards(
+    source_docs: List[Document], llm: Optional[Any]
+) -> List[Document]:
+    """One card Document per source document: title/authors/date/type.
+
+    Content retrieval cannot answer document-level questions ("who wrote
+    this?", "what is this paper?"): author blocks never rank for
+    "created/wrote" phrasing in either retrieval leg, while references
+    sections — the most author-dense text in any academic document — do,
+    and get cited as authorship evidence (Experiment 19). The card puts
+    labeled metadata into the index, so those queries have a chunk that
+    matches lexically ("Authors:") and semantically, and the generator
+    has authoritative evidence that outranks the bibliography decoy.
+
+    Extraction is one utility-model call per DOCUMENT (not per chunk),
+    over the document head, with a verbatim-only prompt: a hallucinated
+    card would become authoritative false evidence, so anything not
+    stated in the head is reported as "not stated". Any failure skips
+    that document's card — cards must never break ingestion.
+    """
+    if llm is None:
+        logger.warning("Metadata cards requested but no LLM at ingest; skipping.")
+        return []
+
+    # One card per source, keyed on the same identity the loaders stamp.
+    heads: Dict[str, Document] = {}
+    for doc in source_docs:
+        key = str(doc.metadata.get("source", ""))
+        heads.setdefault(key, doc)
+
+    chain = (
+        ChatPromptTemplate.from_template(METADATA_CARD_PROMPT) | llm | StrOutputParser()
+    )
+
+    def _card_for(item: Any) -> Optional[Document]:
+        source, doc = item
+        try:
+            fields = chain.invoke(
+                {
+                    "source": _source_label(doc),
+                    "document_head": doc.page_content[:_DOC_CONTEXT_CHARS],
+                }
+            ).strip()
+            if not fields:
+                raise ValueError("empty card")
+            return Document(
+                page_content=(
+                    f"[Document metadata] Source: {_source_label(doc)}\n{fields}"
+                ),
+                metadata={**doc.metadata, "metadata_card": True},
+            )
+        except Exception as exc:  # per-document fallback: never break ingest
+            logger.warning(f"Metadata card failed for {source!r} ({exc}); skipping")
+            return None
+
+    with ThreadPoolExecutor(max_workers=_LLM_WORKERS) as pool:
+        cards = [c for c in pool.map(_card_for, heads.items()) if c is not None]
+    logger.info(
+        f"Metadata cards: {len(cards)} built, {len(heads) - len(cards)} skipped"
+    )
+    return cards

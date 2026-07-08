@@ -100,3 +100,65 @@ class TestLlmMode:
             llm=llm,
         )
         assert "[Source document: orphan.md]" in enriched.page_content
+
+
+class TestMetadataCards:
+    """One extracted card per document; failures skip, never break ingest."""
+
+    def test_one_card_per_document_with_labeled_fields(self):
+        from ragstone.rag.enrichment import build_metadata_cards
+
+        llm = FakeListChatModel(
+            responses=[
+                "Title: Corona Installation Guide\nAuthors: Corona Corp\n"
+                "Date: 2023\nType: manual"
+            ]
+        )
+        docs = [
+            _chunk("Corona Installation Guide...", source="corona_solar_guide.md"),
+            # A second chunk of the SAME document must not get its own card.
+            _chunk("More of the same doc", source="corona_solar_guide.md"),
+        ]
+        cards = build_metadata_cards(docs, llm)
+
+        assert len(cards) == 1
+        card = cards[0]
+        assert card.page_content.startswith(
+            "[Document metadata] Source: corona_solar_guide.md"
+        )
+        assert "Authors: Corona Corp" in card.page_content
+        assert card.metadata["metadata_card"] is True
+        assert card.metadata["source"] == "corona_solar_guide.md"
+
+    def test_no_llm_yields_no_cards(self):
+        from ragstone.rag.enrichment import build_metadata_cards
+
+        assert build_metadata_cards([_chunk("text")], llm=None) == []
+
+    def test_extraction_failure_skips_the_card_not_the_ingest(self):
+        from ragstone.rag.enrichment import build_metadata_cards
+
+        class _BoomModel(FakeListChatModel):
+            def _generate(self, *args, **kwargs):
+                raise RuntimeError("api down")
+
+        cards = build_metadata_cards(
+            [_chunk("text")], llm=_BoomModel(responses=["unused"])
+        )
+        assert cards == []
+
+    def test_cards_built_per_distinct_source(self):
+        from ragstone.rag.enrichment import build_metadata_cards
+
+        llm = FakeListChatModel(
+            responses=[
+                "Title: A\nAuthors: not stated\nDate: not stated\nType: report",
+                "Title: B\nAuthors: not stated\nDate: not stated\nType: report",
+            ]
+        )
+        docs = [
+            _chunk("doc a", source="a.md"),
+            _chunk("doc b", source="b.md"),
+        ]
+        cards = build_metadata_cards(docs, llm)
+        assert sorted(c.metadata["source"] for c in cards) == ["a.md", "b.md"]

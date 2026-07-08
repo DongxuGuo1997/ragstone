@@ -198,11 +198,12 @@ class Pipeline:
             logger.info(
                 f"Successfully split {len(docs)} source documents into {len(self.texts)} chunks."
             )
-            context_mode = get_config().loader.chunk_context
-            if context_mode != "off":
+            loader_cfg = get_config().loader
+            context_mode = loader_cfg.chunk_context
+            if context_mode != "off" or loader_cfg.metadata_cards:
                 # Enrich BEFORE indexing so the context line is part of
                 # what gets embedded, BM25-indexed, and fingerprinted.
-                from .enrichment import enrich_chunks
+                from .enrichment import build_metadata_cards, enrich_chunks
                 from .memory import _make_rephrase_llm
 
                 llm = None
@@ -211,10 +212,15 @@ class Pipeline:
                     # Ingest-time context lines are utility work — run them
                     # on the cheap model when one is configured.
                     llm = _make_rephrase_llm(main_llm, get_config().llm.rephrase_model)
-                self.texts = enrich_chunks(
-                    self.texts, source_docs=docs, mode=context_mode, llm=llm
-                )
-                logger.info(f"Chunk context enrichment applied: {context_mode}")
+                if context_mode != "off":
+                    self.texts = enrich_chunks(
+                        self.texts, source_docs=docs, mode=context_mode, llm=llm
+                    )
+                    logger.info(f"Chunk context enrichment applied: {context_mode}")
+                if loader_cfg.metadata_cards:
+                    # Cards carry their own "[Document metadata]" label, so
+                    # they are added after enrichment, not run through it.
+                    self.texts = self.texts + build_metadata_cards(docs, llm)
         else:
             logger.warning("Document splitting resulted in no text chunks.")
         return self.texts

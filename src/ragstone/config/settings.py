@@ -209,6 +209,19 @@ class LoaderConfig:
             os.getenv("RAGSTONE_CHUNK_CONTEXT", "source").strip().lower()
         )
     )
+    # Document-metadata cards: one LLM-extracted chunk per document
+    # (title/authors/date, verbatim from the document head) indexed
+    # alongside the content chunks. Exists because content retrieval
+    # cannot answer "who wrote this?" — author blocks never rank for
+    # "created/wrote" phrasing, and references sections are decoys that
+    # do (Experiment 19). One utility-model call per document at ingest;
+    # extraction failures skip the card, never break ingestion.
+    metadata_cards: bool = field(
+        default_factory=lambda: (
+            os.getenv("RAGSTONE_METADATA_CARDS", "on").strip().lower()
+            not in ("off", "false", "0", "no")
+        )
+    )
 
     def __post_init__(self):
         """Validate loader configuration."""
@@ -462,6 +475,7 @@ class Config:
                 "chunk_size": self.loader.chunk_size,
                 "chunk_overlap": self.loader.chunk_overlap,
                 "chunk_context": self.loader.chunk_context,
+                "metadata_cards": self.loader.metadata_cards,
                 "allowed_data_root": self.loader.allowed_data_root,
             },
             "api": {

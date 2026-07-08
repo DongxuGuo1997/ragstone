@@ -2,11 +2,11 @@
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full": {
     "metrics": {
       "hit_rate": 1.0,
-      "mrr": 0.931,
-      "correct_rate": 0.974,
+      "mrr": 0.952,
+      "correct_rate": 0.951,
       "faithful_rate": 1.0,
       "multi_turn_correct_rate": 0.875,
-      "multi_turn_faithful_rate": 1.0
+      "multi_turn_faithful_rate": 0.875
     },
     "date": "2026-07-08"
   },
