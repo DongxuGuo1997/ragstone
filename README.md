@@ -507,6 +507,10 @@ Production behaviors built in:
   by chain/cache/error, latency histograms (end-to-end, per stage, and
   time-to-first-token), and token totals. Aggregates only, never content;
   unauthenticated like the probes, so expose it on internal networks.
+- **Tracing**: `pip install "ragstone[otel]"` and set
+  `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. a local Jaeger); each ask becomes a
+  `ragstone.ask` span — request id, session, cache/token/error outcome —
+  with children for the measured rephrase/retrieval stages.
 - **Auth**: set `RAGSTONE_API_KEY` and clients must send it as `X-API-Key`.
 - **Backpressure**: at most `RAGSTONE_API_MAX_CONCURRENCY` (default 8)
   simultaneous `/ask` requests; beyond that the server answers `429`

@@ -17,11 +17,11 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 import ragstone.api.server as server  # noqa: E402
 from ragstone.utils import registry  # noqa: E402
-from ragstone.utils.observability import current_request_id  # noqa: E402
 from ragstone.utils.exceptions import (  # noqa: E402
     ChainExecutionError,
     ValidationError,
 )
+from ragstone.utils.observability import current_request_id  # noqa: E402
 
 
 class _StubPipeline:

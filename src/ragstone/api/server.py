@@ -468,6 +468,37 @@ def _sse_stream(
         cancelled.set()
 
 
+def _maybe_setup_otel() -> None:
+    """Wire the OTLP exporter when the standard OTel env vars ask for it.
+
+    Instrumentation (spans in observability.py) is always present but
+    non-recording until a tracer provider exists; this is the only place
+    that creates one. No endpoint configured -> tracing stays off.
+    """
+    if not os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        return
+    try:
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    except ImportError:
+        logger.warning(
+            "OTEL_EXPORTER_OTLP_ENDPOINT is set but the otel extra is not "
+            "installed; tracing disabled. pip install 'ragstone[otel]'"
+        )
+        return
+    # Resource.create and OTLPSpanExporter read the standard OTEL_* env
+    # vars themselves (endpoint, headers, OTEL_SERVICE_NAME).
+    provider = TracerProvider(resource=Resource.create({"service.name": "ragstone"}))
+    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    trace.set_tracer_provider(provider)
+    logger.info("OpenTelemetry tracing enabled (OTLP/HTTP)")
+
+
 def main() -> None:
     """Entry point for the ragstone-api console script."""
     import uvicorn
@@ -477,6 +508,7 @@ def main() -> None:
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     get_config()  # fail fast on invalid configuration
+    _maybe_setup_otel()
     host = os.getenv("RAGSTONE_API_HOST", "127.0.0.1")
     port = int(os.getenv("RAGSTONE_API_PORT", "8000"))
     logger.info(f"Starting Ragstone API on {host}:{port}")

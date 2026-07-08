@@ -26,9 +26,21 @@ import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from langchain_core.callbacks import get_usage_metadata_callback
+
+# OpenTelemetry is optional (the `otel` extra). With the API package
+# importable, each tracked request becomes a span with children for the
+# measured stages; without it — or with no SDK/exporter configured, where
+# spans are non-recording — everything trace-related here is a no-op.
+try:
+    from opentelemetry import trace as _otel_trace
+
+    _tracer: Optional[Any] = _otel_trace.get_tracer("ragstone")
+except ImportError:  # pragma: no cover - exercised only without the extra
+    _otel_trace = None  # type: ignore[assignment]
+    _tracer = None
 
 logger = logging.getLogger("ragstone.requests")
 
@@ -116,6 +128,57 @@ def record_stage(stage: str, elapsed_ms: int) -> None:
     metrics = _current_metrics.get()
     if metrics is not None:
         metrics.stage_ms[stage] = metrics.stage_ms.get(stage, 0) + elapsed_ms
+        _record_stage_span(metrics, stage, elapsed_ms)
+
+
+def _record_stage_span(metrics: "RequestMetrics", stage: str, elapsed_ms: int) -> None:
+    """Emit a retroactive child span for a measured stage.
+
+    Spans get explicit start/end times instead of OTel context attach/
+    detach: stage code runs on worker threads and inside LangGraph nodes,
+    where attaching would repeat exactly the cross-context teardown
+    hazard the ContextVar guards in this module exist for. A retroactive
+    span carries the same information without ever touching the context.
+    """
+    root = metrics.otel_span
+    if _tracer is None or root is None or not root.is_recording():
+        return
+    end_ns = time.time_ns()
+    child = _tracer.start_span(
+        f"ragstone.{stage}",
+        context=_otel_trace.set_span_in_context(root),
+        start_time=end_ns - elapsed_ms * 1_000_000,
+    )
+    child.end(end_time=end_ns)
+
+
+def _finish_span(metrics: "RequestMetrics") -> None:
+    """Stamp the request's outcome on its root span and end it."""
+    span = metrics.otel_span
+    if span is None:
+        return
+    if span.is_recording():
+        span.set_attributes(
+            {
+                "ragstone.request_id": metrics.request_id,
+                "ragstone.session_id": metrics.session_id,
+                "ragstone.chain_type": metrics.chain_type or "none",
+                "ragstone.cache_hit": metrics.cache_hit,
+                "ragstone.tokens.input": metrics.input_tokens,
+                "ragstone.tokens.output": metrics.output_tokens,
+                # Generation is DERIVED (latency minus measured stages),
+                # so it is an attribute, not a child span — a span for it
+                # would fabricate an interval nothing actually measured.
+                "ragstone.generation_ms": metrics.generation_ms,
+            }
+        )
+        if metrics.first_token_ms is not None:
+            span.set_attribute("ragstone.first_token_ms", metrics.first_token_ms)
+        if metrics.error:
+            span.set_status(
+                _otel_trace.Status(_otel_trace.StatusCode.ERROR, metrics.error)
+            )
+    span.end()
 
 
 @contextmanager
@@ -149,6 +212,9 @@ class RequestMetrics:
     # {"rephrase": 520, "retrieval": 180}. Generation is derived: whatever
     # latency the named stages don't account for.
     stage_ms: Dict[str, int] = field(default_factory=dict)
+    # OpenTelemetry root span for this request; None when tracing is off.
+    # Plumbing, not measurement — kept out of repr and comparisons.
+    otel_span: Optional[Any] = field(default=None, repr=False, compare=False)
 
     @property
     def generation_ms(self) -> int:
@@ -198,6 +264,11 @@ def track_request(
         session_id=session_id,
         chain_type=chain_type,
     )
+    if _tracer is not None:
+        # Not made "current" (no context attach): stage spans reach it
+        # through the metrics object, and ending it in the finally below
+        # is safe even when enter and exit run in different contexts.
+        metrics.otel_span = _tracer.start_span("ragstone.ask")
     start = time.perf_counter()
     usage_ctx = get_usage_metadata_callback()
     usage_cb = usage_ctx.__enter__()
@@ -217,6 +288,7 @@ def track_request(
         metrics.tokens = sum(u.get("total_tokens", 0) for u in usages)
         metrics.input_tokens = sum(u.get("input_tokens", 0) for u in usages)
         metrics.output_tokens = sum(u.get("output_tokens", 0) for u in usages)
+        _finish_span(metrics)
         stages = ",".join(f"{k}:{v}" for k, v in sorted(metrics.stage_ms.items()))
         logger.info(
             "request=%s session=%s chain=%s cache_hit=%s latency_ms=%d tokens=%d%s%s",
