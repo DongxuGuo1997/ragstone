@@ -163,6 +163,45 @@ class TestRephraseModelSelection:
         llm = _CountingFakeChatModel(responses=["x"])
         assert _make_rephrase_llm(llm, "tiny-model") is llm
 
+    def test_sibling_inherits_the_main_models_reasoning(self):
+        # ChatOllama-shaped: the thinking knob set on the main model
+        # (RAGSTONE_OLLAMA_REASONING) must carry to a configured utility
+        # sibling, or rephrase/grade/route quietly revert to thinking.
+        from ragstone.rag.memory import _make_rephrase_llm
+
+        built = {}
+
+        class _OllamaShaped:
+            def __init__(self, model=None, temperature=None, reasoning=None):
+                self.model = model
+                self.reasoning = reasoning
+                built["model"] = model
+                built["reasoning"] = reasoning
+
+        main = _OllamaShaped(model="big-model", reasoning=False)
+        sibling = _make_rephrase_llm(main, "tiny-model")
+
+        assert sibling is not main
+        assert built == {"model": "tiny-model", "reasoning": False}
+
+    def test_openai_shaped_sibling_gets_no_reasoning_kwarg(self):
+        # ChatOpenAI has no reasoning attribute/param: passing one would
+        # raise in __init__ and trip the fallback — build must stay clean.
+        from ragstone.rag.memory import _make_rephrase_llm
+
+        built = {}
+
+        class _OpenAIShaped:
+            def __init__(self, model=None, temperature=None):
+                self.model = model
+                built["model"] = model
+
+        main = _OpenAIShaped(model="big-model")
+        sibling = _make_rephrase_llm(main, "tiny-model")
+
+        assert sibling is not main
+        assert built["model"] == "tiny-model"
+
 
 class TestCheckpointBackend:
     def test_unknown_backend_raises(self):

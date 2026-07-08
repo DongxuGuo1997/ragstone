@@ -68,7 +68,14 @@ def _make_rephrase_llm(llm: BaseChatModel, model_name: Optional[str]) -> BaseCha
         # The concrete class is only known at runtime; `model` and
         # `temperature` are constructor params on every supported provider.
         llm_cls: Any = type(llm)
-        return llm_cls(model=model_name, temperature=0)
+        build_kwargs: dict = {"model": model_name, "temperature": 0}
+        # Carry the main model's thinking setting to the sibling: ChatOllama
+        # exposes it as an attribute (None when unset); ChatOpenAI has no
+        # such attribute, so the OpenAI path is untouched.
+        reasoning = getattr(llm, "reasoning", None)
+        if reasoning is not None:
+            build_kwargs["reasoning"] = reasoning
+        return llm_cls(**build_kwargs)
     except Exception as exc:
         logger.warning(
             "Could not build rephrase model %r (%s); using the main model.",

@@ -55,6 +55,34 @@ class TestLLMConfig:
         assert config.timeout == 60
 
 
+class TestOllamaReasoningConfig:
+    """RAGSTONE_OLLAMA_REASONING is tri-state: unset must stay distinct
+    from off (None = don't pass the knob, preserve the model default)."""
+
+    def test_unset_is_none(self, monkeypatch):
+        monkeypatch.delenv("RAGSTONE_OLLAMA_REASONING", raising=False)
+        assert LLMConfig().ollama_reasoning is None
+
+    @pytest.mark.parametrize("raw", ["on", "true", "1", "yes", " ON "])
+    def test_on_variants(self, monkeypatch, raw):
+        monkeypatch.setenv("RAGSTONE_OLLAMA_REASONING", raw)
+        assert LLMConfig().ollama_reasoning is True
+
+    @pytest.mark.parametrize("raw", ["off", "false", "0", "no", " Off "])
+    def test_off_variants(self, monkeypatch, raw):
+        monkeypatch.setenv("RAGSTONE_OLLAMA_REASONING", raw)
+        assert LLMConfig().ollama_reasoning is False
+
+    def test_empty_is_none(self, monkeypatch):
+        monkeypatch.setenv("RAGSTONE_OLLAMA_REASONING", "  ")
+        assert LLMConfig().ollama_reasoning is None
+
+    def test_garbage_raises(self, monkeypatch):
+        monkeypatch.setenv("RAGSTONE_OLLAMA_REASONING", "maybe")
+        with pytest.raises(ConfigurationError):
+            LLMConfig()
+
+
 class TestConfig:
     """Test suite for main Config class."""
 

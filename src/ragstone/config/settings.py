@@ -22,6 +22,22 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def _tri_state_env(name: str) -> Optional[bool]:
+    """Parse an on/off env var where UNSET is a distinct, meaningful state.
+
+    None means "don't pass the knob at all" — the consumer preserves the
+    underlying library's default — which a plain boolean cannot express.
+    """
+    raw = os.getenv(name, "").strip().lower()
+    if not raw:
+        return None
+    if raw in ("on", "true", "1", "yes"):
+        return True
+    if raw in ("off", "false", "0", "no"):
+        return False
+    raise ConfigurationError(f"{name} must be 'on' or 'off' (or unset), got {raw!r}")
+
+
 @dataclass
 class DatabaseConfig:
     """Configuration for vector databases."""
@@ -167,6 +183,14 @@ class LLMConfig:
     # standalone questions and pronoun follow-ups.
     rephrase_model: Optional[str] = field(
         default_factory=lambda: os.getenv("RAGSTONE_REPHRASE_MODEL") or None
+    )
+    # Thinking control for Ollama models (RAGSTONE_OLLAMA_REASONING).
+    # Unset (None) keeps each model's own default. Measured July 2026 on
+    # qwen3:14b: default thinking cost 91 output tokens / 4.7 s for a
+    # one-word answer vs 3 tokens / 0.2 s with reasoning off — for RAG
+    # answering this knob is the local latency/token switch.
+    ollama_reasoning: Optional[bool] = field(
+        default_factory=lambda: _tri_state_env("RAGSTONE_OLLAMA_REASONING")
     )
 
     def __post_init__(self):

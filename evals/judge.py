@@ -6,6 +6,7 @@ returns ``{"verdict": "pass" | "fail", "reason": "..."}``.
 """
 
 import json
+from typing import Optional
 
 CORRECTNESS_PROMPT = """\
 You are grading the answer of a question-answering system.
@@ -51,11 +52,17 @@ object:
 """
 
 
-def _get_judge_llm(model: str, provider: str):
+def _get_judge_llm(model: str, provider: str, reasoning: Optional[bool] = None):
     if provider == "ollama":
         from langchain_ollama import ChatOllama
 
-        return ChatOllama(model=model, temperature=0)
+        # reasoning=True matters for thinking judges (deepseek-r1, qwen3):
+        # it moves the think block out of .content so _parse_verdict sees
+        # clean JSON. None omits the knob and keeps the model's default.
+        kwargs = {"model": model, "temperature": 0}
+        if reasoning is not None:
+            kwargs["reasoning"] = reasoning
+        return ChatOllama(**kwargs)
     from langchain_openai import ChatOpenAI
 
     return ChatOpenAI(model=model, temperature=0)
@@ -77,8 +84,10 @@ def _parse_verdict(text: str) -> dict:
     return {"verdict": verdict, "reason": str(result.get("reason", ""))}
 
 
-def _judge(prompt: str, model: str, provider: str) -> dict:
-    llm = _get_judge_llm(model, provider)
+def _judge(
+    prompt: str, model: str, provider: str, reasoning: Optional[bool] = None
+) -> dict:
+    llm = _get_judge_llm(model, provider, reasoning)
     response = llm.invoke(prompt).content
     try:
         return _parse_verdict(response)
@@ -97,7 +106,12 @@ def _judge(prompt: str, model: str, provider: str) -> dict:
 
 
 def judge_correctness(
-    question: str, gold_answer, answer: str, model: str, provider: str = "openai"
+    question: str,
+    gold_answer,
+    answer: str,
+    model: str,
+    provider: str = "openai",
+    reasoning: Optional[bool] = None,
 ) -> dict:
     """Grade an answer against the gold answer (or against declining, if gold is None)."""
     if gold_answer is None:
@@ -106,14 +120,19 @@ def judge_correctness(
         prompt = CORRECTNESS_PROMPT.format(
             question=question, gold_answer=gold_answer, answer=answer
         )
-    return _judge(prompt, model, provider)
+    return _judge(prompt, model, provider, reasoning)
 
 
 def judge_faithfulness(
-    question: str, context: str, answer: str, model: str, provider: str = "openai"
+    question: str,
+    context: str,
+    answer: str,
+    model: str,
+    provider: str = "openai",
+    reasoning: Optional[bool] = None,
 ) -> dict:
     """Grade whether every claim in the answer is grounded in the retrieved context."""
     prompt = FAITHFULNESS_PROMPT.format(
         question=question, context=context, answer=answer
     )
-    return _judge(prompt, model, provider)
+    return _judge(prompt, model, provider, reasoning)

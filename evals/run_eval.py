@@ -95,6 +95,12 @@ def build_pipeline(args):
     if args.chunk_context is not None:
         config.loader.chunk_context = args.chunk_context
 
+    # Thinking control for local answerers: measured (Experiment 21) as the
+    # difference between honest RAG latency and a model quietly reasoning
+    # through every retrieval question.
+    if getattr(args, "ollama_reasoning", None) is not None:
+        config.llm.ollama_reasoning = args.ollama_reasoning == "on"
+
     store_kwargs = {}
     if args.vector_store is not None:
         store_kwargs["vector_store_type"] = args.vector_store
@@ -179,6 +185,11 @@ def eval_generation(pipeline, cases, args):
     from langchain_core.callbacks import get_usage_metadata_callback
 
     retriever = pipeline.get_retriever()
+    # Thinking control for an Ollama judge; None = model default. getattr
+    # so older test namespaces without the flag keep working.
+    judge_reasoning = {"on": True, "off": False}.get(
+        getattr(args, "judge_reasoning", None)
+    )
     rows = []
     # Namespace sessions per run: with a persistent checkpoint backend
     # (RAGSTONE_CHECKPOINT_BACKEND=sqlite) a bare eval_<id> session would
@@ -214,7 +225,11 @@ def eval_generation(pipeline, cases, args):
                 use_cache=False,
             )
         latency_s = round(time.perf_counter() - start, 2)
-        tokens = sum(u.get("total_tokens", 0) for u in usage_cb.usage_metadata.values())
+        usages = usage_cb.usage_metadata.values()
+        tokens = sum(u.get("total_tokens", 0) for u in usages)
+        # Output tokens separately: with local models, output ÷ wall-clock
+        # is the tokens/s figure the money-vs-time tradeoff turns on.
+        output_tokens = sum(u.get("output_tokens", 0) for u in usages)
         # Stage decomposition (rephrase/retrieval), when the pipeline
         # recorded it — shows WHERE latency lives, per case.
         last_metrics = getattr(pipeline, "last_metrics", None)
@@ -224,8 +239,10 @@ def eval_generation(pipeline, cases, args):
                 {
                     "case": case,
                     "answer": "",
+                    "context": "",
                     "latency_s": latency_s,
                     "tokens": tokens,
+                    "output_tokens": output_tokens,
                     "stage_ms": stage_ms,
                     "correct": {
                         "verdict": "fail",
@@ -266,6 +283,7 @@ def eval_generation(pipeline, cases, args):
             answer,
             args.judge_model,
             args.judge_provider,
+            judge_reasoning,
         )
         faithful = with_retries(
             judge.judge_faithfulness,
@@ -274,13 +292,16 @@ def eval_generation(pipeline, cases, args):
             answer,
             args.judge_model,
             args.judge_provider,
+            judge_reasoning,
         )
         rows.append(
             {
                 "case": case,
                 "answer": answer,
+                "context": context,
                 "latency_s": latency_s,
                 "tokens": tokens,
+                "output_tokens": output_tokens,
                 "stage_ms": stage_ms,
                 "correct": correct,
                 "faithful": faithful,
@@ -315,11 +336,19 @@ def eval_generation(pipeline, cases, args):
     metrics.update(_rates(multi_rows, prefix="multi_turn_"))
     # Informational only — latency and token cost vary run to run, so they
     # are reported for comparison but never gated against the baseline.
+    total_latency = sum(r["latency_s"] for r in rows)
+    total_output = sum(r.get("output_tokens", 0) for r in rows)
     efficiency = {
-        "avg_latency_s": (
-            round(sum(r["latency_s"] for r in rows) / len(rows), 2) if rows else 0.0
-        ),
+        "avg_latency_s": round(total_latency / len(rows), 2) if rows else 0.0,
         "total_tokens": sum(r["tokens"] for r in rows),
+        "total_output_tokens": total_output,
+        # Output tokens across every LLM call the final ask needed ÷ that
+        # ask's wall-clock — pipeline throughput, not raw decode speed
+        # (multi-turn includes the rephrase round-trip by design). Zero
+        # when the provider reports no usage metadata.
+        "output_tokens_per_s": (
+            round(total_output / total_latency, 1) if total_latency else 0.0
+        ),
     }
     # Average per-stage cost over the cases where the stage ran — e.g.
     # rephrase only runs on multi_turn follow-ups, so averaging over all
@@ -330,6 +359,61 @@ def eval_generation(pipeline, cases, args):
             sum(stage_rows) / len(stage_rows)
         )
     return metrics, rows, efficiency
+
+
+def dump_answers(path_str: str, rows, args) -> None:
+    """Persist every generation row — full answers and judged contexts.
+
+    Experiment 11's judge-swap deltas were only an upper bound because
+    answers regenerate on every run; this dump is what lets
+    evals/rejudge.py re-score STORED answers with a different judge,
+    isolating the judge effect exactly. One JSONL: a _meta header line,
+    then one record per case.
+    """
+    path = Path(path_str)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    meta = {
+        "_meta": {
+            "date": date.today().isoformat(),
+            "provider": args.provider,
+            "model": args.model,
+            "chain_type": args.chain_type,
+            "k": args.k,
+            "set": args.set,
+            "rerank": args.rerank,
+            "ollama_reasoning": getattr(args, "ollama_reasoning", None),
+            "judge_provider": args.judge_provider,
+            "judge_model": args.judge_model,
+            "judge_reasoning": getattr(args, "judge_reasoning", None),
+            "n_cases": len(rows),
+        }
+    }
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(meta, ensure_ascii=False) + "\n")
+        for r in rows:
+            case = r["case"]
+            fh.write(
+                json.dumps(
+                    {
+                        "id": case["id"],
+                        "category": case["category"],
+                        "question": (case.get("turns") or [case["question"]])[-1],
+                        "turns": case.get("turns"),
+                        "gold_answer": case.get("gold_answer"),
+                        "answer": r["answer"],
+                        "context": r.get("context", ""),
+                        "latency_s": r["latency_s"],
+                        "tokens": r["tokens"],
+                        "output_tokens": r.get("output_tokens", 0),
+                        "stage_ms": r.get("stage_ms", {}),
+                        "correct": r["correct"],
+                        "faithful": r["faithful"],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+    print(f"Answers dumped to {path} ({len(rows)} cases)")
 
 
 def write_report(
@@ -451,8 +535,20 @@ def baseline_key(args) -> str:
         f"{args.provider}:{args.model}|judge:{args.judge_provider}:{args.judge_model}"
         f"|k={args.k}|chain={args.chain_type}|mode={args.mode}"
         + ("|rerank" if args.rerank else "")
-        # "smoke" omitted so historical baseline keys keep working.
+        # "smoke" omitted so historical baseline keys keep working; the
+        # reasoning suffixes likewise appear only when the flags were
+        # passed, leaving every committed OpenAI key untouched.
         + (f"|set={args.set}" if args.set != "smoke" else "")
+        + (
+            f"|ollama-reasoning={args.ollama_reasoning}"
+            if getattr(args, "ollama_reasoning", None)
+            else ""
+        )
+        + (
+            f"|judge-reasoning={args.judge_reasoning}"
+            if getattr(args, "judge_reasoning", None)
+            else ""
+        )
     )
 
 
@@ -534,6 +630,34 @@ def main():
     )
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--no-baseline-check", action="store_true")
+    parser.add_argument(
+        "--ollama-reasoning",
+        choices=["on", "off"],
+        default=None,
+        help="thinking control for a local answerer (sets "
+        "config.llm.ollama_reasoning for this run; unset = model default)",
+    )
+    parser.add_argument(
+        "--judge-reasoning",
+        choices=["on", "off"],
+        default=None,
+        help="thinking control for an Ollama judge",
+    )
+    parser.add_argument(
+        "--dump-answers",
+        default=None,
+        metavar="PATH",
+        help="write per-case answers + judged contexts as JSONL "
+        "(the input for evals/rejudge.py)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="pilot runs: only the first N golden cases "
+        "(refuses --update-baseline; results are for timing, not gating)",
+    )
     # Experiment knobs (pair with --no-baseline-check for sweeps):
     parser.add_argument("--chunk-size", type=int, default=None)
     parser.add_argument("--chunk-overlap", type=int, default=None)
@@ -552,7 +676,19 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.limit is not None:
+        if args.update_baseline:
+            sys.exit(
+                "error: --limit is a pilot knob; refusing to record a "
+                "partial run as a baseline"
+            )
+        if args.limit <= 0:
+            sys.exit("error: --limit must be positive")
+
     cases = load_cases(args.set)
+    if args.limit is not None:
+        cases = cases[: args.limit]
+        print(f"PILOT: limited to the first {len(cases)} cases")
     print(f"Loaded {len(cases)} golden cases")
     pipeline = build_pipeline(args)
 
@@ -567,6 +703,8 @@ def main():
             pipeline, cases, args
         )
         metrics.update(gen_metrics)
+        if args.dump_answers and generation_rows:
+            dump_answers(args.dump_answers, generation_rows, args)
 
     sizes = metric_sample_sizes(retrieval_rows, generation_rows)
     print("\nScores (rate metrics show the 95% binomial CI):")

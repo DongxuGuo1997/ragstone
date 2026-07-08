@@ -206,3 +206,91 @@ class TestConfidenceIntervals:
         rc = run_eval.check_baseline(args, {"correct_rate": 0.8}, {"correct_rate": 400})
         assert rc == 1
         assert "outside the 95% CI" in capsys.readouterr().out
+
+
+def _full_args(**overrides):
+    """An args namespace with every field the dump/key paths read."""
+    ns = SimpleNamespace(
+        provider="ollama",
+        model="local-m",
+        judge_provider="openai",
+        judge_model="stub",
+        k=4,
+        chain_type="simple",
+        mode="full",
+        rerank=False,
+        set="smoke",
+        ollama_reasoning=None,
+        judge_reasoning=None,
+    )
+    for name, value in overrides.items():
+        setattr(ns, name, value)
+    return ns
+
+
+class TestLocalStackAdditions:
+    """ROADMAP 8.0 wiring: dumps, output tokens, reasoning key suffixes."""
+
+    def test_rows_carry_context_and_output_tokens(self, run_eval):
+        pipeline = _ScriptedPipeline()
+        cases = [_case("c1", "single_fact", "q?")]
+        _, rows, efficiency = run_eval.eval_generation(pipeline, cases, ARGS)
+        assert rows[0]["context"].startswith("Halvorsen")
+        # The scripted pipeline reports no usage metadata: the tokens/s
+        # figure must degrade to 0, never divide by zero.
+        assert rows[0]["output_tokens"] == 0
+        assert efficiency["total_output_tokens"] == 0
+        assert efficiency["output_tokens_per_s"] == 0.0
+
+    def test_dump_answers_round_trip(self, run_eval, tmp_path):
+        import json as _json
+
+        pipeline = _ScriptedPipeline()
+        decline = _case("c2", "unanswerable", "unknowable?")
+        decline["gold_answer"] = None
+        cases = [_case("c1", "single_fact", "q?"), decline]
+        _, rows, _ = run_eval.eval_generation(pipeline, cases, ARGS)
+
+        path = tmp_path / "dumps" / "d.jsonl"
+        run_eval.dump_answers(str(path), rows, _full_args(ollama_reasoning="off"))
+
+        lines = path.read_text(encoding="utf-8").splitlines()
+        meta = _json.loads(lines[0])["_meta"]
+        assert meta["model"] == "local-m"
+        assert meta["ollama_reasoning"] == "off"
+        assert meta["n_cases"] == 2
+        records = [_json.loads(line) for line in lines[1:]]
+        assert records[0]["answer"] == "an answer"
+        assert records[0]["context"].startswith("Halvorsen")
+        # None gold answers select decline grading downstream — the dump
+        # must preserve them as null, not stringify or drop them.
+        assert records[1]["gold_answer"] is None
+
+    def test_baseline_key_reasoning_suffixes_only_when_set(self, run_eval):
+        plain = run_eval.baseline_key(_full_args())
+        assert "reasoning" not in plain  # committed keys stay untouched
+        suffixed = run_eval.baseline_key(
+            _full_args(ollama_reasoning="off", judge_reasoning="on")
+        )
+        assert suffixed.endswith("|ollama-reasoning=off|judge-reasoning=on")
+        assert suffixed.startswith(plain)
+
+    def test_judge_reasoning_reaches_the_judge_calls(self, run_eval):
+        calls = []
+        judge_stub = sys.modules["judge"]
+        judge_stub.judge_correctness = lambda *a: (
+            calls.append(a),
+            {"verdict": "pass", "reason": ""},
+        )[1]
+        judge_stub.judge_faithfulness = lambda *a: (
+            calls.append(a),
+            {"verdict": "pass", "reason": ""},
+        )[1]
+
+        args = _full_args(judge_reasoning="on")
+        run_eval.eval_generation(
+            _ScriptedPipeline(), [_case("c1", "single_fact", "q?")], args
+        )
+        # Both judge calls got the normalized True as their final argument.
+        assert len(calls) == 2
+        assert all(call[-1] is True for call in calls)

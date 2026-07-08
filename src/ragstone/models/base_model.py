@@ -189,6 +189,13 @@ class OllamaProxy(LLMProxy):
             # timeout goes to its underlying httpx client instead. Retries
             # are less relevant for a local server, so none are forced here.
             kwargs.setdefault("client_kwargs", {"timeout": config.llm.timeout})
+            # Thinking control (RAGSTONE_OLLAMA_REASONING): applied here in
+            # the proxy so every surface — REST API, MCP, eval, chat —
+            # honors it. None means the knob is absent entirely and the
+            # model's own default stands; setdefault keeps caller kwargs
+            # winning, same as base_url above.
+            if config.llm.ollama_reasoning is not None:
+                kwargs.setdefault("reasoning", config.llm.ollama_reasoning)
             self._llm = ChatOllama(
                 model=model_name, **kwargs
             )  # 'model' is the correct param for ChatOllama

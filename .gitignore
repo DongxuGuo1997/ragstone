@@ -108,5 +108,9 @@ vs_data/
 # Eval reports (regenerated each run)
 evals/report.md
 
+# Answer dumps (per-run artifacts for rejudge.py; published numbers live
+# in EXPERIMENTS.md/README, not git)
+evals/dumps/
+
 # Personal notes (never commit)
 docs/INTERNAL_DESIGN.md
