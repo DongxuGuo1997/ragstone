@@ -188,45 +188,96 @@ cheaper answer model, hard ones to the strong model. The stage-timing and
 cost instrumentation to verify this already exists.
 *Measure:* quality flat on large set, cost −30%+ or don't ship.
 
-## 5. Production hardening
+## 5. Enterprise grade — the committed next arc
 
-### 5.1 Request-scoped introspection state — M
-`get_sources` / `last_metrics` / `get_last_retrieved_documents` are
-single-writer per pipeline (documented in the `Pipeline` docstring). Move
-per-ask state (the recording retriever's list, last question/metrics)
-into a request context object returned by the ask, or contextvars.
-Removes the one concurrency caveat left after the July 2026 review.
-*Measure:* a concurrent-asks test asserting no cross-request bleed.
+The quality work above is what makes Ragstone worth running; this
+section is what a company needs to actually run it. Three arcs, in
+dependency order — each is a coherent deliverable with a demo at the
+end, not a grab bag. (Agreed as the next major work after the July 2026
+engine-hardening arc.)
 
-### 5.2 OpenTelemetry export — M
-`ragstone.requests` log lines carry request id, latency, tokens, stages —
-map them to OTel spans (retrieval span, rephrase span, generation span)
-so any APM can ingest them. Alternative: a Langfuse callback for
-LLM-native tracing.
-*Measure:* trace visible end-to-end in a local Jaeger/Langfuse.
+### Arc 1 — Operable: you can see it, secure it, and restart it
 
-### 5.3 Per-client API keys and quotas — M
-One shared key today (documented limitation). A keyed table with
-per-client rate limits and usage attribution unlocks multi-team demos.
-*Measure:* integration tests for quota enforcement; usage report per key.
+#### 5.1 Request-scoped introspection state — DELIVERED (July 2026)
+Per-ask state now lives on an ownership-checked AskContext (contextvar),
+ending the single-writer caveat; concurrent asks are regression-tested
+for cross-request bleed.
 
-### 5.4 SSRF: per-hop validation — S
-Redirects are now refused outright; the friendlier version follows them
-manually, re-validating each `Location` against `validate_page_url`
-(bounded hops). DNS pinning (resolve once, connect to the validated IP)
-would close the remaining rebinding TOCTOU.
-*Measure:* unit tests with a redirecting test server.
+#### 5.2 Distributed tracing: X-Request-ID + OpenTelemetry + /metrics — M
+`ragstone.requests` lines already carry request id, latency, tokens, and
+per-stage decomposition. Accept/propagate `X-Request-ID` end to end, map
+stages to OTel spans (rephrase/retrieval/generation), and expose a
+Prometheus `/metrics` endpoint (request counts, latency histograms,
+token totals, cache hit rate).
+*Measure:* one request traced end-to-end in local Jaeger; a Grafana
+panel from /metrics alone.
 
-### 5.5 Output moderation hook — S
-An optional post-generation callback slot (regex/PII scrub or a
-moderation model) before answers leave the API. Currently a documented
-non-goal; make it a pluggable seam instead.
+#### 5.3 Named API keys, per-key quotas, audit log — M
+One shared key today (documented limitation). A keyed store with
+per-client rate limits, usage attribution, and an append-only audit line
+per request (who, what corpus, when — never the document content).
+*Measure:* integration tests for quota enforcement and key revocation;
+a per-key usage report.
 
-### 5.6 Session persistence & multi-user UI — M
-The Streamlit cache toggle mutates process-global config (single-user
-assumption, noted in code); sessions die with the process unless sqlite
-is enabled. A proper multi-user story needs per-session config and a
-session browser backed by the checkpointer.
+#### 5.7 Registry persistence + graceful shutdown — M
+The server's pipeline registry dies with the process; clients must
+re-ingest. Persist registry metadata (corpus fingerprint, store type,
+config) and reload lazily on boot; drain in-flight requests on SIGTERM
+(the vector stores and embedding cache already survive restarts).
+*Measure:* kill -TERM under load — zero dropped in-flight requests, and
+a restarted server serves the same corpus ids without re-ingestion.
+
+#### 5.8 Supply-chain CI: pip-audit + image scan — S
+`pip-audit` on every CI run (fail on known CVEs, allowlist with expiry),
+plus a container image scan on the Docker path.
+*Measure:* CI red on a deliberately pinned vulnerable dep.
+
+### Arc 2 — Governable: contracts, errors, and the data lifecycle
+
+#### 5.9 API versioning (/v1) + RFC 7807 error bodies — S/M
+Freeze today's REST surface as `/v1`; every error becomes a
+`application/problem+json` body with type/title/detail/instance and the
+request id. Contract tests pin the schema.
+
+#### 5.10 Session TTL and deletion — the right-to-erasure item — M
+Sessions currently live until process death (or forever with sqlite).
+Add per-session TTL, an explicit `DELETE /v1/sessions/{id}`, and a
+documented answer to "where does user text live and when does it die"
+(checkpointer, caches, logs). This is the GDPR question every privacy-
+minded client asks first.
+*Measure:* deletion test — after DELETE, no trace of the session in
+checkpointer, response cache, or logs beyond the audit line.
+
+#### 5.11 Boot-time config validation, fail-fast — S
+Validate the full config at startup (store reachable, model available,
+key present for the chosen provider) and refuse to boot half-working,
+with an actionable message per failure.
+
+#### 5.4 SSRF: per-hop redirect validation — S *(existing item, fits here)*
+#### 5.5 Output moderation hook — S *(existing item, fits here)*
+#### 5.6 Session persistence & multi-user UI — M *(existing item, fits here)*
+
+### Arc 3 — Multi-tenant and scale
+
+#### 5.12 Document ACLs / per-tenant corpora — L
+Tenant-scoped collections (the qdrant/pgvector backends already isolate
+by collection name) plus per-key corpus visibility. Retrieval must
+enforce the filter INSIDE the store query, not post-filter — post-
+filtering leaks existence and breaks k.
+*Measure:* an adversarial test suite: no query, citation, or metrics
+line from tenant A ever contains tenant B content.
+
+#### 5.13 Horizontal scale: stateless workers — M/L
+With server-mode vector stores (4.1), the sqlite checkpointer is the
+last per-process state. Swap it for the Postgres checkpointer, and any
+number of API workers can sit behind a load balancer.
+*Measure:* Experiment 16's harness re-run against 2 and 4 workers;
+session continuity across workers.
+
+#### 5.14 Backup/restore runbook — S/M
+Documented, tested restore of: vector store, embedding cache, sessions,
+baselines. A quarterly-restore CI job is the difference between a
+backup and a hope.
 
 ## 6. Product surface
 
@@ -271,6 +322,107 @@ this safe.
   mypy debt was paid down. M, background.
 
 ---
+
+## 8. Local-first and private deployment — the second strategic path
+
+Many clients value privacy and control above raw quality: regulated
+industries, public sector, and anyone whose documents cannot leave
+their network. Ragstone already runs fully offline (Ollama + FAISS +
+local reranker + local embeddings) — but "runs" is not a claim this
+repo makes without a number attached. The honest current state: **the
+entire eval harness has only ever measured the OpenAI path.** Every
+verdict in EXPERIMENTS.md is a cloud-model verdict. That gap is the
+first item below, and everything else keys off it.
+
+The strategic frame: the cloud path competes on quality, where a
+wrapper adds little; the local path competes on **measured quality per
+unit of privacy**, where the eval harness IS the product. Nobody buys
+"local RAG" — they buy "local RAG that we proved loses only X points
+on your documents, with a CI-enforced guarantee that nothing leaves
+the building."
+
+### 8.0 Measure the local stack — the missing baseline — M
+One full eval matrix on the all-local configuration (local answerer x
+local embeddings x local reranker). The judge is its own experiment:
+score once with the cloud judge and once with a large local judge
+(70B-class), and publish the delta — Experiment 11's protocol extended
+across the trust boundary. Deliverable: a "local" column next to every
+number in the README's measured table, including the multi-turn and
+challenge-turn slices (the Experiment 18 lesson: gate utility steps on
+the turn types they will face).
+*Measure:* the delta IS the result. Also record tokens/s and latency —
+local trades money for time, and clients need that curve.
+
+### 8.1 Provable no-egress mode — S/M, the flagship feature
+`RAGSTONE_PROFILE=local`: one switch that selects local models, local
+embeddings, local stores, and disables every outbound integration.
+Then the part that sells it: a CI test that intercepts socket creation
+for the entire ingest-and-ask path and FAILS on any connection that is
+not localhost. The privacy claim becomes a regression-tested invariant,
+not a paragraph in a sales deck.
+*Measure:* the CI test itself, plus a documented data-flow diagram per
+mode (strict-local / local-with-cloud-eval / hybrid) — the artifact a
+client DPIA actually needs.
+
+### 8.2 A measured local model menu, in tiers — M
+`llama3` as the sole local default is dated. Curate and MEASURE three
+tiers — edge (3-4B class), workstation (7-14B), server (70B+ / MoE) —
+plus one reasoning-distill model to answer whether thinking models
+close the local corrective/agent gap. The default per tier is decided
+by the harness, like every other default in this repo.
+*Measure:* eval columns per tier; the size-vs-quality knee is the
+deliverable clients ask for ("what is the smallest model we can
+defend?").
+
+### 8.3 Local utility model + constrained decoding — S/M
+Rephrase/grade/route on a small local sibling is the local analogue of
+Experiment 18 — same latency win, same risk, so it ships only behind
+the challenge-turn slice. For the router and grader, stop
+prompt-and-praying: local serving supports constrained decoding
+(JSON schema / grammars), which turns "usually valid" classifier output
+into "always valid" — cheap reliability the cloud path never needed.
+*Measure:* challenge-turn slice green on the local utility model;
+router output validity 100% by construction.
+
+### 8.4 Multilingual (Nordic) embeddings and eval slice — M
+Local deployments here mean Swedish/Norwegian/Danish documents, and
+embedding quality off-English varies wildly. Add a multilingual local
+embedding option (bge-m3 class) and a Nordic-language golden slice
+(cross-lingual too: English question over a Swedish document — the real
+office pattern).
+*Measure:* hit rate/MRR on the Nordic slice, per embedding model. This
+single table is a consulting differentiator; nobody publishes it.
+
+### 8.5 Local serving beyond Ollama: the concurrency story — M/L
+Ollama is the right dev loop; a department is not one user. Add a
+vLLM/llama.cpp-server backend option (OpenAI-compatible endpoints —
+the pipeline already speaks that dialect) and re-run Experiment 16's
+load harness locally, where continuous batching changes the math
+entirely.
+*Measure:* capacity planning table — model size x GPU x concurrent
+users x p50/p99 — the number one question in a deployment pre-study.
+
+### 8.6 Hardware guidance, measured — S
+The same eval + tokens/s on three real profiles: consumer GPU,
+Apple-silicon unified memory (where Ollama shines), and CPU-only
+small-corpus. Kills the "do we need an A100?" conversation with data.
+
+### 8.7 Eval-on-your-data: the harness as a consulting product — M
+Package the offline harness (8.0 + 8.1) to run inside a client network
+against THEIR documents with a local judge: golden-set generation
+tooling exists, baselines are per-configuration, nothing leaves the
+building. The engagement deliverable is the measured report — which
+corpus-specific verdicts flipped, which defaults to change — i.e.,
+ROADMAP 3.0 executed on the client's corpus, as a product.
+*Measure:* one dry run end-to-end on a fresh machine with no API keys.
+
+### 8.8 Privacy-tiered hybrid routing — M, after 8.0–8.2
+Some clients want local-for-sensitive, cloud-for-generic. A
+sensitivity route (per-corpus or per-request tag, not a classifier
+guess in v1) that pins tagged corpora to the local path, with the
+no-egress test asserting the pin holds under every chain type.
+*Measure:* adversarial tests — no tagged-corpus token in any outbound
+request, including embeddings, rephrase, and eval calls.
 
 ## Inspiration / references
 
