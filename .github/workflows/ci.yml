@@ -46,9 +46,11 @@ jobs:
           # sqlite extra included so mypy can resolve langgraph.checkpoint.sqlite
           # (optional-backend import in rag/memory.py) and so the SQLite
           # persistence test runs instead of being skipped. api extra included
-          # so the REST API tests run instead of being skipped. qdrant runs
-          # embedded (no server); pgvector talks to the service container.
-          pip install -e ".[dev,sqlite,api,qdrant,pgvector]"
+          # so the REST API tests run instead of being skipped. otel extra
+          # included so mypy can resolve the OTLP exporter import in
+          # api/server.py (_maybe_setup_otel). qdrant runs embedded (no
+          # server); pgvector talks to the service container.
+          pip install -e ".[dev,sqlite,api,qdrant,pgvector,otel]"
 
       - name: Lint (black, isort, flake8)
         run: |
