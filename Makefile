@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov eval eval-retrieval lint format clean build dev-setup run-streamlit run-mcp-server run-chat run-api docker-build docker-up docker-down check prepare-release
+.PHONY: help install install-dev test test-cov eval eval-retrieval eval-local lint format clean build dev-setup run-streamlit run-mcp-server run-chat run-api docker-build docker-up docker-down check prepare-release
 
 # Default target
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "  test-cov      Run tests with coverage"
 	@echo "  eval          Full LLM-judged eval (smoke set, costs cents)"
 	@echo "  eval-retrieval  Free retrieval-slice eval against baseline"
+	@echo "  eval-local    Full eval on the local stack (Ollama; cloud judge)"
 	@echo "  lint          Run code linting"
 	@echo "  format        Format code with black and isort"
 	@echo "  clean         Clean build artifacts"
@@ -36,6 +37,13 @@ eval:
 
 eval-retrieval:
 	python evals/run_eval.py --mode retrieval
+
+# Local answerer + local embeddings, thinking off (Experiment 21's measured
+# posture); judging stays on the cloud judge for baseline comparability.
+OLLAMA_EVAL_MODEL ?= qwen3.6:35b
+eval-local:
+	python evals/run_eval.py --provider ollama --model $(OLLAMA_EVAL_MODEL) \
+		--ollama-reasoning off --no-baseline-check
 
 lint:
 	flake8 src/ tests/
