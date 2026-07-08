@@ -11,12 +11,12 @@ import pytest
 from langchain_core.documents import Document
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
+from ragstone.rag.ask_context import SourceRecordingRetriever
 from ragstone.rag.memory import (
     MAX_REPHRASE_HISTORY,
     MemoryProxy,
     SimpleTextRetriever,
 )
-from ragstone.rag.ask_context import SourceRecordingRetriever
 from ragstone.rag.pipeline import Pipeline
 from ragstone.rag.rag import RagProxy
 from ragstone.utils.full_chain import FullChain
