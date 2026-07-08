@@ -215,6 +215,41 @@ class TestStreaming:
         assert response.text.endswith("data: [DONE]\n\n")
 
 
+class TestMetricsEndpoint:
+    """/metrics must expose real request telemetry: a request that runs
+    track_request shows up in the scrape with its labels."""
+
+    def test_scrape_reflects_an_instrumented_request(self, client):
+        pytest.importorskip("prometheus_client")
+        from ragstone.utils.observability import track_request
+
+        _create_ready_pipeline(client)
+        pipeline = registry.get_pipeline("p1")
+
+        def _instrumented(question, session_id=None, use_cache=True):
+            with track_request(session_id or "s", chain_type="simple"):
+                return "ok"
+
+        pipeline.ask_question = _instrumented
+        assert client.post("/pipelines/p1/ask", json={"question": "q"}).status_code == (
+            200
+        )
+
+        scrape = client.get("/metrics")
+        assert scrape.status_code == 200
+        assert scrape.headers["content-type"].startswith("text/plain")
+        assert (
+            'ragstone_requests_total{cache="miss",chain="simple",error="none"}'
+            in scrape.text
+        )
+        assert "ragstone_request_duration_seconds_bucket" in scrape.text
+
+    def test_metrics_stays_open_without_key(self):
+        pytest.importorskip("prometheus_client")
+        client = TestClient(server.create_app(api_key="sekret"))
+        assert client.get("/metrics").status_code == 200
+
+
 class TestRequestId:
     """One string must trace a request from client to server log: every
     response carries X-Request-ID, and the pipeline (where track_request

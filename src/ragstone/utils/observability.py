@@ -26,11 +26,15 @@ import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Dict, Iterator, Optional
+from typing import Callable, Dict, Iterator, List, Optional
 
 from langchain_core.callbacks import get_usage_metadata_callback
 
 logger = logging.getLogger("ragstone.requests")
+
+# Internal diagnostics go to the module logger: ragstone.requests carries
+# exactly one machine-parseable line per request and nothing else.
+_diag_logger = logging.getLogger(__name__)
 
 # The metrics object for the request currently executing on this thread of
 # control. Contextvars propagate into LangGraph node execution (nodes run
@@ -52,6 +56,31 @@ _ambient_request_id: ContextVar[Optional[str]] = ContextVar(
 def current_request_id() -> Optional[str]:
     """The serving-layer request id in scope, or None outside one."""
     return _ambient_request_id.get()
+
+
+# Exporters (e.g. the Prometheus /metrics endpoint) subscribe here and
+# receive each completed RequestMetrics, right after its log line. The
+# indirection keeps this module dependency-free: it doesn't know what a
+# metric backend is, only that observers want finished requests.
+_observers: List[Callable[["RequestMetrics"], None]] = []
+
+
+def add_request_observer(observer: Callable[["RequestMetrics"], None]) -> None:
+    """Register a callable invoked with each completed RequestMetrics.
+
+    Observers run after the request finishes (success or failure) and
+    after the log line is emitted; an observer that raises is logged and
+    skipped — telemetry must never fail a request.
+    """
+    _observers.append(observer)
+
+
+def remove_request_observer(observer: Callable[["RequestMetrics"], None]) -> None:
+    """Unregister an observer previously added (missing is a no-op)."""
+    try:
+        _observers.remove(observer)
+    except ValueError:
+        pass
 
 
 @contextmanager
@@ -200,6 +229,11 @@ def track_request(
             f" stages={stages}" if stages else "",
             f" error={metrics.error}" if metrics.error else "",
         )
+        for observer in list(_observers):
+            try:
+                observer(metrics)
+            except Exception:
+                _diag_logger.exception("Request observer failed; skipping")
         # ContextVar.reset() raises ValueError if __enter__ ran in a
         # different context (the token belongs to that context). Fall back
         # to clearing the var so stale metrics can't leak into whatever

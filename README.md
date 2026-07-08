@@ -503,6 +503,10 @@ Production behaviors built in:
   line uses the same id — one string traces a request end to end.
 - **Probes**: `GET /health` (liveness) and `GET /ready` (a pipeline with a
   RAG chain exists) for orchestrators; both stay unauthenticated.
+- **Metrics**: `GET /metrics` exposes Prometheus series — request counts
+  by chain/cache/error, latency histograms (end-to-end, per stage, and
+  time-to-first-token), and token totals. Aggregates only, never content;
+  unauthenticated like the probes, so expose it on internal networks.
 - **Auth**: set `RAGSTONE_API_KEY` and clients must send it as `X-API-Key`.
 - **Backpressure**: at most `RAGSTONE_API_MAX_CONCURRENCY` (default 8)
   simultaneous `/ask` requests; beyond that the server answers `429`

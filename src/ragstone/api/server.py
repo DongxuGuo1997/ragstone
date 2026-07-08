@@ -34,7 +34,7 @@ from typing import Iterator, List, Literal, Optional, Tuple
 
 try:
     from fastapi import FastAPI, HTTPException, Request
-    from fastapi.responses import JSONResponse, StreamingResponse
+    from fastapi.responses import JSONResponse, Response, StreamingResponse
     from pydantic import BaseModel, Field
 except ImportError as exc:  # pragma: no cover - exercised only without extra
     raise ImportError(
@@ -48,6 +48,7 @@ from ragstone import __version__
 from ragstone.config.settings import get_config
 from ragstone.rag.pipeline import DEFAULT_MODELS, build_pipeline
 from ragstone.utils.exceptions import PipelineError, ValidationError
+from ragstone.utils.metrics import init_metrics, render_metrics
 from ragstone.utils.observability import current_request_id, use_request_id
 from ragstone.utils.registry import (
     get_pipeline,
@@ -221,6 +222,23 @@ def create_app(
     @app.get("/health")
     async def health():
         return {"status": "ok"}
+
+    # Registered once per process (init is idempotent); like the probes,
+    # /metrics is unauthenticated — scrapers don't carry app keys, and the
+    # payload is aggregates only, never question or document content.
+    metrics_enabled = init_metrics()
+
+    @app.get("/metrics")
+    async def metrics():
+        if not metrics_enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Metrics need prometheus-client: pip install 'ragstone[api]'",
+            )
+        payload = render_metrics()
+        assert payload is not None  # metrics_enabled implies an exporter
+        data, content_type = payload
+        return Response(content=data, media_type=content_type)
 
     @app.get("/ready")
     async def ready():

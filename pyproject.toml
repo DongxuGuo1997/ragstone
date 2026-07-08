@@ -93,6 +93,8 @@ api = [
     # REST serving layer (ragstone-api console script).
     "fastapi>=0.115,<1.0",
     "uvicorn>=0.30,<1.0",
+    # /metrics endpoint (pure-Python, no transitive deps).
+    "prometheus-client>=0.19,<2.0",
 ]
 qdrant = [
     # Qdrant vector store: embedded local mode by default (QDRANT_PATH),

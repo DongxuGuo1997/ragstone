@@ -13,9 +13,11 @@ import pytest
 from ragstone.rag.pipeline import OpenAIPipeline
 from ragstone.utils.exceptions import ChainExecutionError
 from ragstone.utils.observability import (
+    add_request_observer,
     current_request_id,
     estimate_cost_usd,
     record_stage,
+    remove_request_observer,
     time_stage,
     track_request,
     use_request_id,
@@ -163,6 +165,48 @@ class TestStageTiming:
         with track_request("s1") as second_turn:
             full_chain.ask_question("population?", session_id="st1")
         assert "rephrase" in second_turn.stage_ms  # timed inside the node
+
+
+class TestRequestObservers:
+    """Exporters subscribe to completed requests; a broken exporter must
+    never break (or silence the log line of) the request it observed."""
+
+    @pytest.fixture
+    def seen(self):
+        received = []
+        add_request_observer(received.append)
+        yield received
+        remove_request_observer(received.append)
+
+    def test_observer_receives_the_completed_metrics(self, seen):
+        with track_request("s1", chain_type="simple") as metrics:
+            record_stage("retrieval", 50)
+        assert seen == [metrics]
+        assert seen[0].latency_ms >= 0  # completed: latency already filled
+        assert seen[0].stage_ms == {"retrieval": 50}
+
+    def test_observer_fires_on_failed_requests_too(self, seen):
+        with pytest.raises(ValueError):
+            with track_request("s1"):
+                raise ValueError("boom")
+        assert len(seen) == 1
+        assert seen[0].error == "ValueError"
+
+    def test_raising_observer_is_isolated(self, caplog):
+        def _explode(metrics):
+            raise RuntimeError("exporter down")
+
+        add_request_observer(_explode)
+        try:
+            with caplog.at_level(logging.INFO, logger=REQUEST_LOGGER):
+                with track_request("s1"):  # must not raise from teardown
+                    pass
+            assert len(_request_records(caplog)) == 1  # log line survived
+        finally:
+            remove_request_observer(_explode)
+
+    def test_remove_unknown_observer_is_noop(self):
+        remove_request_observer(lambda m: None)
 
 
 class TestRetrievalStageCapture:
