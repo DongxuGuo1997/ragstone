@@ -358,6 +358,100 @@ class TestAuth:
         assert client.get("/ready").status_code == 503  # open, just not ready
 
 
+class TestNamedKeys:
+    """ROADMAP 5.3: named keys, per-key quotas, runtime revocation, the
+    audit trail, and per-key usage — through the real HTTP surface."""
+
+    def _client(self, *records):
+        from ragstone.api.keys import ApiKeyRecord, ApiKeyStore
+
+        store = ApiKeyStore([ApiKeyRecord(**r) for r in records])
+        return TestClient(server.create_app(key_store=store, max_concurrency=2))
+
+    def test_named_keys_authenticate_independently(self):
+        client = self._client(
+            {"name": "alice", "key": "sk-a"}, {"name": "bob", "key": "sk-b"}
+        )
+        assert (
+            client.get("/pipelines", headers={"X-API-Key": "sk-a"}).status_code == 200
+        )
+        assert (
+            client.get("/pipelines", headers={"X-API-Key": "sk-b"}).status_code == 200
+        )
+        assert (
+            client.get("/pipelines", headers={"X-API-Key": "sk-x"}).status_code == 401
+        )
+
+    def test_per_key_quota_returns_429_with_retry_after(self):
+        client = self._client(
+            {"name": "alice", "key": "sk-a", "rpm": 2}, {"name": "bob", "key": "sk-b"}
+        )
+        for _ in range(2):
+            assert (
+                client.get("/pipelines", headers={"X-API-Key": "sk-a"}).status_code
+                == 200
+            )
+        throttled = client.get("/pipelines", headers={"X-API-Key": "sk-a"})
+        assert throttled.status_code == 429
+        assert throttled.headers["retry-after"] == "60"
+        # Alice's limit is alice's problem — bob is unaffected.
+        assert (
+            client.get("/pipelines", headers={"X-API-Key": "sk-b"}).status_code == 200
+        )
+
+    def test_runtime_revocation(self):
+        client = self._client({"name": "alice", "key": "sk-a"})
+        assert (
+            client.get("/pipelines", headers={"X-API-Key": "sk-a"}).status_code == 200
+        )
+        assert client.app.state.api_keys.revoke("alice") is True
+        assert (
+            client.get("/pipelines", headers={"X-API-Key": "sk-a"}).status_code == 401
+        )
+
+    def test_audit_trail_attributes_requests(self, caplog):
+        import logging
+
+        client = self._client({"name": "alice", "key": "sk-a", "rpm": 1})
+        with caplog.at_level(logging.INFO, logger="ragstone.audit"):
+            ok = client.get(
+                "/pipelines",
+                headers={"X-API-Key": "sk-a", "X-Request-ID": "audit-1"},
+            )
+            client.get("/pipelines", headers={"X-API-Key": "sk-a"})  # 429
+            client.get("/pipelines", headers={"X-API-Key": "sk-wrong"})  # 401
+            client.get("/health")  # exempt: probes never hit the trail
+
+        assert ok.status_code == 200
+        lines = [r.getMessage() for r in caplog.records if r.name == "ragstone.audit"]
+        assert len(lines) == 3
+        assert "key=alice method=GET path=/pipelines status=200 request=audit-1" in (
+            lines[0]
+        )
+        assert "key=alice" in lines[1] and "status=429" in lines[1]
+        assert "key=anonymous" in lines[2] and "status=401" in lines[2]
+        assert not any("/health" in line for line in lines)
+
+    def test_usage_endpoint_reports_attribution_without_key_material(self):
+        client = self._client(
+            {"name": "alice", "key": "sk-secret-a", "rpm": 60},
+            {"name": "bob", "key": "sk-secret-b"},
+        )
+        for _ in range(3):
+            client.get("/pipelines", headers={"X-API-Key": "sk-secret-a"})
+        response = client.get("/usage", headers={"X-API-Key": "sk-secret-b"})
+        assert response.status_code == 200
+        report = {r["name"]: r for r in response.json()["keys"]}
+        assert report["alice"]["requests_total"] == 3
+        assert report["alice"]["rpm_limit"] == 60
+        assert report["bob"]["requests_total"] >= 1  # the /usage call itself
+        assert "sk-secret" not in response.text
+
+    def test_usage_requires_a_key_when_auth_is_on(self):
+        client = self._client({"name": "alice", "key": "sk-a"})
+        assert client.get("/usage").status_code == 401
+
+
 class TestRobustness:
     def test_full_capacity_returns_429(self, client):
         _create_ready_pipeline(client)

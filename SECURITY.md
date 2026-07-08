@@ -26,7 +26,9 @@ inputs arrive from clients you may not fully control.
 | Prompt injection via retrieved documents | The answer prompt delimits context and instructs the model to treat it strictly as data; an on-demand real-model check (`evals/injection_check.py`) verifies compliance | `rag/rag.py` |
 | Resource exhaustion via oversized questions | Length cap rejected before any API spend (`RAGSTONE_MAX_QUESTION_CHARS`) | `rag/rag.py` |
 | Unbounded concurrent load on the API | Non-blocking semaphore on `/ask` → immediate 429 | `api/server.py` |
-| API key brute-forcing via response timing | Constant-time comparison (`hmac.compare_digest`) | `api/server.py` |
+| API key brute-forcing via response timing | Constant-time comparison (`hmac.compare_digest`) per key, full scan — timing reveals neither a matching prefix nor which key matched | `api/keys.py` |
+| One client exhausting the service (or your LLM budget) | Named keys with per-key sliding-window rate limits → `429` + `Retry-After`; runtime revocation fails closed (revoking the last key locks the API, never opens it) | `api/keys.py`, `api/server.py` |
+| "Who did what?" unanswerable after an incident | Append-only `ragstone.audit` line per gated request: key name, method, path, status, request id — never question or document content | `api/server.py` |
 | Internal detail leakage through error messages | Typed errors carry user-safe messages; anything untyped becomes a generic message, details only in server logs | MCP `_safe_error`, API exception handler |
 | Hung upstream calls holding resources forever | Timeouts + bounded retries on every LLM/embedding client | `models/`, `rag/embeddings.py` |
 | Known CVEs riding in via dependencies | `pip-audit` on every CI run over the resolved dependency set; exceptions live in a time-boxed allowlist that fails the build on expiry. Trivy scans the container image (fixable HIGH/CRITICAL) on image changes and weekly | `.github/workflows/ci.yml`, `image-scan.yml`, `.github/audit-allowlist.txt` |
@@ -34,7 +36,9 @@ inputs arrive from clients you may not fully control.
 ## Deployment checklist
 
 ```bash
-RAGSTONE_API_KEY=<random-32+ chars>   # API auth (X-API-Key header)
+RAGSTONE_API_KEYS=web:<random-32+chars>:120,batch:<random-32+chars>
+                                      # named keys, per-key rpm optional
+                                      # (single RAGSTONE_API_KEY also works)
 RAGSTONE_DATA_ROOT=/srv/ragstone/data # confine ingestion
 RAGSTONE_API_HOST=127.0.0.1           # default; put a TLS proxy in front
 RAGSTONE_MAX_QUESTION_CHARS=4000
@@ -50,8 +54,9 @@ RAGSTONE_API_MAX_CONCURRENCY=8
 - **The SSRF guard is baseline.** It checks DNS at validation time; DNS
   rebinding between check and fetch is out of scope. Egress-restrict the
   host for defense in depth.
-- **Single shared API key.** No per-client identity, quotas, or audit
-  attribution — front with a gateway if you need them.
+- **Rate limits are per process.** The sliding windows live in server
+  memory: honest for one server, per-worker once you scale horizontally
+  (a shared limiter is the ROADMAP 5.13 stateless-workers item).
 - **No output filtering.** Answers are returned as generated; add a
   moderation layer if your deployment requires one.
 - **The Streamlit UI has no auth** — it is a local demo surface, not a

@@ -9,8 +9,12 @@ Production behaviors:
 - Every response carries an X-Request-ID (the client's own, if it sent a
   well-formed one) and the pipeline's ragstone.requests log line uses the
   same id, so one string traces a request from client to server log.
-- Optional API-key auth: set RAGSTONE_API_KEY and clients must send it in
-  the X-API-Key header (health/readiness stay open for probes).
+- Optional API-key auth: named keys with per-key rate limits via
+  RAGSTONE_API_KEYS (legacy single RAGSTONE_API_KEY still works), sent in
+  the X-API-Key header (health/readiness stay open for probes). Every
+  gated request leaves an append-only audit line — key name, method,
+  path, status, request id; never content — and GET /usage reports
+  per-key attribution.
 - A concurrency cap on /ask: when all slots are busy the server answers
   429 immediately instead of queueing until it collapses.
 - Typed pipeline errors map to precise status codes with user-safe
@@ -22,7 +26,6 @@ Run it:
     ragstone-api                       # binds 127.0.0.1:8000 by default
 """
 
-import hmac
 import json
 import logging
 import os
@@ -45,6 +48,7 @@ except ImportError as exc:  # pragma: no cover - exercised only without extra
 from anyio import to_thread
 
 from ragstone import __version__
+from ragstone.api.keys import ApiKeyRecord, ApiKeyStore
 from ragstone.config.settings import get_config
 from ragstone.rag.pipeline import DEFAULT_MODELS, build_pipeline
 from ragstone.utils.exceptions import PipelineError, ValidationError
@@ -58,6 +62,11 @@ from ragstone.utils.registry import (
 )
 
 logger = logging.getLogger(__name__)
+
+# One line per gated request — who, what, outcome — and never content.
+# A separate logger so operators can route/retain it independently
+# (audit trails usually outlive request logs).
+audit_logger = logging.getLogger("ragstone.audit")
 
 # A client-supplied X-Request-ID is adopted only if it looks like an id:
 # the value goes into log lines and back out in a response header, so a
@@ -102,6 +111,47 @@ class _RequestIDMiddleware:
 
         with use_request_id(request_id):
             await self.app(scope, receive, send_with_id)
+
+
+# Probes and docs would drown the trail in scrape noise.
+_AUDIT_EXEMPT = {"/health", "/ready", "/metrics", "/docs", "/openapi.json"}
+
+
+class _AuditMiddleware:
+    """Append-only audit trail (ROADMAP 5.3): one line per gated request.
+
+    Who = the API key NAME (resolved by auth into request.state), what =
+    method + path (the path carries the pipeline/corpus id), when = the
+    log timestamp, outcome = status code, plus the request id — and
+    never question or document content. Emitted when the response starts,
+    so denied requests (401/429) are audited with the same machinery.
+
+    Registered before (= inside) the request-id middleware, so
+    current_request_id() is in scope here.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http" or scope["path"] in _AUDIT_EXEMPT:
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_audit(message) -> None:
+            if message["type"] == "http.response.start":
+                who = scope.get("state", {}).get("api_key_name", "anonymous")
+                audit_logger.info(
+                    "key=%s method=%s path=%s status=%d request=%s",
+                    who,
+                    scope["method"],
+                    scope["path"],
+                    message["status"],
+                    current_request_id(),
+                )
+            await send(message)
+
+        await self.app(scope, receive, send_with_audit)
 
 
 # --------------------------------------------------------------------------
@@ -161,16 +211,28 @@ def create_app(
     *,
     api_key: Optional[str] = None,
     max_concurrency: Optional[int] = None,
+    key_store: Optional[ApiKeyStore] = None,
 ) -> FastAPI:
     """Build the FastAPI app.
 
     Args:
-        api_key: Require this key in the X-API-Key header. Defaults to the
-            RAGSTONE_API_KEY env var; empty means no auth (development).
+        api_key: Back-compat single key for the X-API-Key header (becomes
+            the name "default"). None reads the environment
+            (RAGSTONE_API_KEYS + RAGSTONE_API_KEY); empty string means no
+            auth (development).
         max_concurrency: Simultaneous /ask requests before the server
             answers 429. Defaults to RAGSTONE_API_MAX_CONCURRENCY (8).
+        key_store: Prebuilt ApiKeyStore; overrides api_key and the
+            environment (tests, embedders).
     """
-    key = api_key if api_key is not None else os.getenv("RAGSTONE_API_KEY", "")
+    if key_store is not None:
+        keys = key_store
+    elif api_key is not None:
+        keys = ApiKeyStore(
+            [ApiKeyRecord(name="default", key=api_key)] if api_key else []
+        )
+    else:
+        keys = ApiKeyStore.from_env()  # fail fast on malformed entries
     cap = (
         max_concurrency
         if max_concurrency is not None
@@ -187,17 +249,30 @@ def create_app(
     ask_slots = threading.BoundedSemaphore(cap) if cap > 0 else None
 
     app = FastAPI(title="Ragstone", version=__version__)
+    # Registration order = innermost first: audit runs inside the
+    # request-id scope, so its lines carry the same id the client holds.
+    app.add_middleware(_AuditMiddleware)
     app.add_middleware(_RequestIDMiddleware)
     app.state.ask_slots = ask_slots  # exposed for tests/inspection
+    app.state.api_keys = keys  # exposed for tests/runtime revocation
 
     def _require_key(request: Request) -> None:
-        # compare_digest: constant-time comparison, so response timing
-        # cannot be used to guess the key byte by byte. Compare as bytes:
-        # the str overload raises TypeError on non-ASCII input, which would
-        # turn a garbage header into a 500 instead of a 401.
-        provided = (request.headers.get("x-api-key") or "").encode("utf-8")
-        if key and not hmac.compare_digest(provided, key.encode("utf-8")):
+        """Authenticate, attribute, and rate-limit the request."""
+        if not keys.enabled:
+            return
+        # The store compares with hmac.compare_digest per key, full scan:
+        # timing reveals neither a matching prefix nor which key matched.
+        name = keys.authenticate(request.headers.get("x-api-key") or "")
+        if name is None:
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
+        # Attribute BEFORE the quota check so 429s are audited by name.
+        request.state.api_key_name = name
+        if not keys.check_and_count(name):
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded for this API key; retry shortly.",
+                headers={"Retry-After": "60"},
+            )
 
     @app.exception_handler(PipelineError)
     async def _pipeline_error_handler(request: Request, exc: PipelineError):
@@ -239,6 +314,14 @@ def create_app(
         assert payload is not None  # metrics_enabled implies an exporter
         data, content_type = payload
         return Response(content=data, media_type=content_type)
+
+    @app.get("/usage")
+    async def usage(request: Request):
+        # Per-key attribution for operators: names, counts, and limits —
+        # key material never appears. Authenticated (and counted) like
+        # any other gated request.
+        _require_key(request)
+        return {"keys": keys.usage_report()}
 
     @app.get("/ready")
     async def ready():

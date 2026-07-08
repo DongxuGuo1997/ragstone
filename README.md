@@ -511,7 +511,13 @@ Production behaviors built in:
   `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. a local Jaeger); each ask becomes a
   `ragstone.ask` span — request id, session, cache/token/error outcome —
   with children for the measured rephrase/retrieval stages.
-- **Auth**: set `RAGSTONE_API_KEY` and clients must send it as `X-API-Key`.
+- **Auth**: named keys with per-key rate limits —
+  `RAGSTONE_API_KEYS=alice:key:60,batch:key` (requests/minute optional;
+  legacy single `RAGSTONE_API_KEY` still works). Clients send theirs as
+  `X-API-Key`; over-limit requests get `429` + `Retry-After`.
+- **Audit + usage**: every gated request leaves an append-only
+  `ragstone.audit` line (key name, method, path, status, request id —
+  never content), and `GET /usage` reports per-key request counts.
 - **Backpressure**: at most `RAGSTONE_API_MAX_CONCURRENCY` (default 8)
   simultaneous `/ask` requests; beyond that the server answers `429`
   immediately instead of queueing until it collapses.

@@ -216,12 +216,16 @@ exporter. Evidence: span topology pinned by in-memory-exporter tests;
 live server smoke shows adopted ids and real collectors on `/metrics`.
 Still open (nice-to-have): a committed Grafana dashboard JSON.
 
-#### 5.3 Named API keys, per-key quotas, audit log — M
-One shared key today (documented limitation). A keyed store with
-per-client rate limits, usage attribution, and an append-only audit line
-per request (who, what corpus, when — never the document content).
-*Measure:* integration tests for quota enforcement and key revocation;
-a per-key usage report.
+#### 5.3 Named API keys, per-key quotas, audit log — DELIVERED (July 2026)
+`RAGSTONE_API_KEYS=name:key[:rpm],...` (legacy single key still works as
+"default"): per-key sliding-window limits → 429 + Retry-After, runtime
+revocation that fails closed (revoking the last key locks the API — the
+first implementation silently disabled auth instead, caught by the
+integration test), an append-only `ragstone.audit` line per gated
+request (key name, method, path, status, request id — never content),
+and `GET /usage` for per-key attribution. Measure met: integration
+tests cover quota enforcement, revocation, audit attribution, and the
+usage report. Limits are per process until 5.13.
 
 #### 5.7 Registry persistence + graceful shutdown — M
 The server's pipeline registry dies with the process; clients must
