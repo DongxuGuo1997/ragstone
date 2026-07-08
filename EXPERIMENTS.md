@@ -852,6 +852,65 @@ corpus is consent, not evidence.**
 
 ---
 
+## Experiment 19 — Document-metadata cards: the references-section decoy
+
+**Question.** The Experiment 18 transcript exposed a second failure:
+"who created deepseek" refused (the author block never ranked), and
+"who are the papers' authors" was answered with **authors of a paper
+this one merely cites** — the references section is the most
+author-dense text in an academic PDF, so it wins every "who
+wrote/created" query, and the generator cannot tell a bibliography
+entry from an author block. Can one extracted metadata chunk per
+document fix the class?
+
+**Method.** Three measurements, in registration order. (1) A new corpus
+report with an author block AND a references decoy, plus three metadata
+golden cases — measured on the system WITHOUT cards first (before-state:
+all three pass; at 46 chunks the header ranks trivially, so the golden
+set regresses the capability but cannot reproduce the decoy). (2) The
+feature: one utility-model call per document over its head, extracting
+`Title/Authors/Date/Type` verbatim ("not stated" for absent fields — a
+hallucinated card would be authoritative false evidence), indexed as one
+labeled chunk; failures skip the card. (3) The discriminating probe: the
+real 79-chunk DeepSeek-R1 PDF, same three-turn session that failed live,
+cards off vs on.
+
+**Probe results (79-chunk PDF).**
+
+| turn | cards off | cards on |
+|---|---|---|
+| "who created deepseek" | ten alphabet-tail contributor names presented as "the creators" | **"created by DeepSeek-AI"** |
+| "who are the papers' authors" | same tail names (an earlier live run: authors of a *cited* paper) | card in the slice; tail names still blended in |
+| "can you say they created deepseek?" | **"Yes"** — misattribution confirmed | **"No"** — corrects itself, cites the real core contributors from Appendix A |
+
+The card extracted cleanly: `Authors: DeepSeek-AI`, title verbatim,
+`Date: not stated`, references decoy excluded.
+
+**Golden set (fixed corpus, before vs after):** MRR 0.936 → 0.952,
+every other metric identical — the card is pure ranking upside there.
+Two honest footnotes, both present in before AND after runs (so not
+card-attributable): mt05's chronic judge noise (verdict contradicted
+itself: "3.4 newtons instead of the correct 3.4 newtons"), and mt01,
+where the new report's author block ("Dr. Vasquez… Dr. Lindqvist")
+outranks the Halvorsen background chunk for person-background queries
+and the judge misreads the noisier slice — the needle chunk IS retrieved
+(rank 3, verified by direct probe) and the answer is faithful, but the
+metric records the judge's verdict, so the baseline carries 0.875 with
+this note rather than a re-rolled number.
+
+**Decision.** Cards ship as a **default** (CI-gated by md01–md03 plus
+the existing baselines; `RAGSTONE_METADATA_CARDS=off` to disable). Cost:
+one utility call and one extra chunk per document at ingest. Residual,
+recorded: contributor-list chunks can still outrank the card for
+"authors" phrasing and get blended into answers (genuine contributors,
+wrong framing), and a card is itself one new distractor-shaped chunk for
+person queries. The transferable lesson: **document-level questions need
+document-level evidence — content chunks answer "what does it say",
+never reliably "what is this thing"; and the decoy is structural (a
+references section exists in every paper), so the fix must be too.**
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

@@ -116,9 +116,9 @@ generating one-case noise. The expansion must include challenge turns
 Experiment 18 proved the corpus was blind to the first class, and the
 same live transcript exposed the second: author blocks are extracted
 and chunked but never rank for "who created X" phrasing in either
-retrieval leg. Candidate fixes to measure alongside: the PDF title in
-the enrichment identity line (today it is just the file name), or a
-document-metadata card chunk written at ingest.
+retrieval leg. The metadata-card fix was built and
+measured the same week (Experiment 19, now a CI-gated default); the
+second corpus should stress it with more document formats.
 
 ### 3.1 Cross-family judge — DELIVERED same-provider (Experiment 11); different-provider judge still open
 The judge and the answering model are both gpt-4o-mini; self-preference

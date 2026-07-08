@@ -44,6 +44,7 @@ opinion:
 | Can a router capture self-correction's edge cheaply? | Quality held (faithfulness up to **0.981** tuned), but **1.25× tokens** still fails the pre-set gate after tuning → `auto` ships opt-in, `simple` stays default (Exp 15/15b) |
 | Does the thread model survive real load? | p50 flat to **32 concurrent clients**, instant 429s beyond the cap, **~7× payoff** on parallel generation; the load test also caught two API design bugs (Exp 16) |
 | Can a nano model run the rephrase step? | −40% latency and a green gate — then a live transcript showed it echoing answers on "are you sure?" turns the eval set never covered. **Reverted same day**, prompt hardened, blind spot added to the golden set (Exp 18) |
+| Can RAG answer "who wrote this paper?" | Not from content chunks — the references section decoys every authorship query. One extracted **metadata card** per document: misattribution eliminated on a 79-chunk PDF, MRR +1.6 on the golden set (Exp 19) |
 
 Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
 reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md) · What's
@@ -66,6 +67,7 @@ default is CI-gated; every opt-in is baselined and carries an explicit
 | Option | Tier | Measured niche | Enable when |
 |---|---|---|---|
 | `simple` chain, k=4, ensemble, enrichment, embed cache | **default** (CI-gated) | the measured optimum on the eval corpus | — |
+| document metadata cards | **default** (CI-gated) | "who wrote this?" answered from the document's own header; references-decoy misattribution eliminated (Exp 19) | disable via `RAGSTONE_METADATA_CARDS=off` if your corpus has no metadata questions |
 | `corrective` chain | opt-in | faithfulness 0.986 vs 0.967; refuses with evidence instead of hallucinating (Exp 8/9/12) | your retrieval-slice hit rate drops below ~0.9, or a wrong answer costs more than a refusal |
 | `auto` routing | opt-in | corrective's edge on flagged questions at 1.25× instead of 2× (Exp 15/15b) | you want corrective's insurance without paying it on every lookup |
 | `agent` chain | opt-in | none on this corpus — identical quality at 1.8× latency | first-shot retrieval fails often enough that re-searching pays; measure it on YOUR corpus |
@@ -102,6 +104,7 @@ materially different corpus is the top open eval item (ROADMAP).
 - **Corrective RAG**: retrieval grades itself, rewrites failed queries, and refuses with evidence — its apparent quality win at n=43 failed to replicate at n=224 (Experiment 9), which is the point of measuring
 - **Query Routing** (`auto`, opt-in): a cheap classifier sends each question to simple or corrective — kept opt-in because its own cost gate said so (Experiments 15/15b)
 - **Evidence Highlighting**: source snippets mark the exact words the answer reuses — post-hoc alignment, no prompt changes
+- **Document Metadata Cards**: one extracted title/authors/date chunk per document, so "who wrote this?" retrieves the author block instead of the references-section decoy (Experiment 19)
 
 ### Vector Store Support
 - **FAISS** (default): fast in-process similarity search
