@@ -7,3 +7,5 @@
 #
 # CI fails the moment an entry expires, so nothing here is permanent.
 # An entry without an expiry date also fails the build.
+
+PYSEC-2026-311 2026-09-01 chromadb: no fixed release published yet; chroma is legacy-tier (README support table), not the default store — re-check for a fix before expiry
