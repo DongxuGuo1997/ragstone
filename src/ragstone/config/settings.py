@@ -158,11 +158,13 @@ class LLMConfig:
     max_question_chars: int = field(
         default_factory=lambda: int(os.getenv("RAGSTONE_MAX_QUESTION_CHARS", "4000"))
     )
-    # Model for the utility steps (rephrase/grade/rewrite/route) —
-    # trivial tasks on the latency-critical path. None (the default)
-    # selects a per-provider cheap sibling: gpt-4.1-nano on OpenAI
-    # (measured -40% rephrase latency, identical quality), the main
-    # model on Ollama. Set explicitly to override.
+    # Model for the utility steps (rephrase/grade/rewrite/route), which
+    # sit on the latency-critical path. None (the default) uses the main
+    # answer model. A nano-tier model here is -40% rephrase latency but
+    # degenerates on challenge turns ("are you sure?") — it echoes the
+    # previous answer instead of forming a question, and prompt hardening
+    # does not fix it (Experiment 18). Set only if your traffic is
+    # standalone questions and pronoun follow-ups.
     rephrase_model: Optional[str] = field(
         default_factory=lambda: os.getenv("RAGSTONE_REPHRASE_MODEL") or None
     )

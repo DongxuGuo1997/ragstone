@@ -42,25 +42,20 @@ MAX_REPHRASE_HISTORY = 10
 MAX_SESSION_MESSAGES = 40
 
 
-# Per-provider utility-model defaults, used when RAGSTONE_REPHRASE_MODEL
-# is unset. Utility steps (rephrase/grade/rewrite/route) are trivial
-# tasks on the latency-critical path; on OpenAI a nano-tier sibling was
-# measured 40% faster with identical eval quality (EXPERIMENTS.md).
-# Ollama has no universally-installed cheaper sibling, so it keeps the
-# main model unless configured.
-_DEFAULT_UTILITY_MODELS = {"ChatOpenAI": "gpt-4.1-nano"}
-
-
 def _make_rephrase_llm(llm: BaseChatModel, model_name: Optional[str]) -> BaseChatModel:
-    """The LLM for the utility steps: a cheaper/faster model when available.
+    """The LLM for the utility steps: a cheaper/faster model when configured.
+
+    Deliberately NOT defaulted to a nano-tier sibling: that default was
+    shipped once (-40% rephrase latency, smoke gate green) and falsified
+    by a live transcript the same day — nano-tier models echo the previous
+    ANSWER instead of forming a question on challenge turns ("are you
+    sure?"), and prompt hardening does not fix them (Experiment 18).
 
     Constructs a sibling of the main model's class (works for ChatOpenAI
     and ChatOllama alike — both take `model` and read auth/endpoint from
     the environment). Falls back to the main model on any failure: a
     misconfigured rephrase model must never break the chain.
     """
-    if not model_name:
-        model_name = _DEFAULT_UTILITY_MODELS.get(type(llm).__name__)
     if not model_name:
         return llm
     # The main model may already BE the utility model; don't rebuild it.
