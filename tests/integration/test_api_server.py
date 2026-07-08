@@ -29,18 +29,32 @@ class _StubPipeline:
         self.model = model
         self.texts = None
         self._chain = None
+        self._chain_type = None
         self.vector_db = None
         self.llm_proxy = self
+        self.closed = False
 
     def get_model_name(self):
         return self.model
 
     def load_and_split(self, data_dir=None, page_urls=None, wiki_query=None):
-        self.texts = ["chunk-0", "chunk-1"]
+        from langchain_core.documents import Document
+
+        # Real Documents, like the real pipeline: the persistence layer
+        # serializes page_content + metadata.
+        self.texts = [
+            Document(page_content="chunk-0", metadata={"source": "stub"}),
+            Document(page_content="chunk-1", metadata={"source": "stub"}),
+        ]
         return self.texts
+
+    def setup_retriever(self, use_ensemble=True, use_reranker=False):
+        self._use_ensemble = use_ensemble
+        self._use_reranker = use_reranker
 
     def create_rag_chain(self, chain_type="simple"):
         self._chain = object()
+        self._chain_type = chain_type
 
     def get_chain(self):
         return self._chain
@@ -51,19 +65,16 @@ class _StubPipeline:
     def ask_question_stream(self, question, session_id=None, use_cache=True):
         yield from ["streamed ", "answer"]
 
+    def close(self):
+        self.closed = True
+
 
 class _StubOpenAIPipeline(_StubPipeline):
     provider = "openai"
 
-    def setup_retriever(self, use_ensemble=True, use_reranker=False):
-        pass
-
 
 class _StubOllamaPipeline(_StubPipeline):
     provider = "ollama"
-
-    def setup_retriever(self, use_ensemble=True, use_reranker=False):
-        pass
 
 
 def _stub_build_pipeline(provider, model=None):
@@ -356,6 +367,69 @@ class TestAuth:
         client = TestClient(server.create_app(api_key="sekret"))
         assert client.get("/health").status_code == 200
         assert client.get("/ready").status_code == 503  # open, just not ready
+
+
+class TestPersistence:
+    """ROADMAP 5.7 through the HTTP surface: a configured pipeline
+    survives a 'restart' (registry cleared, manifests remain) without
+    re-ingestion, and DELETE removes the manifest with the pipeline."""
+
+    @pytest.fixture
+    def persist_dir(self, monkeypatch, tmp_path):
+        import ragstone.rag.pipeline as pipeline_module
+
+        monkeypatch.setenv("RAGSTONE_REGISTRY_PERSIST", "on")
+        monkeypatch.setenv("RAGSTONE_REGISTRY_DIR", str(tmp_path))
+        # Restore builds through the real factory's import site.
+        monkeypatch.setattr(pipeline_module, "build_pipeline", _stub_build_pipeline)
+        return tmp_path
+
+    def test_pipeline_survives_restart_without_reingest(self, client, persist_dir):
+        _create_ready_pipeline(client)
+        registry.clear_pipelines()  # the "restart"
+
+        response = client.post("/pipelines/p1/ask", json={"question": "q"})
+        assert response.status_code == 200  # lazily restored, no re-ingest
+        assert response.json()["answer"] == "answer to: q"
+        restored = registry.get_pipeline("p1")
+        assert [d.page_content for d in restored.texts] == ["chunk-0", "chunk-1"]
+        assert restored._chain_type == "simple"
+
+    def test_restorable_pipelines_show_in_probes_and_listing(self, client, persist_dir):
+        _create_ready_pipeline(client)
+        registry.clear_pipelines()
+
+        ready = client.get("/ready")
+        assert ready.status_code == 200  # restorable = ready to serve
+        assert ready.json()["restorable"] == ["p1"]
+        listed = client.get("/pipelines").json()["pipelines"]
+        assert listed == [{"pipeline_id": "p1", "state": "persisted"}]
+
+    def test_delete_means_delete_across_restarts(self, client, persist_dir):
+        _create_ready_pipeline(client)
+        assert client.delete("/pipelines/p1").status_code == 200
+        registry.clear_pipelines()
+        # The manifest is gone too: nothing resurrects.
+        response = client.post("/pipelines/p1/ask", json={"question": "q"})
+        assert response.status_code == 404
+
+    def test_delete_reaches_persisted_but_unloaded_pipelines(self, client, persist_dir):
+        _create_ready_pipeline(client)
+        registry.clear_pipelines()
+        assert client.delete("/pipelines/p1").json() == {"deleted": "p1"}
+        assert client.get("/pipelines").json() == {"pipelines": []}
+
+
+class TestGracefulShutdown:
+    def test_lifespan_shutdown_closes_pipelines(self):
+        # TestClient's context manager drives the lifespan: on exit,
+        # uvicorn-equivalent shutdown runs and pipelines must close.
+        app = server.create_app(api_key="", max_concurrency=2)
+        with TestClient(app) as client:
+            _create_ready_pipeline(client)
+            pipeline = registry.get_pipeline("p1")
+            assert pipeline.closed is False
+        assert pipeline.closed is True
 
 
 class TestNamedKeys:

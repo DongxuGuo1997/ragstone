@@ -498,6 +498,13 @@ curl -X POST localhost:8000/pipelines/docs/ask -H 'content-type: application/jso
 Production behaviors built in:
 
 - **Streaming**: pass `"stream": true` to `/ask` for Server-Sent Events.
+- **Restart survival**: configuring a retriever persists the pipeline
+  (manifest + enriched chunks, `RAGSTONE_REGISTRY_DIR`); after a restart
+  the first request for its id restores it lazily — no re-ingest, no LLM
+  calls, embeddings from the cache. `DELETE` removes the persisted state
+  too, and `RAGSTONE_REGISTRY_PERSIST=off` keeps everything in memory.
+- **Graceful shutdown**: on SIGTERM, in-flight requests drain to
+  completion before pipelines close (tested with kill -TERM under load).
 - **Request correlation**: every response carries an `X-Request-ID`
   (yours, if you send a well-formed one), and the per-request server log
   line uses the same id — one string traces a request end to end.

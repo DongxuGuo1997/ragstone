@@ -227,13 +227,17 @@ and `GET /usage` for per-key attribution. Measure met: integration
 tests cover quota enforcement, revocation, audit attribution, and the
 usage report. Limits are per process until 5.13.
 
-#### 5.7 Registry persistence + graceful shutdown — M
-The server's pipeline registry dies with the process; clients must
-re-ingest. Persist registry metadata (corpus fingerprint, store type,
-config) and reload lazily on boot; drain in-flight requests on SIGTERM
-(the vector stores and embedding cache already survive restarts).
-*Measure:* kill -TERM under load — zero dropped in-flight requests, and
-a restarted server serves the same corpus ids without re-ingestion.
+#### 5.7 Registry persistence + graceful shutdown — DELIVERED (July 2026)
+Retriever setup persists a manifest (provider/model/chain/retriever
+config, fingerprint) plus the ENRICHED chunks; the first request for an
+unknown id restores lazily — no re-ingest, no LLM calls (enrichment and
+metadata cards are baked into the persisted text), embeddings from the
+cache. Wired into both the REST API and the MCP server; DELETE removes
+the manifest (nothing resurrects); `RAGSTONE_REGISTRY_PERSIST=off` for
+no-disk deployments; manifest filenames are id hashes (client-supplied
+ids never touch paths). Both measures met in tests: kill -TERM under
+load completes the in-flight request with 200 (real uvicorn subprocess),
+and a cleared registry serves the same corpus id from its manifest.
 
 #### 5.8 Supply-chain CI: pip-audit + image scan — DELIVERED (July 2026)
 `pip-audit` runs per push/PR over the resolved dependency set; allowlist

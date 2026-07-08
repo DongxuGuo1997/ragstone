@@ -6,6 +6,10 @@ applications, plus liveness/readiness endpoints for orchestrators.
 
 Production behaviors:
 - Blocking pipeline work runs in worker threads, never on the event loop.
+- Configured pipelines survive restarts: retriever setup persists a
+  manifest + the enriched chunks, and the first request for an unknown id
+  restores lazily (no re-ingest, no LLM calls, cache-served embeddings).
+  On shutdown, in-flight requests drain (uvicorn) and pipelines close.
 - Every response carries an X-Request-ID (the client's own, if it sent a
   well-formed one) and the pipeline's ragstone.requests log line uses the
   same id, so one string traces a request from client to server log.
@@ -33,6 +37,7 @@ import queue
 import re
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from typing import Iterator, List, Literal, Optional, Tuple
 
 try:
@@ -55,7 +60,10 @@ from ragstone.utils.exceptions import PipelineError, ValidationError
 from ragstone.utils.metrics import init_metrics, render_metrics
 from ragstone.utils.observability import current_request_id, use_request_id
 from ragstone.utils.registry import (
-    get_pipeline,
+    delete_persisted,
+    get_or_restore_pipeline,
+    list_persisted,
+    persist_pipeline,
     pop_pipeline,
     put_pipeline,
     snapshot_pipelines,
@@ -207,6 +215,21 @@ class AskRequest(BaseModel):
 # --------------------------------------------------------------------------
 
 
+@asynccontextmanager
+async def _lifespan(app: "FastAPI"):
+    """Graceful shutdown: uvicorn stops accepting and drains in-flight
+    requests BEFORE this resumes past the yield, so pipelines close only
+    once nothing is using them (memory backends, embedded vector store
+    clients)."""
+    yield
+    for pipeline_id, pipeline in snapshot_pipelines():
+        if hasattr(pipeline, "close"):
+            try:
+                await to_thread.run_sync(pipeline.close)
+            except Exception as exc:
+                logger.warning(f"Closing pipeline {pipeline_id!r} failed: {exc}")
+
+
 def create_app(
     *,
     api_key: Optional[str] = None,
@@ -248,7 +271,7 @@ def create_app(
     # queueing it behind an unbounded backlog.
     ask_slots = threading.BoundedSemaphore(cap) if cap > 0 else None
 
-    app = FastAPI(title="Ragstone", version=__version__)
+    app = FastAPI(title="Ragstone", version=__version__, lifespan=_lifespan)
     # Registration order = innermost first: audit runs inside the
     # request-id scope, so its lines carry the same id the client holds.
     app.add_middleware(_AuditMiddleware)
@@ -327,12 +350,19 @@ def create_app(
     async def ready():
         pipelines = snapshot_pipelines()
         ready_ids = [pid for pid, p in pipelines if p.get_chain() is not None]
-        if not ready_ids:
+        # A persisted pipeline restores lazily on its first request, so a
+        # freshly restarted server IS ready — an orchestrator gating on
+        # this probe must send traffic, or the lazy restore never runs.
+        restorable = [pid for pid in list_persisted() if pid not in dict(pipelines)]
+        if not ready_ids and not restorable:
             return JSONResponse(
                 status_code=503,
                 content={"ready": False, "detail": "No pipeline with a RAG chain."},
             )
-        return {"ready": True, "pipelines": ready_ids}
+        result: dict = {"ready": True, "pipelines": ready_ids}
+        if restorable:
+            result["restorable"] = restorable
+        return result
 
     # -- pipeline lifecycle -------------------------------------------------
 
@@ -350,8 +380,9 @@ def create_app(
     @app.get("/pipelines")
     async def list_pipelines(request: Request):
         _require_key(request)
+        active = snapshot_pipelines()
         result = []
-        for pipeline_id, pipeline in snapshot_pipelines():
+        for pipeline_id, pipeline in active:
             result.append(
                 {
                     "pipeline_id": pipeline_id,
@@ -363,8 +394,14 @@ def create_app(
                     ),
                     "documents_loaded": bool(pipeline.texts),
                     "chain_ready": pipeline.get_chain() is not None,
+                    "state": "active",
                 }
             )
+        loaded_ids = dict(active)
+        for pipeline_id in list_persisted():
+            if pipeline_id not in loaded_ids:
+                # On disk, not in memory: restores on its first request.
+                result.append({"pipeline_id": pipeline_id, "state": "persisted"})
         return {"pipelines": result}
 
     @app.delete("/pipelines/{pipeline_id}")
@@ -372,10 +409,14 @@ def create_app(
         _require_key(request)
         # Pop atomically first so no other request can look it up mid-cleanup.
         pipeline = pop_pipeline(pipeline_id)
-        if pipeline is None:
+        was_persisted = pipeline_id in list_persisted()
+        if pipeline is None and not was_persisted:
             raise HTTPException(status_code=404, detail="Pipeline not found")
-        if hasattr(pipeline, "close"):
+        if pipeline is not None and hasattr(pipeline, "close"):
             pipeline.close()  # memory backend + vector store
+        # DELETE means delete: the manifest must not resurrect this
+        # pipeline on the next request for its id.
+        delete_persisted(pipeline_id)
         return {"deleted": pipeline_id}
 
     @app.post("/pipelines/{pipeline_id}/documents")
@@ -383,7 +424,7 @@ def create_app(
         pipeline_id: str, body: LoadDocumentsRequest, request: Request
     ):
         _require_key(request)
-        pipeline = _get_or_404(pipeline_id)
+        pipeline = await _get_or_404(pipeline_id)
         # Scrapes and embeds — far too slow for the event loop.
         texts = await to_thread.run_sync(
             lambda: pipeline.load_and_split(
@@ -399,13 +440,17 @@ def create_app(
         pipeline_id: str, body: SetupRetrieverRequest, request: Request
     ):
         _require_key(request)
-        pipeline = _get_or_404(pipeline_id)
+        pipeline = await _get_or_404(pipeline_id)
 
         def _configure():
             pipeline.setup_retriever(
                 use_ensemble=body.use_ensemble, use_reranker=body.use_reranker
             )
             pipeline.create_rag_chain(chain_type=body.chain_type)
+            # Persist AFTER the pipeline is fully servable, best-effort:
+            # a persistence failure costs a re-ingest after the next
+            # restart, never the request that just succeeded.
+            persist_pipeline(pipeline_id, pipeline)
 
         await to_thread.run_sync(_configure)
         return {
@@ -420,7 +465,7 @@ def create_app(
     @app.post("/pipelines/{pipeline_id}/ask")
     async def ask(pipeline_id: str, body: AskRequest, request: Request):
         _require_key(request)
-        pipeline = _get_or_404(pipeline_id)
+        pipeline = await _get_or_404(pipeline_id)
 
         if ask_slots is not None and not ask_slots.acquire(blocking=False):
             raise HTTPException(
@@ -452,8 +497,11 @@ def create_app(
             if not body.stream and ask_slots is not None:
                 ask_slots.release()
 
-    def _get_or_404(pipeline_id: str):
-        pipeline = get_pipeline(pipeline_id)
+    async def _get_or_404(pipeline_id: str):
+        # A cold id may lazily restore from its manifest, which embeds
+        # (cache-served when warm) — that work belongs on a worker
+        # thread, not the event loop.
+        pipeline = await to_thread.run_sync(get_or_restore_pipeline, pipeline_id)
         if pipeline is None:
             raise HTTPException(status_code=404, detail="Pipeline not found")
         return pipeline

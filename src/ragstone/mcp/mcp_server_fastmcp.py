@@ -20,7 +20,11 @@ from ragstone.utils.exceptions import PipelineError
 # The registry (shared with the REST API) is thread-safe: tools run
 # concurrently on the server's event loop and hand long operations to
 # worker threads via anyio, so registry access must be atomic.
-from ragstone.utils.registry import get_pipeline as _get_pipeline
+# Lookups are restore-aware: a pipeline persisted by a previous process
+# (this server or the REST API) rebuilds lazily on first use, so agents
+# don't re-ingest after a restart (ROADMAP 5.7).
+from ragstone.utils.registry import delete_persisted as _delete_persisted
+from ragstone.utils.registry import get_or_restore_pipeline as _get_pipeline
 from ragstone.utils.registry import pop_pipeline as _pop_pipeline
 from ragstone.utils.registry import put_pipeline as _put_pipeline
 from ragstone.utils.registry import snapshot_pipelines as _snapshot_pipelines
@@ -322,9 +326,11 @@ def delete_pipeline(pipeline_id: str) -> str:
         return f"Pipeline '{pipeline_id}' not found."
 
     try:
-        # Release held resources (memory backend + vector store)
+        # Release held resources (memory backend + vector store), and
+        # delete the manifest — DELETE must not resurrect on next use.
         if hasattr(pipeline, "close"):
             pipeline.close()
+        _delete_persisted(pipeline_id)
 
         return f"Pipeline '{pipeline_id}' deleted successfully"
 

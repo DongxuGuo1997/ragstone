@@ -132,6 +132,10 @@ class Pipeline:
         self._retriever: Optional[BaseRetriever] = None
         self._chain: Optional[FullChain] = None
         self._chain_type: Optional[str] = None
+        # Recorded like _chain_type: the registry manifest needs the
+        # retriever configuration to rebuild this pipeline after restart.
+        self._use_ensemble: bool = True
+        self._use_reranker: bool = False
         self.llm_proxy: Optional[LLMProxy] = None
         self._last_ask: Optional[AskContext] = None
         self._vector_db_fingerprint: Optional[str] = None
@@ -249,6 +253,8 @@ class Pipeline:
         logger.info(
             f"Setting retriever with timeout protection. Using ensemble: {use_ensemble}."
         )
+        self._use_ensemble = use_ensemble
+        self._use_reranker = use_reranker
 
         # With a reranker, the first stage fetches a wide candidate pool and
         # the cross-encoder narrows it back down to similarity_k.

@@ -57,6 +57,11 @@ RAGSTONE_API_MAX_CONCURRENCY=8
 - **Rate limits are per process.** The sliding windows live in server
   memory: honest for one server, per-worker once you scale horizontally
   (a shared limiter is the ROADMAP 5.13 stateless-workers item).
+- **Registry persistence writes corpus chunks to disk** (under
+  `RAGSTONE_REGISTRY_DIR`) so pipelines survive restarts. `DELETE
+  /pipelines/{id}` removes them; set `RAGSTONE_REGISTRY_PERSIST=off` if
+  corpus text must never touch disk. The full "where does user text
+  live" answer (sessions, caches, logs) is the ROADMAP 5.10 item.
 - **No output filtering.** Answers are returned as generated; add a
   moderation layer if your deployment requires one.
 - **The Streamlit UI has no auth** — it is a local demo surface, not a

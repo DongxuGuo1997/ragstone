@@ -18,6 +18,9 @@ os.environ["ENVIRONMENT"] = "testing"
 # Tests must not write store/embedding_cache.sqlite into the repo; the
 # cache's own tests enable it against tmp_path explicitly.
 os.environ["RAGSTONE_EMBED_CACHE"] = "off"
+# Same rule for registry manifests (ROADMAP 5.7): persistence tests
+# enable them against tmp_path explicitly.
+os.environ["RAGSTONE_REGISTRY_PERSIST"] = "off"
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -78,3 +81,4 @@ def setup_test_environment(monkeypatch):
     monkeypatch.setenv("VECTOR_STORE_TYPE", "faiss")
     monkeypatch.setenv("MCP_LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("ENVIRONMENT", "testing")
+    monkeypatch.setenv("RAGSTONE_REGISTRY_PERSIST", "off")
