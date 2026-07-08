@@ -23,7 +23,9 @@ jobs:
         run: docker build -t ragstone:scan .
 
       - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        # Pinned by commit SHA (= v0.36.0): a security workflow should not
+        # trust a movable tag on the very action that does the scanning.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: ragstone:scan
           format: table
