@@ -5,10 +5,10 @@
       "mrr": 0.931,
       "correct_rate": 0.974,
       "faithful_rate": 1.0,
-      "multi_turn_correct_rate": 0.8,
+      "multi_turn_correct_rate": 0.875,
       "multi_turn_faithful_rate": 1.0
     },
-    "date": "2026-07-07"
+    "date": "2026-07-08"
   },
   "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=retrieval": {
     "metrics": {
