@@ -78,5 +78,56 @@
       "multi_turn_faithful_rate": 0.846
     },
     "date": "2026-07-08"
+  },
+  "ollama:qwen3.5:9b|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|ollama-reasoning=off": {
+    "metrics": {
+      "hit_rate": 0.974,
+      "mrr": 0.895,
+      "correct_rate": 0.976,
+      "faithful_rate": 0.951,
+      "multi_turn_correct_rate": 1.0,
+      "multi_turn_faithful_rate": 1.0
+    },
+    "date": "2026-07-09"
+  },
+  "ollama:gemma4:e4b|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|ollama-reasoning=off": {
+    "metrics": {
+      "hit_rate": 0.974,
+      "mrr": 0.895,
+      "correct_rate": 0.951,
+      "faithful_rate": 0.976,
+      "multi_turn_correct_rate": 0.625,
+      "multi_turn_faithful_rate": 0.75
+    },
+    "date": "2026-07-09"
+  },
+  "ollama:qwen3.6:35b|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|ollama-reasoning=off": {
+    "metrics": {
+      "hit_rate": 0.947,
+      "mrr": 0.888,
+      "correct_rate": 0.951,
+      "faithful_rate": 0.951,
+      "multi_turn_correct_rate": 1.0,
+      "multi_turn_faithful_rate": 1.0
+    },
+    "date": "2026-07-09"
+  },
+  "ollama:gemma4:31b|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|ollama-reasoning=off": {
+    "metrics": {
+      "hit_rate": 0.974,
+      "mrr": 0.895,
+      "correct_rate": 1.0,
+      "faithful_rate": 0.951,
+      "multi_turn_correct_rate": 1.0,
+      "multi_turn_faithful_rate": 1.0
+    },
+    "date": "2026-07-09"
+  },
+  "ollama:qwen3.6:35b|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=retrieval|rerank": {
+    "metrics": {
+      "hit_rate": 1.0,
+      "mrr": 1.0
+    },
+    "date": "2026-07-09"
   }
 }

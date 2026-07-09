@@ -456,7 +456,10 @@ Identical quality, 1.8× the latency, 1.45× the tokens: when first-shot
 retrieval is already good, the agent's ability to re-search buys nothing —
 it only pays. That is why the fixed pipeline is the default. On a corpus
 where retrieval misses more often, the trade-off can flip; the harness
-lets you find out for yours instead of guessing.
+lets you find out for yours instead of guessing. The same comparison runs
+fully offline — local-model quality and latency per hardware tier are
+measured in ["The local stack, measured"](#the-local-stack-measured)
+under Benchmark Results.
 
 ### Durable conversation memory (optional)
 
@@ -665,6 +668,9 @@ ada-002; `k=4` is the coverage knee (k=2 loses answers, k=6 adds nothing).
 | text-embedding-3-small, ensemble          | 1.000    | 0.895 |
 | text-embedding-3-small, ensemble + rerank | 1.000    | **0.964** |
 
+(Local equivalents — nomic-embed-text ± the local reranker — are in
+["The local stack, measured"](#the-local-stack-measured) below.)
+
 **Generation (Layer 2, LLM-judged).** The headline finding is a *negative*
 one, and it drives the default: multi-query and fusion add ~2× the LLM calls
 and 3–4× the retrievals per question, but deliver **no measurable correctness
@@ -677,6 +683,38 @@ where question phrasing is genuinely ambiguous.
 | **simple**   | 0.947        | 0.947         | 1× (baseline)        |
 | multi_query  | 0.947        | 0.974         | ~2× calls, ~3× reads |
 | fusion       | 0.974        | 0.921         | ~2× calls, ~4× reads |
+
+### The local stack, measured
+
+Everything above also runs fully offline — Ollama models,
+`nomic-embed-text` embeddings, the local cross-encoder reranker — and as
+of July 2026 that path is **measured, not just supported** (Experiment 21;
+current 49-case smoke set, thinking disabled via
+`RAGSTONE_OLLAMA_REASONING=off`, scored by the same cloud judge as the
+cloud baseline, M4 Max / 128 GB).
+
+**Local retrieval** (k=4): `nomic-embed-text` + ensemble reaches hit
+0.947–0.974 / MRR ~0.89; adding the local reranker lands **hit 1.0 /
+MRR 1.0** — fully-local retrieval matches the best cloud configuration
+on this corpus.
+
+**Local generation**, by hardware tier:
+
+| Local answerer (tier)         | correct | faithful | multi-turn c/f | s/ask | out tok/s |
+|-------------------------------|--------:|---------:|----------------|------:|----------:|
+| gemma4:e4b (edge)             | 0.951   | 0.976    | **0.63 / 0.75** | 1.5   | 33        |
+| qwen3.5:9b (workstation)      | 0.976   | 0.951    | 1.0 / 1.0      | 3.4   | 19        |
+| qwen3.6:35b (server, MoE)     | 0.951   | 0.951    | 1.0 / 1.0      | 2.4   | 19        |
+| gemma4:31b (server, dense)    | 1.000   | 0.951    | 1.0 / 1.0      | 8.0   | 3.3       |
+| *cloud: gpt-4o-mini*          | 0.951   | 1.000    | 0.88 / 0.88    | ~1.4  | —         |
+
+Margins are 0–2 cases (CIs overlap); the durable signal is the tier
+shape: the edge model matches the others single-turn but **breaks on
+conversation**, and the heavy-dense model buys the last correctness
+point at 4× the latency. A local 31B judge re-scoring the same stored
+answers agreed with the cloud judge within 2.5–4.9 pp with zero format
+failures — a no-egress deployment can run this harness end to end.
+Run it yourself: `make eval-local`.
 
 ## Logging
 

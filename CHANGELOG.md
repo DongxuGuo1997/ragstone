@@ -7,6 +7,15 @@ Notable changes to Ragstone. The format follows
 ## [Unreleased]
 
 ### Added
+- **The local stack, measured** (Experiment 21 / ROADMAP 8.0): a
+  four-model Ollama answerer matrix (edge → workstation → server tiers)
+  through the full eval harness — parity with the cloud baseline on the
+  bundled corpus, local rerank retrieval at 1.0/1.0, and a local-judge
+  delta scored on identical stored answers (4/98 flips, 0 parse
+  failures). New: `RAGSTONE_OLLAMA_REASONING` thinking control,
+  `run_eval.py --ollama-reasoning/--judge-reasoning/--dump-answers/--limit`,
+  `evals/rejudge.py`, `make eval-local`, committed `ollama:` baselines.
+
 - **Evidence highlighting** (citations v1): source snippets in the
   Streamlit trace panel and the CLI's `/sources` now highlight the exact
   words the answer reuses — post-hoc answer-to-source alignment with

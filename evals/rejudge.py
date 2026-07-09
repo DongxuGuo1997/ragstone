@@ -30,6 +30,13 @@ EVALS_DIR = Path(__file__).parent
 sys.path.insert(0, str(EVALS_DIR.parent / "src"))
 sys.path.insert(0, str(EVALS_DIR))
 
+from dotenv import load_dotenv  # noqa: E402
+
+# run_eval gets OPENAI_API_KEY implicitly (building a pipeline imports the
+# project settings, which load .env); this tool builds no pipeline, so the
+# cloud-judge arm must load it explicitly.
+load_dotenv()
+
 import judge  # noqa: E402
 from run_eval import format_metric, with_retries  # noqa: E402
 

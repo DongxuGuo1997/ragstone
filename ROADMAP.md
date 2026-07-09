@@ -356,17 +356,20 @@ unit of privacy**, where the eval harness IS the product. Nobody buys
 on your documents, with a CI-enforced guarantee that nothing leaves
 the building."
 
-### 8.0 Measure the local stack — the missing baseline — M
-One full eval matrix on the all-local configuration (local answerer x
-local embeddings x local reranker). The judge is its own experiment:
-score once with the cloud judge and once with a large local judge
-(70B-class), and publish the delta — Experiment 11's protocol extended
-across the trust boundary. Deliverable: a "local" column next to every
-number in the README's measured table, including the multi-turn and
-challenge-turn slices (the Experiment 18 lesson: gate utility steps on
-the turn types they will face).
-*Measure:* the delta IS the result. Also record tokens/s and latency —
-local trades money for time, and clients need that curve.
+### 8.0 Measure the local stack — DELIVERED (July 2026, Experiment 21)
+A 2-light/2-heavy answerer matrix (gemma4:e4b, qwen3.5:9b, qwen3.6:35b,
+gemma4:31b) through the full smoke harness on nomic-embed-text + the
+local reranker: parity with the cloud baseline on this corpus (every
+tier ≥ 0.951 correct; local rerank retrieval 1.0/1.0), with the durable
+finding in the tier SHAPE — the edge model breaks on the multi-turn
+slice (5/8), heavy-dense buys 41/41 correctness at 8 s/ask. Judge delta
+done the strong way Experiment 11 flagged: `evals/rejudge.py` re-scores
+STORED answers (`--dump-answers`), cloud self-noise floor 1/98 flips,
+local gemma4:31b judge 4/98 with 0 parse failures, within 2.5–4.9 pp.
+tokens/s + latency recorded per tier; `RAGSTONE_OLLAMA_REASONING`
+shipped (thinking off = the measured serving posture); local baselines
+committed under `ollama:` keys; `make eval-local`. Judge was 31B
+cross-family, not 70B-class — rerun with a 70B judge folds into 8.2.
 
 ### 8.1 Provable no-egress mode — S/M, the flagship feature
 `RAGSTONE_PROFILE=local`: one switch that selects local models, local

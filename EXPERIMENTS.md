@@ -975,6 +975,106 @@ not a hand-stripped imitation of it.**
 
 ---
 
+## Experiment 21 — The local stack, measured: tiers, tokens/s, and a judge across the trust boundary
+
+**Question.** Every number in this file was a cloud-model verdict; the
+local path (Ollama + nomic-embed-text + local cross-encoder reranker)
+"ran" but was never measured — the missing baseline for the local-first
+strategy (ROADMAP 8.0). Three questions at once: what does all-local
+cost in quality, what does each hardware tier buy, and can a **local
+judge** be trusted to produce the scores a no-egress deployment needs?
+
+**Method.** Four answerers — two light, two heavy, freshly pulled (July
+2026) — each through the full smoke set (49 cases: 41 single-turn incl.
+unanswerables, 8 multi-turn) on an M4 Max / 128 GB via Ollama 0.24:
+nomic-embed-text embeddings (auto-probed), ensemble, k=4, judged by the
+same cloud judge as the committed baselines (gpt-4o-mini). Thinking
+**disabled** via the new `RAGSTONE_OLLAMA_REASONING` knob — probes showed
+qwen3.5:9b spending 162 output tokens and 7.7 s on a one-word answer that
+takes 3 tokens / 0.3 s with reasoning off; that knob is the difference
+between honest local latency and measuring a model's inner monologue.
+Runs were staged (per-model probe → 5-case timing pilot → full run,
+strictly sequential with cooldowns) and answers were dumped
+(`--dump-answers`) for the judge experiment below.
+
+| local answerer (tier) | correct | faithful | multi-turn c/f | s/ask | out tok/s |
+|---|---:|---:|---|---:|---:|
+| gemma4:e4b — edge, 8B eff-4B | 0.951 | 0.976 | **0.625 / 0.75** | **1.5** | **32.6** |
+| qwen3.5:9b — workstation, dense | **0.976** | 0.951 | 1.0 / 1.0 | 3.4 | 19.0 |
+| qwen3.6:35b — server, MoE 36B | 0.951 | 0.951 | 1.0 / 1.0 | 2.4 | 18.8 |
+| gemma4:31b — server, dense 31B | **1.000** | 0.951 | 1.0 / 1.0 | 8.0 | 3.3 |
+| *cloud: gpt-4o-mini (baseline)* | 0.951 | 1.000 | 0.875 / 0.875 | ~1.4 | — |
+
+(n=41 single / 8 multi-turn; every gap between columns is 0–2 cases —
+CIs overlap throughout. tokens/s is pipeline throughput: output tokens ÷
+ask wall-clock.)
+
+**Retrieval (Layer 1).** nomic-embed-text + ensemble lands at hit
+0.947–0.974 / MRR ~0.89 (the spread across runs is real: each model
+generates its own metadata cards, so Layer 1 varies by ±1 case). The
+**local reranker repairs all of it: hit 1.0 / MRR 1.0** — the same
+"biggest ranking lever" verdict as Experiment 2, now fully offline.
+
+**Findings.**
+1. **The local stack does not lose on this corpus.** Every tier ≥ 0.951
+   correct; local multi-turn beats the cloud baseline's 0.875 (noise-level
+   margins, but the sign is not what "local = worse" predicts). The
+   honest sales line changes from "loses only X points" to "measured at
+   parity on our corpus — bring yours" (the 3.0 second corpus remains
+   the test that generalizes this).
+2. **The tier table is the product.** Edge (gemma4:e4b) matches the big
+   models single-turn at 33 tok/s but **collapses on the conversational
+   slice** (5/8 correct) — Experiment 18's lesson (gate utility steps on
+   the turn types they face) resurfacing at model-tier level: don't ship
+   edge models for chat. Heavy-dense (gemma4:31b) buys the only perfect
+   correctness (41/41) at 8 s/ask and 3.3 tok/s — prefill through 31B
+   dense weights dominates RAG asks (~2 k-token contexts). Heavy-MoE
+   (qwen3.6:35b, `qwen35moe`) delivers workstation-class latency at
+   server scale. The 9B is the balance point.
+3. **A 31B local judge is usable across the trust boundary.** The dump
+   made re-judging STORED answers possible — closing Experiment 11's
+   recorded caveat that regenerating answers made judge deltas an upper
+   bound. Control first: gpt-4o-mini re-judging its own stored verdicts
+   flipped **1/98** (q04, fail→pass) — the judge-noise floor.
+   gemma4:31b on the identical answers: **4/98 flips, 0/98 parse
+   failures**, scores within 2.5 pp (correct) / 4.9 pp (faithful) of the
+   cloud judge — and its q04 verdict agreed with the cloud judge's own
+   second look. Residual true disagreement: ~3 verdicts, split both
+   directions (stricter on answer completeness, more lenient on
+   grounding). A no-egress deployment can score itself.
+
+**Operational notes** (each a real deployment lesson): Ollama loaded
+every model at its FULL declared context (262 k for gemma4:31b → 47 GB
+resident, and heavier attention than any RAG prompt needs) — capping
+`num_ctx` is the obvious dense-tier latency lever, unmeasured here;
+query embedding shares the Ollama server with generation, so retrieval
+latency rose 43 → 570 ms while a 19 GB model was loading — fine at this
+scale, a real "one inference server" caveat at load; the local judge arm
+took 39 min for 98 verdicts (~24 s each — long faithfulness contexts
+through dense 31B), so budget local judging in minutes-per-hundred, not
+seconds.
+
+**Caveats, recorded.** Answerers ran at Ollama's default temperature
+(OllamaProxy deliberately doesn't force 0 — a quality-affecting change
+left for its own gated pass); ensemble weights and k were tuned on
+OpenAI embeddings (Experiments 3/6) and inherited unmodified — the
+retrieval dip IS the unretuned number; the judge is 31B cross-family
+(vs the answerer's qwen), not the 70B-class the roadmap sketched;
+single corpus, n=49, ceiling effects — tier ordering is trustworthy,
+decimal places are not.
+
+**Decision.** The local path graduates from "runs" to **measured**:
+baselines committed under `ollama:` keys, `make eval-local` added,
+thinking-off is the documented serving posture
+(`RAGSTONE_OLLAMA_REASONING=off`). The dated `llama3` Ollama default is
+now contradicted by evidence — promoting qwen3.5:9b is the follow-up
+(8.2), gated on this table. The transferable lesson: **local quality is
+not one number, it's a tier curve — and the conversational slice is
+where cheap tiers quietly break, exactly where single-turn evals can't
+see.**
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |
