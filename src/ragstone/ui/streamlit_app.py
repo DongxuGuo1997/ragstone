@@ -323,7 +323,7 @@ class StreamlitApp:
 
         ### 💡 **Troubleshooting:**
         - **OpenAI not working?** → Try Offline mode with Ollama
-        - **Ollama not available?** → Run `ollama serve` and `ollama pull llama3`
+        - **Ollama not available?** → Run `ollama serve` and `ollama pull qwen3.5:9b`
         - **Pipeline stuck?** → Check your internet connection or switch modes
         """)
 
@@ -790,7 +790,7 @@ class StreamlitApp:
                         "🦙 **Ollama Status:** Service not running or no models found\n\n"
                         "💡 **Quick Setup:**\n"
                         "1. Start Ollama: `ollama serve`\n"
-                        "2. Pull a model: `ollama pull llama3`"
+                        "2. Pull a model: `ollama pull qwen3.5:9b`"
                     )
                     st.session_state.ollama_warning_shown = True
 

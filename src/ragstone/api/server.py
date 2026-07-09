@@ -171,7 +171,9 @@ class CreatePipelineRequest(BaseModel):
     provider: Literal["openai", "ollama"] = "openai"
     model: Optional[str] = Field(
         default=None,
-        description="Model name; defaults to gpt-4o-mini (openai) or llama3 (ollama).",
+        description=(
+            "Model name; defaults to gpt-4o-mini (openai) or qwen3.5:9b (ollama)."
+        ),
     )
     pipeline_id: str = "default"
 

@@ -88,12 +88,13 @@ def create_openai_pipeline(
 
 @mcp.tool()
 def create_ollama_pipeline(
-    model: str = "llama3", pipeline_id: str = "default_ollama"
+    model: str = "qwen3.5:9b", pipeline_id: str = "default_ollama"
 ) -> str:
     """Create an Ollama-based RAG pipeline.
 
     Args:
-        model: Ollama model to use (e.g., llama3, phi4, deepseek-r1:8b)
+        model: Ollama model to use (e.g., qwen3.5:9b, qwen3.6:35b,
+            gemma4:e4b — the Experiment 21 measured menu)
         pipeline_id: Unique identifier for this pipeline
 
     Returns:

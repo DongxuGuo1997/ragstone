@@ -21,7 +21,10 @@ logger = logging.getLogger(__name__)
 
 # Per-provider default models — the ONE place they are defined; the REST
 # API, MCP server, and terminal chat all resolve defaults through here.
-DEFAULT_MODELS = {"openai": "gpt-4o-mini", "ollama": "llama3"}
+# The Ollama default is decided by measurement (Experiment 21): qwen3.5:9b
+# was the quality/latency balance point of the measured tier menu — the
+# previous default, llama3, was never measured at all.
+DEFAULT_MODELS = {"openai": "gpt-4o-mini", "ollama": "qwen3.5:9b"}
 
 
 def build_pipeline(provider: str, model: Optional[str] = None) -> Pipeline:
@@ -130,7 +133,7 @@ class OllamaPipeline(Pipeline):
 
     def __init__(
         self,
-        model: str = "llama3",
+        model: str = DEFAULT_MODELS["ollama"],
         loader_name: str = "local",
         vector_store_type: Optional[str] = None,
         optimize_loading: bool = True,
@@ -140,7 +143,7 @@ class OllamaPipeline(Pipeline):
         Initialize the OllamaPipeline with the specified model and loader name.
 
         Args:
-            model (str): The model to use. Defaults to "llama3".
+            model (str): The model to use. Defaults to DEFAULT_MODELS["ollama"].
             loader_name (str): The name of the loader. Defaults to "local".
             vector_store_type (Optional[str]): Type of vector store to use.
             optimize_loading (bool): Whether to use optimized parallel loading. Defaults to True.

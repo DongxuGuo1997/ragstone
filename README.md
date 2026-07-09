@@ -290,7 +290,7 @@ RAGSTONE_EMBED_CACHE_PATH=store/embedding_cache.sqlite
   },
   "llm": {
     "openai_models": ["gpt-4o-mini", "gpt-4o", "gpt-4.1"],
-    "ollama_models": ["llama3", "phi4", "deepseek-r1:8b"],
+    "ollama_models": ["qwen3.5:9b", "qwen3.6:35b", "gemma4:e4b", "gemma4:31b", "llama3"],
     "default_temperature": 0.0
   },
   "logging": {
@@ -636,8 +636,8 @@ make eval             # both layers — needs OPENAI_API_KEY
 
 # Free, fully local run (requires Ollama; scores are not comparable
 # across different judge models):
-python evals/run_eval.py --provider ollama --model llama3 \
-    --judge-provider ollama --judge-model llama3
+python evals/run_eval.py --provider ollama --model qwen3.5:9b \
+    --ollama-reasoning off --judge-provider ollama --judge-model gemma4:31b
 
 # Measure the effect of reranking (requires the rerank extra)
 python evals/run_eval.py --mode retrieval --rerank

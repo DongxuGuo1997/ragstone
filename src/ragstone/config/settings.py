@@ -132,7 +132,13 @@ class LLMConfig:
         default_factory=lambda: ["gpt-4o-mini", "gpt-4o", "gpt-4.1"]
     )
     ollama_models: List[str] = field(
-        default_factory=lambda: ["llama3", "phi4", "deepseek-r1:8b"]
+        default_factory=lambda: [
+            "qwen3.5:9b",
+            "qwen3.6:35b",
+            "gemma4:e4b",
+            "gemma4:31b",
+            "llama3",
+        ]
     )
     # Embedding models configuration - model-aware selection
     # NOTE: Thanks to user discovery, we now try the LLM model directly first!

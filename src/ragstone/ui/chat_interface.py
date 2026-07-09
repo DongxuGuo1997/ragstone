@@ -149,7 +149,7 @@ class ChatInterface:
     def __init__(
         self,
         pipeline_type: str = "ollama",
-        model: str = "llama3",
+        model: str = "qwen3.5:9b",
         data_dir: str = "data",
         chain_type: str = "simple",
         pipeline: Optional[Any] = None,
@@ -453,8 +453,8 @@ def select_model_interactive() -> Tuple[str, str]:
                     print("Please enter a valid choice or model name.")
         else:
             print("Ollama not running or no models found")
-            print("Common models: llama3, phi4, deepseek-r1, mixtral")
-            model = input("Enter model name [llama3]: ").strip() or "llama3"
+            print("Measured models: qwen3.5:9b, qwen3.6:35b, gemma4:e4b, gemma4:31b")
+            model = input("Enter model name [qwen3.5:9b]: ").strip() or "qwen3.5:9b"
 
     else:
         pipeline_type = "openai"

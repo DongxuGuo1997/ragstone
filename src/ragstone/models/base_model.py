@@ -164,12 +164,16 @@ class OllamaProxy(LLMProxy):
             logger.warning("Ollama LLM instance requested but not set.")
         return self._llm
 
-    def set_llm(self, model_name: str = "llama3", **kwargs: Any) -> Optional[Any]:
+    def set_llm(self, model_name: str = "qwen3.5:9b", **kwargs: Any) -> Optional[Any]:
         """
         Set and configure the Ollama LLM instance with lazy loading.
 
+        The default mirrors DEFAULT_MODELS["ollama"] (providers.py), which
+        is decided by measurement — Experiment 21.
+
         Args:
-            model_name (str): The name of the Ollama model to use (e.g., "llama3").
+            model_name (str): The name of the Ollama model to use
+                (e.g., "qwen3.5:9b").
             **kwargs: Additional keyword arguments for ChatOllama.
 
         Returns:
