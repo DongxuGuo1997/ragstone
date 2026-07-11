@@ -5,12 +5,11 @@ This module provides centralized configuration management with environment varia
 support, validation, and type safety.
 """
 
-import json
 import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional
 
 from dotenv import load_dotenv
 
@@ -140,32 +139,12 @@ class LLMConfig:
             "llama3",
         ]
     )
-    # Embedding models configuration - model-aware selection
-    # NOTE: Thanks to user discovery, we now try the LLM model directly first!
-    # These complex mappings below are now just FALLBACKS if the direct approach fails.
-    # Example: OllamaEmbeddings(model="llama3") works directly!
-    model_embedding_preferences: Dict[str, List[str]] = field(
-        default_factory=lambda: {
-            # Ollama LLM models and their preferred embedding models (FALLBACK only)
-            "llama3": ["nomic-embed-text", "all-minilm", "mxbai-embed-large"],
-            "llama3.1": ["nomic-embed-text", "all-minilm", "mxbai-embed-large"],
-            "phi4": ["nomic-embed-text", "all-minilm"],
-            "deepseek-r1:8b": ["nomic-embed-text", "mxbai-embed-large"],
-            "deepseek-r1:14b": ["nomic-embed-text", "mxbai-embed-large"],
-            "deepseek-r1:32b": ["mxbai-embed-large", "nomic-embed-text"],
-            "gemma": ["all-minilm", "nomic-embed-text"],
-            "gemma3:12b": ["mxbai-embed-large", "nomic-embed-text"],
-            # Fallback for any Ollama model
-            "ollama_default": ["nomic-embed-text", "all-minilm", "mxbai-embed-large"],
-        }
-    )
     openai_embedding_model: str = field(
         default_factory=lambda: os.getenv(
             "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"
         )
     )
     prefer_ollama_embeddings: bool = True  # Try Ollama first, fallback to OpenAI
-    auto_detect_available_models: bool = True  # Detect available Ollama models
     default_temperature: float = 0.0
     # Applied to every LLM/embedding client (see models/base_model.py and
     # rag/embeddings.py): bounded retries on transient API errors, and a
@@ -325,19 +304,6 @@ class UIConfig:
     """Configuration for the user interface."""
 
     title: str = "Ragstone"
-    page_icon: str = ""
-    layout: str = "wide"
-    initial_sidebar_state: str = "expanded"
-    theme_primary_color: str = "#FF6B6B"
-    theme_background_color: str = "#FFFFFF"
-    max_upload_size_mb: int = 200
-
-    def __post_init__(self):
-        """Validate UI configuration."""
-        if self.layout not in ["centered", "wide"]:
-            raise ConfigurationError("Layout must be 'centered' or 'wide'")
-        if self.initial_sidebar_state not in ["auto", "expanded", "collapsed"]:
-            raise ConfigurationError("Invalid sidebar state")
 
 
 @dataclass
@@ -410,186 +376,6 @@ class Config:
 
         logger.info(f"Configuration initialized for {self.environment} environment")
 
-    @classmethod
-    def from_file(cls, config_path: Union[str, Path]) -> "Config":
-        """
-        Load configuration from a JSON file.
-
-        Args:
-            config_path: Path to the configuration file.
-
-        Returns:
-            Config instance loaded from file.
-
-        Raises:
-            ConfigurationError: If file cannot be loaded or parsed.
-        """
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config_data = json.load(f)
-
-            # Create config instances from dictionaries
-            database_config = DatabaseConfig(**config_data.get("database", {}))
-            llm_config = LLMConfig(**config_data.get("llm", {}))
-            loader_config = LoaderConfig(**config_data.get("loader", {}))
-            api_config = APIConfig(**config_data.get("api", {}))
-            logging_config = LoggingConfig(**config_data.get("logging", {}))
-            ui_config = UIConfig(**config_data.get("ui", {}))
-            cache_config = CacheConfig(**config_data.get("cache", {}))
-            memory_config = MemoryConfig(**config_data.get("memory", {}))
-
-            # Create main config
-            main_config = config_data.get("main", {})
-            return cls(
-                database=database_config,
-                llm=llm_config,
-                loader=loader_config,
-                api=api_config,
-                logging=logging_config,
-                ui=ui_config,
-                cache=cache_config,
-                memory=memory_config,
-                environment=main_config.get("environment", "development"),
-                debug=main_config.get("debug"),
-            )
-
-        except FileNotFoundError:
-            raise ConfigurationError(f"Configuration file not found: {config_path}")
-        except json.JSONDecodeError as e:
-            raise ConfigurationError(f"Invalid JSON in configuration file: {e}")
-        except Exception as e:
-            raise ConfigurationError(f"Error loading configuration: {e}")
-
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert the configuration to a dictionary.
-
-        Sensitive values (API keys) are excluded.
-
-        Returns:
-            Dictionary representation of the configuration.
-        """
-        return {
-            "database": {
-                "default_type": self.database.default_type,
-                "chroma_persist_dir": self.database.chroma_persist_dir,
-                "faiss_index_name": self.database.faiss_index_name,
-                "qdrant_path": self.database.qdrant_path,
-                "qdrant_url": self.database.qdrant_url,
-                "collection_name": self.database.collection_name,
-                # pg_url is omitted: connection strings embed credentials.
-                "batch_size": self.database.batch_size,
-                "embed_workers": self.database.embed_workers,
-                "similarity_k": self.database.similarity_k,
-                "ensemble_bm25_weight": self.database.ensemble_bm25_weight,
-                "max_query_length": self.database.max_query_length,
-            },
-            "llm": {
-                "openai_models": self.llm.openai_models,
-                "ollama_models": self.llm.ollama_models,
-                "model_embedding_preferences": self.llm.model_embedding_preferences,
-                "openai_embedding_model": self.llm.openai_embedding_model,
-                "prefer_ollama_embeddings": self.llm.prefer_ollama_embeddings,
-                "auto_detect_available_models": self.llm.auto_detect_available_models,
-                "default_temperature": self.llm.default_temperature,
-                "max_retries": self.llm.max_retries,
-                "timeout": self.llm.timeout,
-                "max_question_chars": self.llm.max_question_chars,
-                "rephrase_model": self.llm.rephrase_model,
-            },
-            "loader": {
-                "default_data_dir": self.loader.default_data_dir,
-                "supported_extensions": self.loader.supported_extensions,
-                "max_file_size_mb": self.loader.max_file_size_mb,
-                "enable_ocr": self.loader.enable_ocr,
-                "chunk_size": self.loader.chunk_size,
-                "chunk_overlap": self.loader.chunk_overlap,
-                "chunk_context": self.loader.chunk_context,
-                "metadata_cards": self.loader.metadata_cards,
-                "allowed_data_root": self.loader.allowed_data_root,
-            },
-            "api": {
-                "ollama_base_url": self.api.ollama_base_url,
-                # Note: Don't save sensitive API keys to file
-            },
-            "logging": {
-                "level": self.logging.level,
-                "format": self.logging.format,
-                "date_format": self.logging.date_format,
-                "log_to_file": self.logging.log_to_file,
-                "log_file_path": self.logging.log_file_path,
-                "max_log_size_mb": self.logging.max_log_size_mb,
-                "backup_count": self.logging.backup_count,
-            },
-            "ui": {
-                "title": self.ui.title,
-                "page_icon": self.ui.page_icon,
-                "layout": self.ui.layout,
-                "initial_sidebar_state": self.ui.initial_sidebar_state,
-                "theme_primary_color": self.ui.theme_primary_color,
-                "theme_background_color": self.ui.theme_background_color,
-                "max_upload_size_mb": self.ui.max_upload_size_mb,
-            },
-            "cache": {
-                "enable_response_cache": self.cache.enable_response_cache,
-                "response_cache_size": self.cache.response_cache_size,
-                "response_cache_ttl": self.cache.response_cache_ttl,
-            },
-            "memory": {
-                "checkpoint_backend": self.memory.checkpoint_backend,
-                "checkpoint_db_path": self.memory.checkpoint_db_path,
-            },
-            "main": {
-                "environment": self.environment,
-                "debug": self.debug,
-            },
-        }
-
-    def to_file(self, config_path: Union[str, Path]) -> None:
-        """
-        Save configuration to a JSON file.
-
-        Args:
-            config_path: Path where to save the configuration file.
-        """
-        # Ensure directory exists
-        Path(config_path).parent.mkdir(parents=True, exist_ok=True)
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
-
-    def validate(self) -> List[str]:
-        """
-        Validate the entire configuration.
-
-        Returns:
-            List of validation error messages. Empty list if all valid.
-        """
-        errors = []
-
-        # A missing OpenAI key is not an error: Ollama-only deployments are
-        # fully supported. The key is checked when an OpenAI pipeline is
-        # actually constructed.
-        if not self.api.openai_api_key:
-            logger.warning(
-                "OPENAI_API_KEY is not set — OpenAI pipelines will be "
-                "unavailable (Ollama still works)."
-            )
-
-        # A missing data directory is not an error either: documents can
-        # come from uploads, URLs, or Wikipedia.
-        data_path = Path(self.loader.default_data_dir)
-        if not data_path.exists():
-            logger.warning(f"Default data directory does not exist: {data_path}")
-
-        # Check vector store directory can be created
-        try:
-            Path(self.database.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            errors.append(f"Cannot create vector store directory: {e}")
-
-        return errors
-
     def setup_logging(self) -> None:
         """Set up logging based on configuration."""
         import logging.handlers
@@ -648,41 +434,4 @@ def get_config() -> Config:
     global config
     if config is None:
         config = Config()
-    return config
-
-
-def load_config(config_path: Optional[Union[str, Path]] = None) -> Config:
-    """
-    Load configuration from file or use default.
-
-    Args:
-        config_path: Optional path to configuration file.
-
-    Returns:
-        Loaded configuration instance.
-    """
-    global config
-
-    if config_path and Path(config_path).exists():
-        config = Config.from_file(config_path)
-        logger.info(f"Configuration loaded from {config_path}")
-    else:
-        config = Config()
-        logger.info("Using default configuration")
-
-    # Validate configuration
-    errors = config.validate()
-    if errors:
-        error_msg = "Configuration validation errors:\n" + "\n".join(
-            f"- {error}" for error in errors
-        )
-        logger.error(error_msg)
-        if not config.debug:  # Only raise in production
-            raise ConfigurationError(error_msg)
-        else:
-            logger.warning("Continuing with invalid configuration in debug mode")
-
-    # Setup logging
-    config.setup_logging()
-
     return config

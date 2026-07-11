@@ -279,28 +279,6 @@ RAGSTONE_EMBED_CACHE_PATH=store/embedding_cache.sqlite
 > rebuilt if the embedding model changes — embeddings from different models are
 > not compatible.
 
-### Configuration File (config.json)
-```json
-{
-  "database": {
-    "default_type": "faiss",
-    "chroma_persist_dir": "store/chroma_db",
-    "batch_size": 100,
-    "similarity_k": 4
-  },
-  "llm": {
-    "openai_models": ["gpt-4o-mini", "gpt-4o", "gpt-4.1"],
-    "ollama_models": ["qwen3.5:9b", "qwen3.6:35b", "gemma4:e4b", "gemma4:31b", "llama3"],
-    "default_temperature": 0.0
-  },
-  "logging": {
-    "level": "INFO",
-    "log_to_file": true,
-    "log_file_path": "logs/application.log"
-  }
-}
-```
-
 ## Usage
 
 ### Web Interface
@@ -352,21 +330,12 @@ print(response)
 ### Custom Configuration
 
 ```python
-from ragstone.config.settings import Config, DatabaseConfig, LLMConfig
+from ragstone.config.settings import get_config
 
-# Create custom configuration
-config = Config(
-    database=DatabaseConfig(
-        default_type="chroma",
-        batch_size=50
-    ),
-    llm=LLMConfig(
-        default_temperature=0.7
-    )
-)
-
-# Save configuration
-config.to_file("my_config.json")
+# Adjust the process-wide configuration before building a pipeline
+config = get_config()
+config.database.default_type = "qdrant"
+config.loader.chunk_size = 800
 ```
 
 ### Error Handling
@@ -718,7 +687,7 @@ Run it yourself: `make eval-local`.
 
 ## Logging
 
-The application includes basic logging with the standard levels (DEBUG, INFO, WARNING, ERROR, CRITICAL). Configure the level and file output via the `logging` section of `config.json` (see Configuration above).
+The application includes basic logging with the standard levels (DEBUG, INFO, WARNING, ERROR, CRITICAL). Configure it programmatically via `get_config().logging` (the Streamlit app exposes a level selector in its sidebar).
 
 ## Security Considerations
 

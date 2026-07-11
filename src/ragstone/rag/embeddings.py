@@ -1,10 +1,12 @@
 """Embedding-model selection for the RAG pipeline.
 
-OpenAI embeddings are straightforward. Ollama embedding selection is not:
-Ollama serves many models and the right one depends on what the user has
-installed, so this module probes options in speed order — dedicated
-embedding models first, then model-specific preferences, then the LLM model
-itself — and memoizes the working choice per model for the process.
+OpenAI embeddings are straightforward. For Ollama, this module probes the
+dedicated embedding models a local install typically carries (nomic et al.)
+and falls back to OpenAI if none responds. It deliberately does NOT fall
+back to embedding with the chat LLM itself: that "works" mechanically but
+produces drastically worse retrieval — a clear error beats a pipeline that
+silently degrades (every measured run, incl. Experiment 21, used a
+dedicated embedder).
 """
 
 import logging
@@ -15,7 +17,7 @@ from ..config.settings import get_config
 
 logger = logging.getLogger(__name__)
 
-# Dedicated embedding models, fastest first. Tried before anything else.
+# Dedicated embedding models, fastest first.
 _DEDICATED_MODELS = [
     "nomic-embed-text:latest",
     "nomic-embed-text",
@@ -25,9 +27,9 @@ _DEDICATED_MODELS = [
     "mxbai-embed-large",
 ]
 
-# Probing Ollama models costs real round trips; remember the working choice
-# per LLM model for the process so later retriever setups reuse it.
-_smart_embeddings_cache: dict = {}
+# Probing costs real round trips; the choice doesn't depend on the chat
+# model, so one process-wide memo covers every retriever setup.
+_selected_embeddings: Optional[Any] = None
 
 
 def _openai_embeddings_cls() -> Any:
@@ -155,56 +157,33 @@ def _probe_ollama_model(model_name: str) -> Optional[Any]:
     return None
 
 
-def get_smart_embeddings(llm_model_name: Optional[str]) -> Optional[Any]:
-    """Select embeddings (Ollama-first, OpenAI fallback), memoized per model."""
-    cache_key = llm_model_name or "default"
-    if cache_key in _smart_embeddings_cache:
-        logger.info(f"Reusing embeddings selected earlier for '{cache_key}'")
-        return _smart_embeddings_cache[cache_key]
+def get_smart_embeddings() -> Optional[Any]:
+    """Select embeddings (Ollama-first, OpenAI fallback), memoized."""
+    global _selected_embeddings
+    if _selected_embeddings is not None:
+        logger.info("Reusing embeddings selected earlier this process")
+        return _selected_embeddings
 
-    embeddings = _select_smart_embeddings(llm_model_name)
+    embeddings = _select_smart_embeddings()
     if embeddings is not None:
-        _smart_embeddings_cache[cache_key] = embeddings
+        _selected_embeddings = embeddings
     return embeddings
 
 
-def _select_smart_embeddings(llm_model: Optional[str]) -> Optional[Any]:
-    """Probe embedding options in speed order (uncached)."""
+def _select_smart_embeddings() -> Optional[Any]:
+    """Probe dedicated Ollama embedders, then the OpenAI fallback (uncached)."""
     config = get_config()
 
     if config.llm.prefer_ollama_embeddings:
-        # 1. Dedicated embedding models — fastest, try first.
         for model in _DEDICATED_MODELS:
             embeddings = _probe_ollama_model(model)
             if embeddings:
                 return embeddings
-
-        # 2. Model-specific preferences for the chosen LLM.
-        if llm_model:
-            preferred = _embedding_models_for_llm(llm_model, config)
-            if config.llm.auto_detect_available_models:
-                available = _available_ollama_models()
-                preferred = [m for m in preferred if m in available] or preferred
-            for model in preferred:
-                embeddings = _probe_ollama_model(model)
-                if embeddings:
-                    return embeddings
-
-        # 3. The LLM model itself, as a last resort (slow).
-        if llm_model:
-            logger.warning(
-                f"Trying LLM model '{llm_model}' directly as an embedding "
-                "model — this will be slow."
-            )
-            embeddings = _probe_ollama_model(llm_model)
-            if embeddings:
-                return embeddings
-
         logger.warning(
-            "All Ollama embedding strategies failed; falling back to OpenAI."
+            "No dedicated Ollama embedding model responded "
+            "(fix: `ollama pull nomic-embed-text`); trying OpenAI."
         )
 
-    # Fallback: OpenAI embeddings.
     if os.getenv("OPENAI_API_KEY"):
         try:
             return make_openai_embeddings()
@@ -214,32 +193,3 @@ def _select_smart_embeddings(llm_model: Optional[str]) -> Optional[Any]:
         logger.error("No OPENAI_API_KEY available for fallback embeddings.")
 
     return None
-
-
-def _embedding_models_for_llm(llm_model: Optional[str], config: Any) -> List[str]:
-    """Embedding models to try for a given LLM, in preference order."""
-    prefs = config.llm.model_embedding_preferences
-    if not llm_model:
-        return prefs.get("ollama_default", [])
-
-    base_model = llm_model.split(":")[0]  # "deepseek-r1:8b" -> "deepseek-r1"
-    if llm_model in prefs:
-        return prefs[llm_model]
-    if base_model in prefs:
-        return prefs[base_model]
-    return prefs.get("ollama_default", [])
-
-
-def _available_ollama_models() -> List[str]:
-    """Query the Ollama server for installed models (empty list on failure)."""
-    try:
-        import requests
-
-        base_url = get_config().api.ollama_base_url
-        response = requests.get(f"{base_url}/api/tags", timeout=5)
-        if response.status_code == 200:
-            return [m["name"] for m in response.json().get("models", [])]
-        logger.warning(f"Failed to query Ollama models: {response.status_code}")
-    except Exception as e:
-        logger.warning(f"Could not detect available Ollama models: {e}")
-    return []

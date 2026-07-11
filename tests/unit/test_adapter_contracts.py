@@ -18,7 +18,6 @@ from langchain_core.embeddings import DeterministicFakeEmbedding
 import ragstone.rag.embeddings as embeddings_module
 from ragstone.rag import loader as loader_module
 from ragstone.rag.embeddings import (
-    _embedding_models_for_llm,
     _select_smart_embeddings,
     embed_texts_cached,
     embed_texts_parallel,
@@ -421,20 +420,14 @@ class TestEmbedTextsCached:
         assert provider.calls == []
 
 
-def _stub_config(prefer_ollama: bool, prefs=None):
-    return SimpleNamespace(
-        llm=SimpleNamespace(
-            prefer_ollama_embeddings=prefer_ollama,
-            auto_detect_available_models=False,
-            model_embedding_preferences=prefs or {},
-        )
-    )
+def _stub_config(prefer_ollama: bool):
+    return SimpleNamespace(llm=SimpleNamespace(prefer_ollama_embeddings=prefer_ollama))
 
 
 class TestSmartEmbeddingSelection:
     @pytest.fixture(autouse=True)
     def _fresh_memo(self, monkeypatch):
-        monkeypatch.setattr(embeddings_module, "_smart_embeddings_cache", {})
+        monkeypatch.setattr(embeddings_module, "_selected_embeddings", None)
 
     def test_dedicated_embedding_models_are_probed_first(self, monkeypatch):
         probed = []
@@ -446,7 +439,7 @@ class TestSmartEmbeddingSelection:
 
         monkeypatch.setattr(embeddings_module, "_probe_ollama_model", fake_probe)
         monkeypatch.setattr(embeddings_module, "get_config", lambda: _stub_config(True))
-        assert _select_smart_embeddings("llama3") is winner
+        assert _select_smart_embeddings() is winner
         assert probed == ["nomic-embed-text:latest"]  # stopped at first hit
 
     def test_probe_failure_falls_back_to_openai(self, monkeypatch):
@@ -457,55 +450,31 @@ class TestSmartEmbeddingSelection:
             embeddings_module, "make_openai_embeddings", lambda: sentinel
         )
         monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
-        assert _select_smart_embeddings("llama3") is sentinel
+        assert _select_smart_embeddings() is sentinel
 
     def test_no_working_option_returns_none(self, monkeypatch):
+        # No dedicated embedder + no OpenAI key must be a clean None (the
+        # caller raises a clear error) — NOT a silent fallback to embedding
+        # with the chat LLM, which the old cascade did.
         monkeypatch.setattr(embeddings_module, "_probe_ollama_model", lambda name: None)
         monkeypatch.setattr(embeddings_module, "get_config", lambda: _stub_config(True))
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        assert _select_smart_embeddings("llama3") is None
+        assert _select_smart_embeddings() is None
 
-    def test_selection_is_memoized_per_model(self, monkeypatch):
+    def test_selection_is_memoized(self, monkeypatch):
         calls = []
 
-        def fake_select(llm_model):
-            calls.append(llm_model)
+        def fake_select():
+            calls.append(1)
             return object()
 
         monkeypatch.setattr(embeddings_module, "_select_smart_embeddings", fake_select)
-        first = get_smart_embeddings("llama3")
-        second = get_smart_embeddings("llama3")
+        first = get_smart_embeddings()
+        second = get_smart_embeddings()
         assert first is second
-        assert calls == ["llama3"]  # probing cost paid once per model
+        assert calls == [1]  # probing cost paid once per process
 
     def test_failed_selection_is_not_memoized(self, monkeypatch):
-        monkeypatch.setattr(
-            embeddings_module, "_select_smart_embeddings", lambda m: None
-        )
-        assert get_smart_embeddings("llama3") is None
-        assert embeddings_module._smart_embeddings_cache == {}  # retried next time
-
-
-class TestEmbeddingModelPreferences:
-    def test_exact_model_match_wins_over_base(self):
-        config = _stub_config(
-            True,
-            prefs={
-                "deepseek-r1:8b": ["exact-pref"],
-                "deepseek-r1": ["base-pref"],
-                "ollama_default": ["default-pref"],
-            },
-        )
-        assert _embedding_models_for_llm("deepseek-r1:8b", config) == ["exact-pref"]
-
-    def test_tag_is_stripped_to_find_base_model_preferences(self):
-        config = _stub_config(
-            True,
-            prefs={"deepseek-r1": ["base-pref"], "ollama_default": ["default-pref"]},
-        )
-        assert _embedding_models_for_llm("deepseek-r1:70b", config) == ["base-pref"]
-
-    def test_unknown_model_gets_the_default_list(self):
-        config = _stub_config(True, prefs={"ollama_default": ["default-pref"]})
-        assert _embedding_models_for_llm("mystery-model", config) == ["default-pref"]
-        assert _embedding_models_for_llm(None, config) == ["default-pref"]
+        monkeypatch.setattr(embeddings_module, "_select_smart_embeddings", lambda: None)
+        assert get_smart_embeddings() is None
+        assert embeddings_module._selected_embeddings is None  # retried next time

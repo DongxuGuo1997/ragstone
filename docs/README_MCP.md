@@ -196,7 +196,7 @@ Ask questions about your loaded documents.
 4. **Document Loading Issues**:
    - Check file permissions in the data directory
    - Verify URLs are accessible
-   - Ensure supported file formats (see config.example.json)
+   - Ensure supported file formats (see LoaderConfig in src/ragstone/config/settings.py)
 
 ### Debug Mode
 
@@ -226,7 +226,6 @@ print("Pipeline registered successfully")
 ## 🔧 Configuration
 
 The server uses the same configuration system as the main application:
-- `config.example.json`: Configuration template (copy to create your own)
 - Environment variables for API keys
 - Logging configuration in `src/ragstone/config/settings.py`
 

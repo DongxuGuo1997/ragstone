@@ -14,7 +14,6 @@ from .settings import (
     LoggingConfig,
     UIConfig,
     get_config,
-    load_config,
 )
 
 __all__ = [
@@ -27,5 +26,4 @@ __all__ = [
     "UIConfig",
     "CacheConfig",
     "get_config",
-    "load_config",
 ]

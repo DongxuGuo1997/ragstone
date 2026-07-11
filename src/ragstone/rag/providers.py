@@ -173,14 +173,13 @@ class OllamaPipeline(Pipeline):
             use_reranker (bool): Add a cross-encoder reranking stage
                 (requires the `rerank` extra). Defaults to False.
         """
-        embeddings = get_smart_embeddings(
-            self.llm_proxy.get_model_name() if self.llm_proxy else None
-        )
+        embeddings = get_smart_embeddings()
         if not embeddings:
             raise RetrieverInitializationError(
-                "Failed to create any embeddings: no Ollama embedding model "
-                "responded and no OPENAI_API_KEY is set for fallback. "
-                "Is Ollama running? (ollama serve)"
+                "No embedding backend available: no dedicated Ollama "
+                "embedding model responded (fix: `ollama pull "
+                "nomic-embed-text`, and check `ollama serve` is running) "
+                "and no OPENAI_API_KEY is set for fallback."
             )
         self._set_retriever(
             embeddings=embeddings,

@@ -12,7 +12,7 @@ Before diving into detailed troubleshooting, run these quick checks:
 ps aux | grep mcp_rag_server
 
 # 2. Test server connection
-python -m ragstone.mcp.connection_test
+python -c "import asyncio; from ragstone.mcp.mcp_server_fastmcp import mcp; print([t.name for t in asyncio.run(mcp.list_tools())])"
 
 # 3. Verify configuration exists
 ls -la ~/.cursor/mcp.json .cursor/mcp.json
@@ -182,8 +182,8 @@ python ragstone_mcp_server.py
 # Should output: "Starting Ragstone FastMCP Server..."
 
 # Test 2: Connection test
-python -m ragstone.mcp.connection_test
-# Should show: "✅ All 8 tools found and working correctly!"
+python -c "import asyncio; from ragstone.mcp.mcp_server_fastmcp import mcp; print([t.name for t in asyncio.run(mcp.list_tools())])"
+# Should print the server's tool names
 
 # Test 3: Manual tool test
 python -c "
@@ -288,7 +288,7 @@ Server initialized with 8 tools:
 
 ### **Tool Test Results**
 ```bash
-python -m ragstone.mcp.connection_test
+python -c "import asyncio; from ragstone.mcp.mcp_server_fastmcp import mcp; print([t.name for t in asyncio.run(mcp.list_tools())])"
 ```
 Should output:
 ```
@@ -343,7 +343,7 @@ cat > ~/.cursor/mcp.json << 'EOF'
 EOF
 
 # 6. Test server
-python -m ragstone.mcp.connection_test
+python -c "import asyncio; from ragstone.mcp.mcp_server_fastmcp import mcp; print([t.name for t in asyncio.run(mcp.list_tools())])"
 
 # 7. Start Cursor and test
 # Try: @ragstone list_pipelines
@@ -366,7 +366,7 @@ python -m ragstone.mcp.connection_test
 ### **Essential Commands**
 ```bash
 # Test server
-python -m ragstone.mcp.connection_test
+python -c "import asyncio; from ragstone.mcp.mcp_server_fastmcp import mcp; print([t.name for t in asyncio.run(mcp.list_tools())])"
 
 # Start server manually
 python ragstone_mcp_server.py
@@ -385,7 +385,6 @@ cat ~/.cursor/mcp.json
 - **Global Config**: `~/.cursor/mcp.json` ✅ (Use this)
 - **Project Config**: `.cursor/mcp.json` ❌ (Remove this)
 - **Server Script**: `ragstone_mcp_server.py`
-- **Test Script**: `src/ragstone/mcp/connection_test.py`
 - **Startup Script**: `scripts/start_mcp_server.sh`
 
 ---

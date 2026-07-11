@@ -36,6 +36,7 @@ from ragstone.rag.citations import find_supporting_spans, highlight_spans
 from ragstone.rag.pipeline import build_pipeline
 from ragstone.utils.exceptions import DocumentLoadingError, PipelineError
 from ragstone.utils.observability import estimate_cost_usd, track_request
+from ragstone.utils.ollama import list_installed_models
 
 try:  # arrow-key history and line editing; absent on some platforms
     import readline  # noqa: F401
@@ -398,21 +399,6 @@ class ChatInterface:
                 print(self.style.yellow(f"Error: {exc}"))
 
 
-def get_available_ollama_models() -> List[str]:
-    """Names of models the local Ollama server reports, or [] offline."""
-    try:
-        import requests
-
-        base_url = get_config().api.ollama_base_url
-        response = requests.get(f"{base_url}/api/tags", timeout=5)
-        if response.status_code == 200:
-            models_data = response.json().get("models", [])
-            return [model["name"] for model in models_data]
-    except Exception:
-        pass
-    return []
-
-
 def select_model_interactive() -> Tuple[str, str]:
     """Prompt for provider and model; returns (pipeline_type, model)."""
     print("\nSelect Pipeline Type:")
@@ -429,7 +415,7 @@ def select_model_interactive() -> Tuple[str, str]:
         pipeline_type = "ollama"
         print("\nOllama Models:")
 
-        available_models = get_available_ollama_models()
+        available_models = list_installed_models()
 
         if available_models:
             print("Available models:")

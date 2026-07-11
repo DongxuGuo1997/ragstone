@@ -31,6 +31,15 @@ Notable changes to Ragstone. The format follows
   Linux/Docker unaffected).
 
 ### Removed
+- **Overengineering audit pass**: the parallel `config.json` loading
+  system (env vars are the one config surface; `load_config`/`from_file`/
+  `to_dict`/`to_file`/`validate` and `config.example.json` deleted), the
+  unused stages of Ollama embedding selection (per-LLM preference tables
+  and the embed-with-the-chat-LLM last resort — a missing dedicated
+  embedder is now a clear error instead of silently degraded retrieval),
+  two duplicate "list installed Ollama models" implementations (one
+  shared helper in `utils/ollama.py` now), the `mcp/connection_test.py`
+  debug script, and unused `UIConfig` theme fields.
 - **Answer self-check** (added and deleted within this cycle): Experiment
   17 measured it harming both correctness (-3.8pp, outside the CI) and
   faithfulness (-3.3pp) at 2x tokens - an imperfect checker's caveats

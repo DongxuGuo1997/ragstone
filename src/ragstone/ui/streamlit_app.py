@@ -43,6 +43,7 @@ from ragstone.utils.observability import (  # noqa: E402
     estimate_cost_usd,
     track_request,
 )
+from ragstone.utils.ollama import list_installed_models  # noqa: E402
 
 # Initialize configuration and logger first
 config: Config = get_config()
@@ -76,23 +77,6 @@ def check_openai_connectivity() -> bool:
 
     except Exception:
         return False
-
-
-def get_available_ollama_models() -> List[str]:
-    """Get list of available Ollama models."""
-    try:
-        import requests
-
-        base_url = get_config().api.ollama_base_url
-        response = requests.get(f"{base_url}/api/tags", timeout=3)
-        if response.status_code == 200:
-            models_data = response.json().get("models", [])
-            return [model["name"] for model in models_data]
-        else:
-            return []
-
-    except Exception:
-        return []
 
 
 class StreamlitApp:
@@ -131,7 +115,7 @@ class StreamlitApp:
             st.session_state.openai_available = check_openai_connectivity()
 
             # Check Ollama
-            st.session_state.ollama_models = get_available_ollama_models()
+            st.session_state.ollama_models = list_installed_models()
 
             # Mark as checked
             st.session_state.status_checked = True
