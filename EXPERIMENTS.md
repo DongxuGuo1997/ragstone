@@ -1075,6 +1075,76 @@ see.**
 
 ---
 
+## Experiment 22 — The single-document failure: two stacked bugs, found live
+
+**The failure.** A live session uploaded one research PDF and asked
+"what is deepseek": all four retrieved chunks were contributor
+name-lists and the table of contents — the answer came substantially
+from the model's own knowledge of a famous paper, which on a private
+corpus would have been "the context doesn't say." Neither golden set
+could see this: both eval corpora are multi-document, and no case asked
+a document-level question of a lone paper. The `single_doc` slice was
+built first (one paper-shaped document with the decoy structures
+engineered in) and committed with honest failing baselines; this
+experiment is the fix.
+
+**Diagnosis — two mechanisms, separated by probes.**
+1. *The enrichment prefix inverts on single-document corpora.* The
+   `[Source document: X]` line (Experiment 12's multi-doc win) puts the
+   document's name into every chunk: content-empty chunks (name lists,
+   TOC) get embeddings dominated by the prefix and become nearest
+   neighbors for any query naming the document, and BM25's IDF for the
+   one informative query term drops to ~zero.
+2. *nomic-embed-text was misconfigured from day one.* Its model card
+   requires `search_query:`/`search_document:` task prefixes;
+   langchain-ollama does not add them. A bare-chunk probe isolated the
+   effect: for "How does KestrelNet-Zero differ from KestrelNet?" the
+   needle chunk ranked 5th behind three contributor name-lists without
+   task prefixes, and 1st with them. Bug 1 had been *masking* bug 2 on
+   name-bearing queries — removing the enrichment prefix alone made the
+   local stack WORSE (MRR 0.44–0.59), which the slice gate caught.
+
+**Fix.** (1) `enrich_chunks` skips the identity prefix when the corpus
+has one source document — there is nothing to disambiguate (counted on
+the `source` metadata key; LLM-mode situating lines still run, and
+failure fallbacks also skip the prefix). (2) `NomicTaskEmbeddings`
+wraps the nomic embedder with the task prefixes; its distinct class
+name gives it its own embedding-cache namespace and corpus fingerprint,
+so prefixed vectors can never collide with stale bare vectors.
+
+**Gates.** single_doc retrieval: OpenAI embeddings MRR **0.594 → 0.750**;
+nomic MRR **0.656 → 0.719** with the sd08 needle recovered to hit@1
+(card-generation nondeterminism swings nomic MRR ±0.09 run to run —
+band 0.63–0.72). Protection gates all held: OpenAI smoke 1.0/0.952
+exactly; local smoke + rerank 1.0/1.0 exactly; local smoke no-rerank
+0.974/0.895 = Experiment 21's numbers (the task prefixes did not move
+multi-doc retrieval — the fear that fixing single-doc would cost the
+measured multi-doc wins did not materialize). The live PDF, re-probed:
+"what is deepseek" top-4 went from three name-lists + TOC to content +
+the metadata card (#2) + the title/abstract chunk (#3).
+
+**What the fix did NOT move, honestly.** gpt-4o-mini's single_doc
+correct_rate stays 0.667: its remaining failures are generation-side
+(it answers document-level questions thinly even from good evidence,
+and fabricates on the unanswerable). qwen3.6:35b spans 0.778–1.0 across
+runs at n=9 — two artifacts documented: the judge once failed a
+letter-perfect answer for containing extra CORRECT detail (violating
+its own rubric line), and sd05's gold answer over-specifies (demands a
+contributor name when "the Meridian Institute" is a correct authorship
+answer) — a golden-set calibration item for 3.3, deliberately NOT
+edited in the same pass that changed the system under test.
+
+**Decision.** Both fixes ship. The transferable lessons: **an
+enrichment that helps by injecting a signal into every chunk can invert
+when the signal stops discriminating — check the degenerate corpus**;
+and **embedding models have usage contracts (task prefixes) that
+silently degrade instead of erroring when violated — the misuse was
+invisible until a slice isolated it, because another bug was
+compensating.** Two stacked bugs that partially cancel are why
+single-mechanism probes, not end-to-end scores alone, close diagnoses.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

@@ -13,6 +13,8 @@ import logging
 import os
 from typing import Any, List, Optional
 
+from langchain_core.embeddings import Embeddings
+
 from ..config.settings import get_config
 
 logger = logging.getLogger(__name__)
@@ -141,14 +143,48 @@ def make_openai_embeddings() -> Any:
     )
 
 
+class NomicTaskEmbeddings(Embeddings):
+    """nomic-embed-text with the task prefixes its model card requires.
+
+    Subclasses the langchain Embeddings ABC — vector stores isinstance-
+    check it (FAISS treats anything else as a bare callable).
+
+    nomic embeds queries and documents into a shared space ONLY when told
+    which side each text is on (``search_query:`` / ``search_document:``);
+    langchain-ollama does not add them. Without the prefixes the geometry
+    degrades measurably — content-empty chunks (contributor name lists)
+    become near-universal nearest neighbors (Experiment 22: the sd08
+    needle chunk ranked 5th behind three name lists bare, 1st prefixed).
+
+    The class name is deliberately distinct: the embedding cache and the
+    corpus fingerprint both key on ``type(embeddings).__name__`` plus the
+    model attribute, so prefixed vectors can never collide with vectors
+    cached by the bare embedder. mxbai-embed-large has its own query
+    prompt convention — wire it here if it ever becomes the probed
+    default, with its own measurement.
+    """
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self.model = inner.model  # cache/fingerprint identity
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        return self._inner.embed_documents([f"search_document: {t}" for t in texts])
+
+    def embed_query(self, text: str) -> List[float]:
+        return self._inner.embed_query(f"search_query: {text}")
+
+
 def _probe_ollama_model(model_name: str) -> Optional[Any]:
     """Build OllamaEmbeddings for a model and verify it actually embeds.
 
-    Returns the working embeddings, or None if the model is unavailable or
-    the test embedding fails.
+    Returns the working embeddings (task-prefixed for nomic), or None if
+    the model is unavailable or the test embedding fails.
     """
     try:
-        embeddings = _ollama_embeddings_cls()(model=model_name)
+        embeddings: Any = _ollama_embeddings_cls()(model=model_name)
+        if model_name.startswith("nomic-embed-text"):
+            embeddings = NomicTaskEmbeddings(embeddings)
         if embeddings.embed_query("test"):
             logger.info(f"Using Ollama embedding model: {model_name}")
             return embeddings

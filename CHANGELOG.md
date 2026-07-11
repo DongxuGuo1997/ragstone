@@ -6,6 +6,19 @@ Notable changes to Ragstone. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Single-document retrieval** (Experiment 22, found live): two stacked
+  bugs made document-level queries ("what is this paper?") on a lone
+  uploaded document retrieve contributor name-lists and the TOC instead
+  of content. The chunk-enrichment identity prefix is now skipped when a
+  corpus has one source document (nothing to disambiguate — the prefix
+  dominated content-empty chunks' embeddings and zeroed the document
+  name's BM25 IDF), and nomic-embed-text now gets the
+  `search_query:`/`search_document:` task prefixes its model card
+  requires (`NomicTaskEmbeddings`, own cache namespace). single_doc MRR
+  0.594→0.750 (OpenAI) / 0.656→0.719 (nomic); smoke and rerank
+  baselines held exactly on both stacks.
+
 ### Added
 - **The local stack, measured** (Experiment 21 / ROADMAP 8.0): a
   four-model Ollama answerer matrix (edge → workstation → server tiers)

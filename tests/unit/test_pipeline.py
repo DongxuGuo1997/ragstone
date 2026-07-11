@@ -107,21 +107,25 @@ class TestPipelineDocumentLoading:
         # and metadata for every chunk.
         pipeline.local_loader = Mock()
         pipeline.local_loader.get_documents.return_value = [
-            Document(page_content="test content", metadata={"source": "t.md"})
+            Document(page_content="test content", metadata={"source": "t.md"}),
+            Document(page_content="other doc", metadata={"source": "u.md"}),
         ]
         pipeline.remote_loader = Mock()
         pipeline.remote_loader.get_documents.return_value = []
 
         with patch("ragstone.rag.pipeline.split_documents") as mock_split:
             mock_split.return_value = [
-                Document(page_content="split content", metadata={"source": "t.md"})
+                Document(page_content="split content", metadata={"source": "t.md"}),
+                Document(page_content="other split", metadata={"source": "u.md"}),
             ]
             result = pipeline.load_and_split(data_dir="test_data")
 
             assert result is not None
-            assert len(result) == 1
+            assert len(result) == 2
             assert pipeline.texts is not None
             # The default chunk-context mode stamps the document identity
-            # into the chunk text (Experiment 12).
+            # into the chunk text for MULTI-document corpora (Experiment
+            # 12); a single-document corpus gets no prefix (Experiment 22
+            # — nothing to disambiguate), covered in test_enrichment.py.
             assert "split content" in result[0].page_content
             assert "t.md" in result[0].page_content

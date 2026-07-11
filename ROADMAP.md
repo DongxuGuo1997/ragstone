@@ -132,10 +132,16 @@ single_doc` (one paper-shaped fictional document with those decoy
 structures engineered in, 9 document-level cases). Honest baselines
 committed: retrieval MRR **0.51–0.66** vs 0.95+ on smoke; gpt-4o-mini
 correct **0.667** (misses name-meaning, authorship, and fabricates on
-the unanswerable) while qwen3.6:35b sweeps 9/9. Candidate fixes —
-routing document-level queries to the card, excluding the prefix from
-embedded text, IDF-aware enrichment — must beat this slice WITHOUT
-moving the smoke/large baselines.
+the unanswerable) while qwen3.6:35b sweeps 9/9.
+**Fixed (Experiment 22, July 2026):** two stacked bugs — the enrichment
+prefix inverts on single-doc corpora (now skipped when there is one
+source document) and nomic-embed-text was missing its required task
+prefixes (now applied via `NomicTaskEmbeddings`). MRR 0.594→0.750
+(OpenAI) / 0.656→0.719 (nomic); every protection gate held exactly;
+the live PDF's "what is deepseek" now retrieves the card and abstract
+instead of name lists. Remaining, documented: gpt-4o-mini's
+generation-side weakness on document-level answers, and sd05's
+over-specified gold answer (3.3).
 
 ### 3.1 Cross-family judge — DELIVERED same-provider (Experiment 11); different-provider judge still open
 The judge and the answering model are both gpt-4o-mini; self-preference
@@ -159,7 +165,10 @@ not answerable-marked-unanswerable cases (g172/g173, found only by
 review). Add: (a) a human sign-off column, (b) ≥2 needles or one
 entity-name needle for distractor/factual cases (single short needles
 like "2.75" can hit the wrong chunk), (c) an unanswerable audit protocol
-(search the corpus for each candidate's key nouns before accepting).
+(search the corpus for each candidate's key nouns before accepting),
+(d) a gold-answer strictness review — single_doc sd05 demands a
+contributor name where "the Meridian Institute" is a correct authorship
+answer, so the judge fails good answers (Experiment 22).
 *Measure:* audit trail committed with the set.
 
 ### 3.4 Reference-free metrics alongside judged ones — M

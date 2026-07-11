@@ -13,6 +13,13 @@ Two modes (RAGSTONE_CHUNK_CONTEXT):
             "contextual retrieval" approach) — one utility-model call per
             chunk at ingest time, generated concurrently.
 
+The identity prefix exists to tell documents apart, so a SINGLE-document
+corpus gets no prefix: there is nothing to disambiguate, and the prefix
+is actively harmful there (Experiment 22, found live) — it dominates the
+embeddings of content-empty chunks (contributor lists and TOCs become
+the nearest neighbors of any query naming the document) and puts the
+document's name in every chunk, zeroing its BM25 IDF.
+
 Enrichment happens once at ingest, after splitting and before indexing,
 so both retrieval paths and the corpus fingerprint see the enriched text.
 A failed LLM call falls back to source mode for that chunk — enrichment
@@ -86,6 +93,16 @@ def _prefixed(doc: Document, context_line: str) -> Document:
     )
 
 
+def _single_source(chunks: List[Document]) -> bool:
+    """True when every chunk comes from the same source document.
+
+    Counted on the ``source`` metadata key (the same identity the loaders
+    stamp and metadata cards key on), not the display label — two files
+    that happen to share a title are still two documents.
+    """
+    return len({str(c.metadata.get("source", "")) for c in chunks}) <= 1
+
+
 def enrich_chunks(
     chunks: List[Document],
     source_docs: Optional[List[Document]] = None,
@@ -108,7 +125,19 @@ def enrich_chunks(
     if mode == "off" or not chunks:
         return chunks
 
+    # One source document -> identity prefixes are skipped everywhere in
+    # this function: nothing to disambiguate, measured harm (module
+    # docstring; the single_doc eval slice pins the numbers). LLM-written
+    # situating lines still run — they carry content, not just identity.
+    single = _single_source(chunks)
+
     if mode == "source":
+        if single:
+            logger.info(
+                "Chunk context: single-document corpus — identity prefix "
+                "skipped (nothing to disambiguate)."
+            )
+            return chunks
         return [_prefixed(c, f"Source document: {_source_label(c)}") for c in chunks]
 
     if mode != "llm":
@@ -131,10 +160,17 @@ def enrich_chunks(
 
     chain = ChatPromptTemplate.from_template(CONTEXT_PROMPT) | llm | StrOutputParser()
 
+    def _source_fallback(chunk: Document) -> Document:
+        # Same single-document rule as source mode: a failed or impossible
+        # LLM line must not degrade into exactly the prefix that harms.
+        if single:
+            return chunk
+        return _prefixed(chunk, f"Source document: {_source_label(chunk)}")
+
     def _context_for(chunk: Document) -> Document:
         document = doc_text.get(str(chunk.metadata.get("source", "")))
         if not document:
-            return _prefixed(chunk, f"Source document: {_source_label(chunk)}")
+            return _source_fallback(chunk)
         try:
             line = chain.invoke(
                 {"document": document, "chunk": chunk.page_content}
@@ -144,15 +180,19 @@ def enrich_chunks(
             return _prefixed(chunk, line)
         except Exception as exc:  # per-chunk fallback: never break ingest
             logger.warning(f"Chunk context generation failed ({exc}); using source")
-            return _prefixed(chunk, f"Source document: {_source_label(chunk)}")
+            return _source_fallback(chunk)
 
     with ThreadPoolExecutor(max_workers=_LLM_WORKERS) as pool:
         enriched = list(pool.map(_context_for, chunks))
     # Honest accounting: chunks without a matching source doc (or whose
-    # LLM call failed) fell back to source labels — the log must not
-    # claim LLM lines that were never generated.
+    # LLM call failed) fell back to a source label — or, single-document
+    # corpora, to no prefix at all. The log must not claim LLM lines that
+    # were never generated.
     fallbacks = sum(
-        1 for doc in enriched if doc.page_content.startswith("[Source document:")
+        1
+        for original, doc in zip(chunks, enriched)
+        if doc.page_content == original.page_content
+        or doc.page_content.startswith("[Source document:")
     )
     logger.info(
         f"Chunk context: {len(enriched) - fallbacks} LLM lines, "

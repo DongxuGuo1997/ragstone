@@ -424,6 +424,62 @@ def _stub_config(prefer_ollama: bool):
     return SimpleNamespace(llm=SimpleNamespace(prefer_ollama_embeddings=prefer_ollama))
 
 
+class _RecordingOllamaEmbeddings:
+    """Stands in for OllamaEmbeddings; records what reaches the server."""
+
+    def __init__(self, model=None):
+        self.model = model
+        self.document_calls: list = []
+        self.query_calls: list = []
+
+    def embed_documents(self, texts):
+        self.document_calls.append(list(texts))
+        return [[0.1] for _ in texts]
+
+    def embed_query(self, text):
+        self.query_calls.append(text)
+        return [0.1]
+
+
+class TestNomicTaskPrefixes:
+    """nomic requires search_query:/search_document: prefixes; the wrapper
+    is what applies them (Experiment 22 — bare nomic ranks contributor
+    name-lists as near-universal nearest neighbors)."""
+
+    def test_document_and_query_sides_get_their_prefixes(self):
+        inner = _RecordingOllamaEmbeddings(model="nomic-embed-text:latest")
+        wrapped = embeddings_module.NomicTaskEmbeddings(inner)
+
+        wrapped.embed_documents(["chunk one", "chunk two"])
+        wrapped.embed_query("what is kestrelnet?")
+
+        assert inner.document_calls == [
+            ["search_document: chunk one", "search_document: chunk two"]
+        ]
+        assert inner.query_calls == ["search_query: what is kestrelnet?"]
+
+    def test_probe_wraps_nomic_but_not_other_models(self, monkeypatch):
+        monkeypatch.setattr(
+            embeddings_module,
+            "_ollama_embeddings_cls",
+            lambda: _RecordingOllamaEmbeddings,
+        )
+        nomic = embeddings_module._probe_ollama_model("nomic-embed-text:latest")
+        other = embeddings_module._probe_ollama_model("all-minilm")
+        assert isinstance(nomic, embeddings_module.NomicTaskEmbeddings)
+        assert isinstance(other, _RecordingOllamaEmbeddings)
+
+    def test_wrapper_gets_its_own_cache_namespace(self):
+        # The cache and corpus fingerprint key on class name + model:
+        # prefixed vectors must never collide with bare-embedder vectors.
+        from ragstone.rag.embedding_cache import model_id_for
+
+        inner = _RecordingOllamaEmbeddings(model="nomic-embed-text:latest")
+        wrapped = embeddings_module.NomicTaskEmbeddings(inner)
+        assert model_id_for(wrapped) != model_id_for(inner)
+        assert "nomic-embed-text:latest" in model_id_for(wrapped)
+
+
 class TestSmartEmbeddingSelection:
     @pytest.fixture(autouse=True)
     def _fresh_memo(self, monkeypatch):
