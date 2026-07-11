@@ -1145,6 +1145,84 @@ single-mechanism probes, not end-to-end scores alone, close diagnoses.
 
 ---
 
+## Experiment 23 — The second corpus, v1: real regulations put the verdicts on trial
+
+**Question.** Twenty-two experiments rest on one fictional corpus, and
+the support-tier table's *enable-when* conditions were predictions, not
+measurements (ROADMAP 3.0, the top open item). First real corpus:
+**GDPR + the EU AI Act** from EUR-Lex (reused with attribution) — two
+long, structured, jargon-dense legal texts, 1,331 chunks, whose
+recitals paraphrase their own articles and whose multi-tier fine
+schedules mirror each other across documents. 27 hand-written cases
+(grep-verified verbatim needles, the 3.3 lessons; n is small — read
+directions, not decimals; CIs ±14–19pp).
+
+**The matrix** (k=4, gpt-4o-mini judge):
+
+| configuration | hit | MRR | correct | faithful | multi-turn c/f | tokens |
+|---|---:|---:|---:|---:|---|---:|
+| simple, gpt-4o-mini, openai emb | 0.80 | 0.708 | 0.739 | 0.870 | 0.25 / 0.75 | 38k |
+| corrective, gpt-4o-mini | 0.80 | 0.708 | 0.739 | **0.957** | **0.75 / 1.0** | 84k |
+| simple, qwen3.5:9b, nomic | **0.55** | 0.467 | 0.696 | 0.957 | 0.50 / 1.0 | — |
+| retrieval only: enrichment off | 0.75 | 0.642 | — | — | — | — |
+| retrieval only: openai + rerank | 0.85 | 0.692 | — | — | — | — |
+| retrieval only: nomic + rerank | 0.80 | 0.650 | — | — | — | — |
+
+(Fictional-corpus smoke for scale: hit 1.0 / MRR 0.95 / correct 0.95.)
+
+**Verdict re-checks — the point of the exercise.**
+1. **Enrichment (Exp 12): HOLDS.** Turning it off costs 5pp hit /
+   6.6pp MRR — same direction as the fictional corpus.
+2. **Corrective's enable-when (Exp 8/9/15): VALIDATED.** The
+   support-tier table predicted "enable when your retrieval-slice hit
+   rate drops below ~0.9"; this is the first corpus meeting that
+   condition, and corrective pays exactly as predicted — faithfulness
+   +8.7pp, multi-turn correctness +50pp, at 2.2× tokens (correct_rate
+   flat: the insurance shows where retrieval misses turn into
+   grounded refusals and repaired follow-ups, not on questions simple
+   already answered). The kept-though-rejected policy's first
+   cross-corpus confirmation.
+3. **Rerank (Exp 2): SPLITS by embedder.** Decisive for the local
+   stack (nomic: hit +25pp, back to cloud level) — marginal for
+   text-embedding-3-small here (hit +5pp, MRR −1.6pp). "Biggest
+   ranking lever" survives as a local-stack verdict.
+4. **Local parity (Exp 21): BOUNDARY FOUND.** Parity held on fiction;
+   on real legal text, local EMBEDDINGS trail badly (hit 0.55 vs 0.80)
+   while local GENERATION holds (correct 0.696 vs 0.739, faithfulness
+   equal at 0.957). The local gap is nomic on legal jargon, not the
+   answerer — and the local reranker closes most of it. Sharpens 8.2/
+   8.4: the local menu needs embedding tiers, not just answerer tiers.
+
+**The new failure class.** Fine-tier confusion dominates the misses:
+both regulations carry near-duplicate numeric schedules (10M/2%,
+20M/4% in the GDPR; 35M/7%, 15M/3% in the AI Act), and k=4 keeps
+handing the generator the wrong tier — r02 answered the GDPR maximum
+with the lower tier, r24 answered the Article-33 tier with the higher
+one, r14 answered the AI-Act ban tier with the mid one. The fictional
+corpus could not produce this shape (no near-duplicate numeric tables).
+Structure-aware chunking (1.2) and parent-document retrieval (1.3) are
+the roadmap items this evidence funds.
+
+**Harness findings, recorded.** Two verdicts were lost to the judge
+emitting JSON the parser rejected despite a visible "pass" (likely
+unescaped quotes in the reason) — fail-closed, so scores are
+undercounted by up to 2; parser hardening is a follow-up kept OUT of
+this experiment to keep runs comparable. gpt-4o-mini again fabricated
+on an unanswerable (r22, its third such across slices), and the judge
+failed one correct answer for using the law's own alias ("right to be
+forgotten") instead of the gold term — both now familiar signatures.
+
+**Decision.** The regulatory slice ships as `--set regulatory` with
+baselines committed; the corrective row's enable-when in the README
+graduates from prediction to measured condition. Remaining for full
+3.0: re-run Experiments 4/5/15 on this corpus, expand multi-turn
+beyond n=4, and the 3.3 hardening pass. The transferable lesson:
+**enable-when conditions are only worth what a second corpus says they
+are — this one turned a rejected feature into a recommended one the
+moment its trigger condition actually occurred.**
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

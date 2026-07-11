@@ -38,6 +38,14 @@ EXTENDED_CORPUS_DIR = EVALS_DIR / "corpus_extended"
 # prefix puts it in every chunk. Neither multi-doc corpus can express
 # this; the document here engineers those decoy structures deliberately.
 SINGLE_DOC_CORPUS_DIR = EVALS_DIR / "corpus_single_doc"
+# ROADMAP 3.0: the second corpus — REAL documents (EU regulations from
+# EUR-Lex, reused with attribution), materially different from the
+# fictional universe: two long, structured, jargon-dense legal texts
+# whose recitals paraphrase their own articles (natural distractors)
+# and whose fine schedules mirror each other across documents
+# (cross-document multi-hop). Golden cases are hand-written with
+# grep-verified verbatim needles (the 3.3 lessons).
+REGULATORY_CORPUS_DIR = EVALS_DIR / "corpus_regulatory"
 BASELINE_PATH = EVALS_DIR / "baseline.json"
 REPORT_PATH = EVALS_DIR / "report.md"
 
@@ -49,6 +57,7 @@ GOLDEN_SETS = {
     "smoke": EVALS_DIR / "golden.jsonl",
     "large": EVALS_DIR / "golden_large.jsonl",
     "single_doc": EVALS_DIR / "golden_single_doc.jsonl",
+    "regulatory": EVALS_DIR / "golden_regulatory.jsonl",
 }
 
 # How far a metric may drop below the baseline before the run fails.
@@ -121,6 +130,8 @@ def build_pipeline(args):
     corpus_dir = CORPUS_DIR
     if args.set == "single_doc":
         corpus_dir = SINGLE_DOC_CORPUS_DIR
+    if args.set == "regulatory":
+        corpus_dir = REGULATORY_CORPUS_DIR
     if args.set == "large":
         # The large set spans both corpus dirs; merge into a temp dir since
         # the loader takes a single directory.

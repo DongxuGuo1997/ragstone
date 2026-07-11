@@ -68,7 +68,7 @@ default is CI-gated; every opt-in is baselined and carries an explicit
 |---|---|---|---|
 | `simple` chain, k=4, ensemble, enrichment, embed cache | **default** (CI-gated) | the measured optimum on the eval corpus | — |
 | document metadata cards | **default** (CI-gated) | "who wrote this?" answered from the document's own header; references-decoy misattribution eliminated (Exp 19) | disable via `RAGSTONE_METADATA_CARDS=off` if your corpus has no metadata questions |
-| `corrective` chain | opt-in | faithfulness 0.986 vs 0.967; refuses with evidence instead of hallucinating (Exp 8/9/12) | your retrieval-slice hit rate drops below ~0.9, or a wrong answer costs more than a refusal |
+| `corrective` chain | opt-in | faithfulness 0.986 vs 0.967; refuses with evidence instead of hallucinating (Exp 8/9/12) | your retrieval-slice hit rate drops below ~0.9 — **condition validated on the real regulatory corpus** (Exp 23: faithfulness +8.7pp, multi-turn +50pp at 2.2× tokens) — or a wrong answer costs more than a refusal |
 | `auto` routing | opt-in | corrective's edge on flagged questions at 1.25× instead of 2× (Exp 15/15b) | you want corrective's insurance without paying it on every lookup |
 | `agent` chain | opt-in | none on this corpus — identical quality at 1.8× latency | first-shot retrieval fails often enough that re-searching pays; measure it on YOUR corpus |
 | `multi_query` / `fusion` | opt-in | none measured (single-case noise, Exp 4) | question phrasing is genuinely ambiguous relative to your documents |
@@ -78,9 +78,12 @@ default is CI-gated; every opt-in is baselined and carries an explicit
 | `sqlite` memory | opt-in (operational) | — | conversations must survive restarts |
 | `chroma` store | **legacy** | none — the embedded-persistent niche is Qdrant-local's, which has parity tests Chroma lacks | migrating from an existing Chroma deployment only |
 
-The verdicts above are single-corpus results; each *enable-when* is the
-condition we believe flips them. Validating those conditions on a second,
-materially different corpus is the top open eval item (ROADMAP).
+The verdicts above began as single-corpus results; the second, real
+corpus (EU regulations, Experiment 23) has started putting them on
+trial — enrichment held, corrective's *enable-when* was validated the
+first time its trigger condition actually occurred, and rerank's value
+split by embedding stack. Completing that verdict matrix is the top
+open eval item (ROADMAP 3.0).
 
 ## Features
 

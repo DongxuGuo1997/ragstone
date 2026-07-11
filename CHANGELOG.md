@@ -7,6 +7,17 @@ Notable changes to Ragstone. The format follows
 ## [Unreleased]
 
 ### Added
+- **Second evaluation corpus, v1** (Experiment 23 / ROADMAP 3.0): the
+  GDPR + EU AI Act from EUR-Lex as `--set regulatory` (1,331 chunks, 27
+  hand-written cases with grep-verified needles). First cross-corpus
+  verdict trial: enrichment held; **corrective's enable-when condition
+  validated** the first time its trigger actually occurred (hit <0.9 →
+  faithfulness +8.7pp, multi-turn +50pp at 2.2× tokens); rerank's value
+  split by embedder; Experiment 21's local-parity claim found its
+  boundary (nomic trails on legal jargon, local generation holds, the
+  local reranker closes most of the gap). New measured failure class:
+  fine-tier confusion from near-duplicate numeric schedules.
+
 - **Provable no-egress mode** (ROADMAP 8.1): `RAGSTONE_PROFILE=local`
   refuses cloud providers, the OpenAI embedding fallback, remote
   document sources, and phone-home tracing; restricts the reranker to
@@ -16,20 +27,6 @@ Notable changes to Ragstone. The format follows
   (CI-safe fake-model tier + live Ollama tier). Data-flow diagrams per
   deployment mode in SECURITY.md.
 
-### Fixed
-- **Single-document retrieval** (Experiment 22, found live): two stacked
-  bugs made document-level queries ("what is this paper?") on a lone
-  uploaded document retrieve contributor name-lists and the TOC instead
-  of content. The chunk-enrichment identity prefix is now skipped when a
-  corpus has one source document (nothing to disambiguate — the prefix
-  dominated content-empty chunks' embeddings and zeroed the document
-  name's BM25 IDF), and nomic-embed-text now gets the
-  `search_query:`/`search_document:` task prefixes its model card
-  requires (`NomicTaskEmbeddings`, own cache namespace). single_doc MRR
-  0.594→0.750 (OpenAI) / 0.656→0.719 (nomic); smoke and rerank
-  baselines held exactly on both stacks.
-
-### Added
 - **The local stack, measured** (Experiment 21 / ROADMAP 8.0): a
   four-model Ollama answerer matrix (edge → workstation → server tiers)
   through the full eval harness — parity with the cloud baseline on the
@@ -52,6 +49,19 @@ Notable changes to Ragstone. The format follows
   Qdrant for small corpora only. On macOS, large FAISS indexes need
   OMP_NUM_THREADS=1 (libomp instability, bisected and documented;
   Linux/Docker unaffected).
+
+### Fixed
+- **Single-document retrieval** (Experiment 22, found live): two stacked
+  bugs made document-level queries ("what is this paper?") on a lone
+  uploaded document retrieve contributor name-lists and the TOC instead
+  of content. The chunk-enrichment identity prefix is now skipped when a
+  corpus has one source document (nothing to disambiguate — the prefix
+  dominated content-empty chunks' embeddings and zeroed the document
+  name's BM25 IDF), and nomic-embed-text now gets the
+  `search_query:`/`search_document:` task prefixes its model card
+  requires (`NomicTaskEmbeddings`, own cache namespace). single_doc MRR
+  0.594→0.750 (OpenAI) / 0.656→0.719 (nomic); smoke and rerank
+  baselines held exactly on both stacks.
 
 ### Removed
 - **Overengineering audit pass**: the parallel `config.json` loading

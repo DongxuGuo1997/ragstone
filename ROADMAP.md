@@ -97,7 +97,7 @@ Each is a `@tool` function away with the existing streaming events.
 
 ## 3. Evaluation science
 
-### 3.0 Second evaluation corpus — NOW THE TOP OPEN ITEM
+### 3.0 Second evaluation corpus — FIRST REAL CORPUS DELIVERED (July 2026, Experiment 23); expansion open
 Seventeen experiments rest on one fictional corpus whose retrieval is
 near-saturated (hit 0.97, smoke faithfulness 1.0). Every verdict — and
 every opt-in's *enable-when* condition in the README's support-tier
@@ -119,6 +119,20 @@ and chunked but never rank for "who created X" phrasing in either
 retrieval leg. The metadata-card fix was built and
 measured the same week (Experiment 19, now a CI-gated default); the
 second corpus should stress it with more document formats.
+
+**Regulatory corpus delivered (July 2026, Experiment 23).** GDPR + the
+EU AI Act from EUR-Lex (`--set regulatory`, 1,331 chunks, 27
+grep-verified cases): enrichment's verdict HELD, **corrective's
+enable-when condition was VALIDATED** (first corpus with hit <0.9;
+faithfulness +8.7pp, multi-turn +50pp at 2.2× tokens), rerank's verdict
+split by embedder (decisive for nomic, marginal for openai), and
+Experiment 21's local-parity claim found its boundary — nomic trails
+badly on legal jargon (hit 0.55 vs 0.80) while local generation holds;
+the local reranker closes most of the gap. New failure class: fine-tier
+confusion from near-duplicate numeric schedules (funds 1.2/1.3).
+Remaining for full 3.0: re-run Experiments 4/5/15 here, expand
+multi-turn beyond n=4, the 3.3 hardening pass, and a judge-parser fix
+(two verdicts lost to unescaped-quote JSON, kept frozen mid-experiment).
 
 **First slice delivered (July 2026), from a live failure.** A single
 uploaded research PDF answered "what is deepseek" from three contributor
