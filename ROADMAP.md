@@ -397,16 +397,21 @@ shipped (thinking off = the measured serving posture); local baselines
 committed under `ollama:` keys; `make eval-local`. Judge was 31B
 cross-family, not 70B-class — rerun with a 70B judge folds into 8.2.
 
-### 8.1 Provable no-egress mode — S/M, the flagship feature
-`RAGSTONE_PROFILE=local`: one switch that selects local models, local
-embeddings, local stores, and disables every outbound integration.
-Then the part that sells it: a CI test that intercepts socket creation
-for the entire ingest-and-ask path and FAILS on any connection that is
-not localhost. The privacy claim becomes a regression-tested invariant,
-not a paragraph in a sales deck.
-*Measure:* the CI test itself, plus a documented data-flow diagram per
-mode (strict-local / local-with-cloud-eval / hybrid) — the artifact a
-client DPIA actually needs.
+### 8.1 Provable no-egress mode — DELIVERED (July 2026)
+`RAGSTONE_PROFILE=local` fails CLOSED: cloud providers refused at the
+single provider-dispatch chokepoint, no OpenAI embedding fallback,
+remote document sources (page_urls/wiki_query) refused, the reranker
+restricted to its local HuggingFace cache, LangSmith tracing refused,
+and every configured endpoint (Ollama/Qdrant/Postgres/OTLP) validated
+as loopback AT BOOT — by name, no DNS, same rebinding stance as the
+SSRF guard. The part that sells it:
+`tests/integration/test_no_egress.py` intercepts socket.connect across
+the full ingest-and-ask path and fails on any non-loopback destination
+— a CI-safe fake-model tier (real loaders/enrichment/indexing/chain)
+plus a live tier that ran the real qwen3.5:9b + nomic path clean.
+Data-flow modes (strict-local / local-with-cloud-eval / hybrid)
+documented in SECURITY.md. Honest limitation recorded: the guard sees
+connections, not libc DNS lookups.
 
 ### 8.2 A measured local model menu, in tiers — M
 `llama3` as the sole local default is dated. Curate and MEASURE three

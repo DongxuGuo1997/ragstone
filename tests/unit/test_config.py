@@ -102,6 +102,69 @@ class TestConfigFunctions:
         assert config.database is not None
 
 
+class TestLocalProfileValidation:
+    """RAGSTONE_PROFILE=local must fail CLOSED at boot: a no-egress
+    deployment with a non-loopback endpoint must refuse to start."""
+
+    def test_unset_profile_is_default(self, monkeypatch):
+        monkeypatch.delenv("RAGSTONE_PROFILE", raising=False)
+        assert Config().profile == ""
+
+    def test_unknown_profile_raises(self, monkeypatch):
+        monkeypatch.setenv("RAGSTONE_PROFILE", "hybrid")
+        with pytest.raises(ConfigurationError, match="RAGSTONE_PROFILE"):
+            Config()
+
+    def test_local_profile_accepts_loopback_defaults(self, monkeypatch):
+        monkeypatch.setenv("RAGSTONE_PROFILE", "local")
+        monkeypatch.delenv("LANGSMITH_TRACING", raising=False)
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+        assert Config().profile == "local"
+
+    def test_langsmith_tracing_is_refused(self, monkeypatch):
+        monkeypatch.setenv("RAGSTONE_PROFILE", "local")
+        monkeypatch.setenv("LANGSMITH_TRACING", "true")
+        with pytest.raises(ConfigurationError, match="LangSmith"):
+            Config()
+
+    def test_non_loopback_otel_endpoint_is_refused(self, monkeypatch):
+        monkeypatch.setenv("RAGSTONE_PROFILE", "local")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.corp:4318")
+        with pytest.raises(ConfigurationError, match="loopback OTLP"):
+            Config()
+
+    def test_loopback_otel_endpoint_is_accepted(self, monkeypatch):
+        monkeypatch.setenv("RAGSTONE_PROFILE", "local")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318")
+        assert Config().profile == "local"
+
+    @pytest.mark.parametrize(
+        "var, value",
+        [
+            ("OLLAMA_BASE_URL", "http://gpu-box.internal:11434"),
+            ("QDRANT_URL", "http://qdrant.corp:6333"),
+            ("RAGSTONE_PG_URL", "postgresql+psycopg://u:p@db.corp:5432/rag"),
+        ],
+    )
+    def test_non_loopback_endpoints_are_refused(self, monkeypatch, var, value):
+        monkeypatch.setenv("RAGSTONE_PROFILE", "local")
+        monkeypatch.setenv(var, value)
+        with pytest.raises(ConfigurationError, match="loopback"):
+            Config()
+
+    def test_hostnames_are_not_resolved(self, monkeypatch):
+        # A name that HAPPENS to resolve to loopback is still refused:
+        # the validator must not do DNS, and rebinding makes name-based
+        # trust worthless (same stance as the SSRF guard).
+        from ragstone.config.settings import _is_loopback_url
+
+        assert _is_loopback_url("http://localhost:11434")
+        assert _is_loopback_url("http://127.0.0.1:8000")
+        assert _is_loopback_url("postgresql+psycopg://u:p@127.0.0.1/db")
+        assert not _is_loopback_url("http://my-own-loopback-alias:11434")
+        assert not _is_loopback_url("http://10.0.0.5:11434")
+
+
 class TestConfigRobustness:
     """Fixes for config bugs found in review: debug override, env
     normalization, and Ollama-only deployments."""

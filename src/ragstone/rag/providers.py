@@ -11,8 +11,9 @@ import logging
 import os
 from typing import Optional
 
+from ..config.settings import get_config
 from ..models.base_model import OllamaProxy, OpenAIProxy
-from ..utils.exceptions import RetrieverInitializationError
+from ..utils.exceptions import ConfigurationError, RetrieverInitializationError
 from .embeddings import get_smart_embeddings, make_openai_embeddings
 from .pipeline import Pipeline
 
@@ -46,6 +47,13 @@ def build_pipeline(provider: str, model: Optional[str] = None) -> Pipeline:
         raise ValueError(
             f"Unknown provider {provider!r}; expected one of "
             f"{sorted(DEFAULT_MODELS)}."
+        )
+    # No-egress profile: every pipeline construction funnels through here
+    # (REST, MCP, UIs), so this one check closes the cloud-provider door.
+    if provider != "ollama" and get_config().profile == "local":
+        raise ConfigurationError(
+            f"RAGSTONE_PROFILE=local forbids the {provider!r} provider; "
+            "use provider='ollama'."
         )
     resolved_model = model or DEFAULT_MODELS[provider]
     if provider == "openai":

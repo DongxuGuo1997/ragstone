@@ -421,7 +421,9 @@ class TestEmbedTextsCached:
 
 
 def _stub_config(prefer_ollama: bool):
-    return SimpleNamespace(llm=SimpleNamespace(prefer_ollama_embeddings=prefer_ollama))
+    return SimpleNamespace(
+        llm=SimpleNamespace(prefer_ollama_embeddings=prefer_ollama), profile=""
+    )
 
 
 class _RecordingOllamaEmbeddings:

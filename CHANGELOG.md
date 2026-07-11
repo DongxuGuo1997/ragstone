@@ -6,6 +6,16 @@ Notable changes to Ragstone. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Provable no-egress mode** (ROADMAP 8.1): `RAGSTONE_PROFILE=local`
+  refuses cloud providers, the OpenAI embedding fallback, remote
+  document sources, and phone-home tracing; restricts the reranker to
+  its local model cache; and validates every configured endpoint as
+  loopback at boot, fail closed. The invariant is regression-tested by
+  a socket-intercepting test over the full ingest-and-ask path
+  (CI-safe fake-model tier + live Ollama tier). Data-flow diagrams per
+  deployment mode in SECURITY.md.
+
 ### Fixed
 - **Single-document retrieval** (Experiment 22, found live): two stacked
   bugs made document-level queries ("what is this paper?") on a lone

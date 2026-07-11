@@ -685,6 +685,13 @@ answers agreed with the cloud judge within 2.5–4.9 pp with zero format
 failures — a no-egress deployment can run this harness end to end.
 Run it yourself: `make eval-local`.
 
+And "no-egress" is an enforced invariant, not a promise:
+`RAGSTONE_PROFILE=local` refuses cloud providers, remote document
+sources, and phone-home tracing, validates every endpoint as loopback
+at boot, and is regression-tested by a socket-intercepting test over
+the full ingest-and-ask path (`tests/integration/test_no_egress.py`).
+Data-flow diagrams per deployment mode: [SECURITY.md](SECURITY.md).
+
 ## Logging
 
 The application includes basic logging with the standard levels (DEBUG, INFO, WARNING, ERROR, CRITICAL). Configure it programmatically via `get_config().logging` (the Streamlit app exposes a level selector in its sidebar).

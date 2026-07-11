@@ -215,6 +215,15 @@ def _select_smart_embeddings() -> Optional[Any]:
             embeddings = _probe_ollama_model(model)
             if embeddings:
                 return embeddings
+        if config.profile == "local":
+            # No-egress profile: an OpenAI fallback here would be exactly
+            # the silent cloud call the profile exists to make impossible.
+            logger.error(
+                "No dedicated Ollama embedding model responded and "
+                "RAGSTONE_PROFILE=local forbids the OpenAI fallback "
+                "(fix: `ollama pull nomic-embed-text`)."
+            )
+            return None
         logger.warning(
             "No dedicated Ollama embedding model responded "
             "(fix: `ollama pull nomic-embed-text`); trying OpenAI."

@@ -12,6 +12,7 @@ from ..utils.exceptions import (
     ChainExecutionError,
     ChainInitializationError,
     RetrieverInitializationError,
+    ValidationError,
     VectorStoreInitializationError,
 )
 from ..utils.full_chain import FullChain
@@ -169,6 +170,13 @@ class Pipeline:
         # inside RAGSTONE_DATA_ROOT (when set), and page URLs must not
         # reach private/internal addresses. Servers pass these values
         # straight from clients, so this is the trust boundary.
+        if (page_urls or wiki_query) and get_config().profile == "local":
+            # No-egress profile: web pages and Wikipedia are outbound
+            # fetches by definition — refuse before any loader runs.
+            raise ValidationError(
+                "RAGSTONE_PROFILE=local forbids remote document sources "
+                "(page_urls, wiki_query); ingest local files only."
+            )
         validate_data_dir(data_dir)
         for url in page_urls or []:
             validate_page_url(url)

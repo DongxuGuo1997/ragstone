@@ -21,6 +21,21 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def _is_loopback_url(url: str) -> bool:
+    """True when the URL's host is a loopback literal.
+
+    Deliberately a strict allowlist by NAME — no DNS resolution: the
+    validator for a no-egress profile must not itself perform network
+    lookups, and a hostname that merely resolves to 127.0.0.1 today can
+    resolve elsewhere tomorrow (the same rebinding caveat as the SSRF
+    guard, solved here by refusing names outright).
+    """
+    from urllib.parse import urlsplit
+
+    host = urlsplit(url).hostname or ""
+    return host == "localhost" or host.startswith("127.") or host == "::1"
+
+
 def _tri_state_env(name: str) -> Optional[bool]:
     """Parse an on/off env var where UNSET is a distinct, meaningful state.
 
@@ -364,6 +379,17 @@ class Config:
     # None means "derive from environment"; an explicit value (e.g. from a
     # config file) is always respected.
     debug: Optional[bool] = None
+    # RAGSTONE_PROFILE=local — the provable no-egress mode (ROADMAP 8.1):
+    # cloud providers refused, no OpenAI embedding fallback, remote
+    # document sources refused, reranker restricted to its local model
+    # cache, and every configured endpoint validated as loopback AT BOOT
+    # (fail closed: a misconfigured no-egress deployment must not start).
+    # The invariant is regression-tested by tests/integration/
+    # test_no_egress.py, which intercepts socket connections across the
+    # full ingest-and-ask path.
+    profile: str = field(
+        default_factory=lambda: os.getenv("RAGSTONE_PROFILE", "").strip().lower()
+    )
 
     def __post_init__(self):
         """Post-initialization setup and validation."""
@@ -374,7 +400,44 @@ class Config:
         if self.debug and self.logging.level == "INFO":
             self.logging.level = "DEBUG"
 
+        if self.profile not in ("", "local"):
+            raise ConfigurationError(
+                f"Unknown RAGSTONE_PROFILE {self.profile!r}; "
+                "valid values: local (or unset)."
+            )
+        if self.profile == "local":
+            self._validate_local_profile()
+
         logger.info(f"Configuration initialized for {self.environment} environment")
+
+    def _validate_local_profile(self) -> None:
+        """Fail-closed boot checks for the no-egress profile.
+
+        Every endpoint the process could dial must be loopback, and
+        phone-home integrations must be off — refusing to boot beats
+        discovering egress in a packet capture.
+        """
+        if os.getenv("LANGSMITH_TRACING", "").strip().lower() in ("true", "1", "on"):
+            raise ConfigurationError(
+                "RAGSTONE_PROFILE=local forbids LangSmith tracing "
+                "(LANGSMITH_TRACING sends traces to an external service)."
+            )
+        otel = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+        if otel and not _is_loopback_url(otel):
+            raise ConfigurationError(
+                "RAGSTONE_PROFILE=local requires a loopback OTLP endpoint, "
+                f"got {otel!r} (run the collector on this host or unset it)."
+            )
+        for name, url in (
+            ("OLLAMA_BASE_URL", self.api.ollama_base_url),
+            ("QDRANT_URL", self.database.qdrant_url),
+            ("RAGSTONE_PG_URL", self.database.pg_url),
+        ):
+            if url and not _is_loopback_url(url):
+                raise ConfigurationError(
+                    f"RAGSTONE_PROFILE=local requires a loopback {name}, "
+                    f"got {url!r}."
+                )
 
     def setup_logging(self) -> None:
         """Set up logging based on configuration."""

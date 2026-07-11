@@ -32,6 +32,33 @@ inputs arrive from clients you may not fully control.
 | Internal detail leakage through error messages | Typed errors carry user-safe messages; anything untyped becomes a generic message, details only in server logs | MCP `_safe_error`, API exception handler |
 | Hung upstream calls holding resources forever | Timeouts + bounded retries on every LLM/embedding client | `models/`, `rag/embeddings.py` |
 | Known CVEs riding in via dependencies | `pip-audit` on every CI run over the resolved dependency set; exceptions live in a time-boxed allowlist that fails the build on expiry. Trivy scans the container image (fixable HIGH/CRITICAL) on image changes and weekly | `.github/workflows/ci.yml`, `image-scan.yml`, `.github/audit-allowlist.txt` |
+| "Nothing leaves the building" as a claim instead of an invariant | `RAGSTONE_PROFILE=local`: cloud providers refused, no OpenAI embedding fallback, remote document sources refused, reranker restricted to its local model cache, phone-home tracing refused, and every configured endpoint validated as loopback at boot (fail closed). Regression-tested by a socket-intercepting test over the full ingest-and-ask path | `config/settings.py`, `tests/integration/test_no_egress.py` |
+
+## Deployment modes and data flow
+
+Where user text can travel, per mode — the answer a DPIA asks for.
+
+**Strict local (`RAGSTONE_PROFILE=local`)** — nothing leaves the host:
+
+```
+ documents (local files only) ─► loader ─► chunks ─► Ollama embeddings ─► FAISS/BM25 (in-process)
+ question ─► Ollama (localhost) ─► answer            Ollama (localhost) ◄─ metadata cards, rephrase
+ CI-enforced: socket guard fails the build on any non-loopback connection
+ refused at boot/runtime: OpenAI, page_urls/wiki_query, LangSmith,
+ non-loopback OTLP/Qdrant/Postgres, HuggingFace downloads (cache only)
+```
+
+**Local with cloud eval** — serving is strict-local; the eval harness
+runs separately with a cloud judge (`--judge-provider openai`). Only
+eval-corpus questions, answers, and retrieved chunks reach the judge —
+never live user traffic. Run evals against synthetic or cleared corpora
+if even that is too much.
+
+**Hybrid (default, no profile)** — questions, retrieved chunks, and
+conversation history go to the configured LLM provider (OpenAI by
+default); embeddings likewise. Documents go to OpenAI at ingest only as
+chunk-embedding inputs. LangSmith/OTLP send traces only if you enable
+them. This is the mode the cloud baselines measure.
 
 ## Deployment checklist
 

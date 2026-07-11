@@ -59,6 +59,16 @@ def wrap_with_reranker(
         from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 
         if model_name not in _encoder_cache:
+            from ..config.settings import get_config
+
+            if get_config().profile == "local":
+                # No-egress profile: the first use of a cross-encoder
+                # normally downloads it from the HuggingFace Hub. Force
+                # offline mode so a missing local copy is a clear error
+                # at setup time, never a silent outbound download.
+                import os
+
+                os.environ.setdefault("HF_HUB_OFFLINE", "1")
             _encoder_cache[model_name] = HuggingFaceCrossEncoder(model_name=model_name)
         cross_encoder = _encoder_cache[model_name]
     except ImportError as e:
