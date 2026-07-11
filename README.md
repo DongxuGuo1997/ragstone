@@ -68,10 +68,11 @@ default is CI-gated; every opt-in is baselined and carries an explicit
 |---|---|---|---|
 | `simple` chain, k=4, ensemble, enrichment, embed cache | **default** (CI-gated) | the measured optimum on the eval corpus | — |
 | document metadata cards | **default** (CI-gated) | "who wrote this?" answered from the document's own header; references-decoy misattribution eliminated (Exp 19) | disable via `RAGSTONE_METADATA_CARDS=off` if your corpus has no metadata questions |
-| `corrective` chain | opt-in | faithfulness 0.986 vs 0.967; refuses with evidence instead of hallucinating (Exp 8/9/12) | your retrieval-slice hit rate drops below ~0.9 — **condition validated on the real regulatory corpus** (Exp 23: faithfulness +8.7pp, multi-turn +50pp at 2.2× tokens) — or a wrong answer costs more than a refusal |
+| `corrective` chain | opt-in | faithfulness 0.986 vs 0.967; refuses with evidence instead of hallucinating (Exp 8/9/12) | a wrong answer costs more than a refusal. The hit<0.9 trigger looked validated at n=27 but shrank to noise at n=68 (Exp 23→24) — directionally supported, unproven |
 | `auto` routing | opt-in | corrective's edge on flagged questions at 1.25× instead of 2× (Exp 15/15b) | you want corrective's insurance without paying it on every lookup |
 | `agent` chain | opt-in | none on this corpus — identical quality at 1.8× latency | first-shot retrieval fails often enough that re-searching pays; measure it on YOUR corpus |
-| `multi_query` / `fusion` | opt-in | none measured (single-case noise, Exp 4) | question phrasing is genuinely ambiguous relative to your documents |
+| `multi_query` | opt-in | none measured (Exp 4; multi-turn faithfulness DROPS on the regulatory corpus, Exp 24) | rarely — measure on your corpus first |
+| `fusion` | opt-in | **best chain on the regulatory corpus**: correct +10.7pp, faithful 0.982 (Exp 24) at 2.3× tokens | your corpus has near-duplicate or tiered passages (fine schedules, versioned clauses, recitals mirroring articles) |
 | `[rerank]` cross-encoder | opt-in | biggest ranking lever: MRR 0.93 → 1.0 (smoke) | ranking precision matters and ~80 MB local model + latency is acceptable |
 | `RAGSTONE_CHUNK_CONTEXT=llm` | opt-in | untested beyond `source` mode | document names carry no meaning, so the free identity line can't disambiguate |
 | `qdrant` / `pgvector` stores | opt-in (operational) | FAISS parity by test (Exp 13) | you need persistence, server-mode sharing, or the Postgres you already run |
@@ -79,11 +80,13 @@ default is CI-gated; every opt-in is baselined and carries an explicit
 | `chroma` store | **legacy** | none — the embedded-persistent niche is Qdrant-local's, which has parity tests Chroma lacks | migrating from an existing Chroma deployment only |
 
 The verdicts above began as single-corpus results; the second, real
-corpus (EU regulations, Experiment 23) has started putting them on
-trial — enrichment held, corrective's *enable-when* was validated the
-first time its trigger condition actually occurred, and rerank's value
-split by embedding stack. Completing that verdict matrix is the top
-open eval item (ROADMAP 3.0).
+corpus (EU regulations, Experiments 23–24, n=68) has now put them on
+trial with statistical power: enrichment and chunk-size held, fusion
+FLIPPED (near-duplicate passages are its measured niche), multi_query
+stayed rejected, and corrective's brief n=27 validation was walked
+back at n=68 — the harness catching its own newest claim, twice proving
+that small-slice verdicts don't survive scale (the Experiment 9
+lesson).
 
 ## Features
 

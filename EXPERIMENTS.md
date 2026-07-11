@@ -1223,6 +1223,73 @@ moment its trigger condition actually occurred.**
 
 ---
 
+## Experiment 24 — The verdict matrix at full power: one flip, one walk-back, three holds
+
+**Question.** Experiment 23's n=27 slice could only give directions;
+this expansion gives decimals: 68 cases (every needle machine-audited
+against the corpus), retrieval n=50 (CI ±0.12), generation n=56, the
+multi-turn slice tripled to n=12, and the fine-tier failure class
+deliberately deepened. Then the full chain matrix, one judge, one
+parser (the hardened one — v1 ran the old parser, so cross-version
+deltas are read within v2 only).
+
+| configuration (gpt-4o-mini) | hit | MRR | correct | faithful | multi-turn c/f | tokens |
+|---|---:|---:|---:|---:|---|---:|
+| simple | 0.78 | 0.657 | 0.750 | 0.893 | 0.667 / 0.917 | 97k |
+| corrective | 0.78 | 0.657 | 0.750 | 0.911 | 0.750 / 0.917 | 202k |
+| multi_query | — | — | 0.786 | 0.893 | 0.583 / 0.667 | 189k |
+| **fusion** | — | — | **0.857** | **0.982** | 0.667 / 0.833 | 223k |
+| auto | — | — | 0.804 | 0.929 | 0.583 / 0.917 | 131k |
+| retrieval @ chunk 500 | 0.72 | 0.575 | — | — | — | — |
+| local qwen3.5:9b (nomic) | 0.56 | 0.470 | 0.643 | 0.857 | 0.50 / 1.0 | 4.5 s/ask |
+
+**The flip: fusion earns a niche.** On the fictional corpus fusion was
+single-case noise at 2× cost (Experiment 4). Here it posts the best
+numbers in the matrix — correct +10.7pp and faithful +8.9pp over
+simple, both at the edge of the CIs — with a mechanism that explains
+itself: this corpus is FULL of near-duplicate passages (three AI-Act
+fine tiers, two GDPR tiers, recitals paraphrasing their own articles),
+single-query retrieval keeps picking the wrong twin (6 of 11 misses
+are fine-tier questions), and reciprocal rank fusion across query
+variants is precisely a disambiguator for competing near-duplicates.
+Fusion's enable-when rewrites from the speculative "ambiguous
+phrasing" to the measured "near-duplicate or tiered passages".
+Still 2.3× tokens — a cost call, but now with a real niche.
+
+**The walk-back: corrective's v1 validation was small-n noise.**
+Experiment 23 (n=23/4) reported faithfulness +8.7pp and multi-turn
++50pp and called the enable-when validated. At n=56/12 those shrink to
+**+1.8pp and +8pp — inside the CIs — at 2.1× tokens.** This is the
+Experiment 9 lesson firing a second time (a small slice reversed by
+scale), now against our own newest claim, and the support-tier table
+is corrected accordingly: corrective's enable-when returns to
+"plausible, directionally supported, unproven"; its honest remaining
+case is refusal-over-wrong-answer deployments. The v1 multi-turn
+alarm (0.25) was the same phenomenon in the other direction — at n=12
+every chain sits between 0.5 and 0.75.
+
+**The holds.** multi_query: +3.6pp correct (noise) at 2× cost with a
+real multi-turn faithfulness DROP (0.667) — Experiment 4's rejection
+stands. Chunk 500: hit −6pp / MRR −8pp — Experiment 5's "smaller
+chunks split facts from their subjects" transfers cleanly to legal
+provisions and their qualifying clauses. Auto: 0.804/0.929 at 1.35× —
+between simple and fusion on both quality and cost, differences
+inside the CIs; its Experiment 15 positioning is unchanged.
+
+**Local, at power.** The nomic gap is confirmed, not noise: hit 0.56
+(CI ±0.14, far from the cloud 0.78) while generation degrades much
+less (0.643 vs 0.750) and multi-turn faithfulness is perfect. The
+local menu's missing tier is embeddings, not answerers (8.2/8.4).
+
+**Decision.** Baselines committed at n=68 for six configurations.
+README support-tier table updated in both directions: fusion gains its
+measured niche, corrective loses its premature validation. The
+transferable lesson: **run the verdict matrix at full power before
+promoting any small-slice result — in one pass, scale flipped one
+verdict we'd rejected and rejected one we'd just celebrated.**
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

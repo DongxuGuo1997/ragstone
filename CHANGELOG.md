@@ -7,6 +7,16 @@ Notable changes to Ragstone. The format follows
 ## [Unreleased]
 
 ### Added
+- **Second corpus at full power** (Experiment 24 / ROADMAP 3.0 v2):
+  the regulatory golden set expanded 27 → 68 machine-audited cases
+  (multi-turn ×3) and the full chain matrix re-ran with statistical
+  power. One flip: fusion is the best chain on this corpus (correct
+  +10.7pp, faithful 0.982 at 2.3× tokens; niche = near-duplicate or
+  tiered passages). One walk-back: corrective's n=27 "enable-when
+  validated" shrank to noise at n=68 — the support-tier table is
+  corrected in both directions. Holds: multi_query rejected, chunk-500
+  hurts, the local nomic embedding gap is real (hit 0.56 vs 0.78).
+
 - **API versioning + RFC 7807 errors** (ROADMAP 5.9): the REST surface
   is frozen as `/v1`; unprefixed paths keep working as deprecated
   aliases marked with an RFC 8594 `Deprecation` header. Every error is
