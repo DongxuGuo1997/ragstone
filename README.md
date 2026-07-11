@@ -510,6 +510,10 @@ Production behaviors built in:
 - **Safe errors**: typed pipeline errors map to precise status codes with
   user-safe messages; anything unexpected is a generic `500` with details
   only in the server log.
+- **Versioned contract**: `/v1/...` is the frozen surface (RFC 7807
+  `application/problem+json` error bodies carrying the request id);
+  unprefixed paths keep working as deprecated aliases and say so via an
+  RFC 8594 `Deprecation` header.
 
 Interactive docs at `localhost:8000/docs` (FastAPI's built-in Swagger UI).
 Bind address/port via `RAGSTONE_API_HOST` / `RAGSTONE_API_PORT`.

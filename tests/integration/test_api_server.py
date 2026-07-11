@@ -378,6 +378,98 @@ class TestAuth:
         assert client.get("/ready").status_code == 503  # open, just not ready
 
 
+class TestApiV1Contract:
+    """ROADMAP 5.9: /v1 is the frozen surface, unprefixed paths are
+    deprecated aliases, and every error is RFC 7807 problem+json."""
+
+    def test_v1_serves_the_same_surface(self, client):
+        _create_ready_pipeline(client)
+        response = client.post("/v1/pipelines/p1/ask", json={"question": "q?"})
+        assert response.status_code == 200
+        assert response.json()["answer"] == "answer to: q?"
+        assert client.get("/v1/health").status_code == 200
+
+    def test_legacy_paths_work_but_carry_deprecation(self, client):
+        _create_ready_pipeline(client)
+        response = client.post("/pipelines/p1/ask", json={"question": "q?"})
+        assert response.status_code == 200
+        assert response.headers["deprecation"] == 'version="v1"'
+        # The canonical spelling is not deprecated...
+        assert "deprecation" not in client.get("/v1/pipelines").headers
+        # ...and neither are probes, at either spelling.
+        assert "deprecation" not in client.get("/health").headers
+
+    def _assert_problem(self, response, status):
+        assert response.status_code == status
+        assert response.headers["content-type"].startswith("application/problem+json")
+        body = response.json()
+        assert body["status"] == status
+        assert body["title"]
+        assert body["detail"]  # pre-5.9 clients read this field; it stays
+        assert body["instance"] == str(response.request.url).split("testserver")[1]
+        assert body["request_id"] == response.headers["x-request-id"]
+        return body
+
+    def test_404_is_problem_json(self, client):
+        response = client.post("/v1/pipelines/ghost/ask", json={"question": "q"})
+        body = self._assert_problem(response, 404)
+        assert body["type"] == "about:blank"
+
+    def test_405_is_problem_json_too(self, client):
+        # No GET on /pipelines/{id}: even router-generated errors speak
+        # problem+json, not FastAPI's default {"detail": ...} shape.
+        response = client.get("/v1/pipelines/ghost")
+        assert response.status_code == 405
+        assert response.headers["content-type"].startswith("application/problem+json")
+
+    def test_401_is_problem_json(self):
+        client = TestClient(server.create_app(api_key="k1", max_concurrency=2))
+        self._assert_problem(client.get("/v1/pipelines"), 401)
+
+    def test_429_keeps_retry_after(self):
+        from ragstone.api.keys import ApiKeyRecord, ApiKeyStore
+
+        store = ApiKeyStore([ApiKeyRecord(name="a", key="k1", rpm=1)])
+        client = TestClient(server.create_app(key_store=store, max_concurrency=2))
+        headers = {"X-API-Key": "k1"}
+        client.get("/v1/pipelines", headers=headers)
+        response = client.get("/v1/pipelines", headers=headers)
+        self._assert_problem(response, 429)
+        assert response.headers["retry-after"] == "60"
+
+    def test_body_validation_is_problem_json(self, client):
+        response = client.post("/v1/pipelines", json={"provider": "not-a-provider"})
+        body = self._assert_problem(response, 422)
+        assert body["type"] == "urn:ragstone:problem:request-validation"
+        assert "provider" in body["detail"]
+
+    def test_pipeline_errors_carry_typed_problem(self, client):
+        from ragstone.utils.exceptions import ValidationError
+
+        _create_ready_pipeline(client)
+
+        def _boom(question, session_id=None, use_cache=True):
+            raise ValidationError("question too long")
+
+        dict(registry.snapshot_pipelines())["p1"].ask_question = _boom
+        response = client.post("/v1/pipelines/p1/ask", json={"question": "q?"})
+        body = self._assert_problem(response, 422)
+        assert body["type"] == "urn:ragstone:problem:ValidationError"
+
+    def test_unhandled_errors_reveal_nothing(self, client):
+        _create_ready_pipeline(client)
+
+        def _boom(question, session_id=None, use_cache=True):
+            raise RuntimeError("secret internal detail")
+
+        dict(registry.snapshot_pipelines())["p1"].ask_question = _boom
+        test_client = TestClient(client.app, raise_server_exceptions=False)
+        response = test_client.post("/v1/pipelines/p1/ask", json={"question": "q?"})
+        assert response.status_code == 500
+        assert "secret" not in response.text
+        assert response.json()["detail"] == "Internal server error"
+
+
 class TestSessionDeletion:
     """DELETE /pipelines/{id}/sessions/{sid} — the right-to-erasure
     endpoint (ROADMAP 5.10)."""

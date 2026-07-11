@@ -7,6 +7,14 @@ Notable changes to Ragstone. The format follows
 ## [Unreleased]
 
 ### Added
+- **API versioning + RFC 7807 errors** (ROADMAP 5.9): the REST surface
+  is frozen as `/v1`; unprefixed paths keep working as deprecated
+  aliases marked with an RFC 8594 `Deprecation` header. Every error is
+  now `application/problem+json` (type/title/status/detail/instance +
+  request id); `detail` remains top-level, so existing clients keep
+  parsing. Typed pipeline errors carry `urn:ragstone:problem:<Class>`
+  so clients can branch without parsing prose.
+
 - **Session TTL + right to erasure** (ROADMAP 5.10):
   `RAGSTONE_SESSION_TTL` expires idle conversation sessions lazily on
   the ask path; `DELETE /pipelines/{id}/sessions/{sid}` (and an MCP

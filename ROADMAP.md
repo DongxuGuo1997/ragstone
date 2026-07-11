@@ -289,10 +289,21 @@ locally: a deliberately vulnerable pin exits non-zero.
 
 ### Arc 2 — Governable: contracts, errors, and the data lifecycle
 
-#### 5.9 API versioning (/v1) + RFC 7807 error bodies — S/M
-Freeze today's REST surface as `/v1`; every error becomes a
-`application/problem+json` body with type/title/detail/instance and the
-request id. Contract tests pin the schema.
+#### 5.9 API versioning (/v1) + RFC 7807 error bodies — DELIVERED (July 2026)
+The surface is defined once on a router and mounted twice: `/v1` (the
+frozen contract) and unprefixed (fully working deprecated aliases that
+carry an RFC 8594 `Deprecation: version="v1"` header — nothing broke;
+probes are canonical at both spellings). Every error — endpoint
+HTTPExceptions with their headers (429 keeps Retry-After), pydantic
+validation, typed PipelineErrors (problem `type` names the class,
+`urn:ragstone:problem:<Class>`), router-generated 405s, and unhandled
+exceptions (generic, details only in the log) — is
+`application/problem+json` with type/title/status/detail/instance and
+the request id. `detail` stays a top-level member by RFC and by
+design: every pre-5.9 client that read `response.json()["detail"]`
+keeps working, proven by the pre-existing test suite passing
+untouched. Contract tests pin the schema; a live-process smoke
+verified headers under real uvicorn.
 
 #### 5.10 Session TTL and deletion — DELIVERED (July 2026)
 `RAGSTONE_SESSION_TTL` expires idle sessions (lazy sweep on the ask

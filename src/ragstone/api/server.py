@@ -41,9 +41,11 @@ from contextlib import asynccontextmanager
 from typing import Iterator, List, Literal, Optional, Tuple
 
 try:
-    from fastapi import FastAPI, HTTPException, Request
+    from fastapi import APIRouter, FastAPI, HTTPException, Request
+    from fastapi.exceptions import RequestValidationError
     from fastapi.responses import JSONResponse, Response, StreamingResponse
     from pydantic import BaseModel, Field
+    from starlette.exceptions import HTTPException as StarletteHTTPException
 except ImportError as exc:  # pragma: no cover - exercised only without extra
     raise ImportError(
         "The REST API requires the 'api' extra. "
@@ -121,8 +123,42 @@ class _RequestIDMiddleware:
             await self.app(scope, receive, send_with_id)
 
 
-# Probes and docs would drown the trail in scrape noise.
-_AUDIT_EXEMPT = {"/health", "/ready", "/metrics", "/docs", "/openapi.json"}
+# Probes and docs would drown the trail in scrape noise. The API is
+# dual-mounted (ROADMAP 5.9): /v1 is canonical, unprefixed paths are
+# deprecated aliases — both spellings of a probe are exempt.
+_PROBE_PATHS = {"/health", "/ready", "/metrics"}
+_AUDIT_EXEMPT = (
+    _PROBE_PATHS | {f"/v1{p}" for p in _PROBE_PATHS} | {"/docs", "/openapi.json"}
+)
+
+
+class _DeprecationHeaderMiddleware:
+    """Stamp RFC 8594 Deprecation on legacy (unprefixed) API paths.
+
+    /v1 is the frozen contract (ROADMAP 5.9); the unprefixed routes stay
+    fully functional as aliases so nothing breaks, but every response
+    tells clients where the contract lives. Probes are canonical at both
+    spellings — orchestrators and scrapers are configured by path and
+    should not be nudged to migrate.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        path = scope.get("path", "")
+        if scope["type"] != "http" or path.startswith("/v1") or path in _AUDIT_EXEMPT:
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_deprecation(message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.append((b"deprecation", b'version="v1"'))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_deprecation)
 
 
 class _AuditMiddleware:
@@ -274,8 +310,13 @@ def create_app(
     ask_slots = threading.BoundedSemaphore(cap) if cap > 0 else None
 
     app = FastAPI(title="Ragstone", version=__version__, lifespan=_lifespan)
+    # The whole surface is defined once on a router and mounted twice:
+    # /v1 (the frozen contract, ROADMAP 5.9) and unprefixed (deprecated
+    # aliases, marked by _DeprecationHeaderMiddleware).
+    router = APIRouter()
     # Registration order = innermost first: audit runs inside the
     # request-id scope, so its lines carry the same id the client holds.
+    app.add_middleware(_DeprecationHeaderMiddleware)
     app.add_middleware(_AuditMiddleware)
     app.add_middleware(_RequestIDMiddleware)
     app.state.ask_slots = ask_slots  # exposed for tests/inspection
@@ -299,27 +340,108 @@ def create_app(
                 headers={"Retry-After": "60"},
             )
 
+    def _problem(
+        request: Request,
+        status: int,
+        title: str,
+        detail: str,
+        problem_type: str = "about:blank",
+        headers: Optional[dict] = None,
+    ) -> JSONResponse:
+        """An RFC 7807 application/problem+json response.
+
+        `detail` is kept as a top-level member (the RFC defines it), so
+        every pre-5.9 client that read response.json()["detail"] keeps
+        working. The request id rides along — the same value as the
+        X-Request-ID header, put where clients actually log error bodies.
+        """
+        body = {
+            "type": problem_type,
+            "title": title,
+            "status": status,
+            "detail": detail,
+            "instance": request.url.path,
+        }
+        request_id = current_request_id()
+        if request_id:
+            body["request_id"] = request_id
+        return JSONResponse(
+            status_code=status,
+            content=body,
+            headers=headers,
+            media_type="application/problem+json",
+        )
+
+    _STATUS_TITLES = {
+        401: "Unauthorized",
+        404: "Not Found",
+        422: "Unprocessable Content",
+        429: "Too Many Requests",
+        500: "Internal Server Error",
+        503: "Service Unavailable",
+    }
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_error_handler(request: Request, exc: StarletteHTTPException):
+        # Every HTTPException raised in an endpoint (401/404/429/503...)
+        # becomes a problem body; headers (e.g. Retry-After on 429) pass
+        # through untouched.
+        return _problem(
+            request,
+            exc.status_code,
+            _STATUS_TITLES.get(exc.status_code, "Error"),
+            str(exc.detail),
+            headers=getattr(exc, "headers", None),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error_handler(request: Request, exc: RequestValidationError):
+        # Pydantic body/query validation: one readable line per error.
+        detail = "; ".join(
+            f"{'.'.join(str(loc) for loc in e['loc'])}: {e['msg']}"
+            for e in exc.errors()
+        )
+        return _problem(
+            request,
+            422,
+            "Unprocessable Content",
+            detail,
+            problem_type="urn:ragstone:problem:request-validation",
+        )
+
     @app.exception_handler(PipelineError)
     async def _pipeline_error_handler(request: Request, exc: PipelineError):
         # Typed pipeline errors carry user-safe messages (the same contract
-        # the MCP server relies on). Anything untyped falls through to
-        # FastAPI's generic 500 handler, which reveals nothing.
+        # the MCP server relies on); the problem type names the error class
+        # so clients can branch without parsing prose.
         request_id = current_request_id()
         logger.error(
             f"{request.url.path} failed (request={request_id}): {exc}",
             exc_info=True,
         )
         status = 422 if isinstance(exc, ValidationError) else 500
-        content = {"detail": str(exc)}
-        if request_id:
-            # The same id is in the X-Request-ID header; repeating it in
-            # the body puts it where clients actually log error payloads.
-            content["request_id"] = request_id
-        return JSONResponse(status_code=status, content=content)
+        return _problem(
+            request,
+            status,
+            _STATUS_TITLES[status],
+            str(exc),
+            problem_type=f"urn:ragstone:problem:{type(exc).__name__}",
+        )
+
+    @app.exception_handler(Exception)
+    async def _unhandled_error_handler(request: Request, exc: Exception):
+        # Anything untyped reveals nothing: generic problem body, details
+        # only in the server log (same posture as before 5.9).
+        logger.error(
+            f"{request.url.path} failed unexpectedly "
+            f"(request={current_request_id()}): {exc}",
+            exc_info=True,
+        )
+        return _problem(request, 500, "Internal Server Error", "Internal server error")
 
     # -- probes (unauthenticated: orchestrators don't carry API keys) ------
 
-    @app.get("/health")
+    @router.get("/health")
     async def health():
         return {"status": "ok"}
 
@@ -328,7 +450,7 @@ def create_app(
     # payload is aggregates only, never question or document content.
     metrics_enabled = init_metrics()
 
-    @app.get("/metrics")
+    @router.get("/metrics")
     async def metrics():
         if not metrics_enabled:
             raise HTTPException(
@@ -340,7 +462,7 @@ def create_app(
         data, content_type = payload
         return Response(content=data, media_type=content_type)
 
-    @app.get("/usage")
+    @router.get("/usage")
     async def usage(request: Request):
         # Per-key attribution for operators: names, counts, and limits —
         # key material never appears. Authenticated (and counted) like
@@ -348,7 +470,7 @@ def create_app(
         _require_key(request)
         return {"keys": keys.usage_report()}
 
-    @app.get("/ready")
+    @router.get("/ready")
     async def ready():
         pipelines = snapshot_pipelines()
         ready_ids = [pid for pid, p in pipelines if p.get_chain() is not None]
@@ -368,7 +490,7 @@ def create_app(
 
     # -- pipeline lifecycle -------------------------------------------------
 
-    @app.post("/pipelines", status_code=201)
+    @router.post("/pipelines", status_code=201)
     async def create_pipeline(body: CreatePipelineRequest, request: Request):
         _require_key(request)
         pipeline = build_pipeline(body.provider, body.model)
@@ -379,7 +501,7 @@ def create_app(
             "model": body.model or DEFAULT_MODELS[body.provider],
         }
 
-    @app.get("/pipelines")
+    @router.get("/pipelines")
     async def list_pipelines(request: Request):
         _require_key(request)
         active = snapshot_pipelines()
@@ -406,7 +528,7 @@ def create_app(
                 result.append({"pipeline_id": pipeline_id, "state": "persisted"})
         return {"pipelines": result}
 
-    @app.delete("/pipelines/{pipeline_id}")
+    @router.delete("/pipelines/{pipeline_id}")
     async def delete_pipeline(pipeline_id: str, request: Request):
         _require_key(request)
         # Pop atomically first so no other request can look it up mid-cleanup.
@@ -421,7 +543,7 @@ def create_app(
         delete_persisted(pipeline_id)
         return {"deleted": pipeline_id}
 
-    @app.post("/pipelines/{pipeline_id}/documents")
+    @router.post("/pipelines/{pipeline_id}/documents")
     async def load_documents(
         pipeline_id: str, body: LoadDocumentsRequest, request: Request
     ):
@@ -437,7 +559,7 @@ def create_app(
         )
         return {"pipeline_id": pipeline_id, "chunks": len(texts) if texts else 0}
 
-    @app.post("/pipelines/{pipeline_id}/retriever")
+    @router.post("/pipelines/{pipeline_id}/retriever")
     async def setup_retriever(
         pipeline_id: str, body: SetupRetrieverRequest, request: Request
     ):
@@ -462,7 +584,7 @@ def create_app(
             "use_reranker": body.use_reranker,
         }
 
-    @app.delete("/pipelines/{pipeline_id}/sessions/{session_id}")
+    @router.delete("/pipelines/{pipeline_id}/sessions/{session_id}")
     async def delete_session(pipeline_id: str, session_id: str, request: Request):
         # Right to erasure (ROADMAP 5.10): after this, the checkpointer
         # holds no history for the session and the same id starts fresh.
@@ -480,7 +602,7 @@ def create_app(
 
     # -- asking -------------------------------------------------------------
 
-    @app.post("/pipelines/{pipeline_id}/ask")
+    @router.post("/pipelines/{pipeline_id}/ask")
     async def ask(pipeline_id: str, body: AskRequest, request: Request):
         _require_key(request)
         pipeline = await _get_or_404(pipeline_id)
@@ -523,6 +645,11 @@ def create_app(
         if pipeline is None:
             raise HTTPException(status_code=404, detail="Pipeline not found")
         return pipeline
+
+    # /v1 is the contract; the unprefixed mount keeps every pre-5.9
+    # client working (and tells them so via the Deprecation header).
+    app.include_router(router, prefix="/v1")
+    app.include_router(router)
 
     return app
 
