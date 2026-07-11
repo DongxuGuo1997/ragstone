@@ -120,6 +120,23 @@ retrieval leg. The metadata-card fix was built and
 measured the same week (Experiment 19, now a CI-gated default); the
 second corpus should stress it with more document formats.
 
+**First slice delivered (July 2026), from a live failure.** A single
+uploaded research PDF answered "what is deepseek" from three contributor
+name-lists and a table of contents: the chunk-enrichment prefix
+(Experiment 12's multi-doc win) dominates the embeddings of
+content-empty chunks — making them nearest neighbors for any query that
+names the document — and puts the document's name in every chunk, zeroing
+its BM25 IDF. Diagnosis reproduced and attributed (vector leg ranks the
+name lists 1–4; metadata card 14th of 80). Now measured: `--set
+single_doc` (one paper-shaped fictional document with those decoy
+structures engineered in, 9 document-level cases). Honest baselines
+committed: retrieval MRR **0.51–0.66** vs 0.95+ on smoke; gpt-4o-mini
+correct **0.667** (misses name-meaning, authorship, and fabricates on
+the unanswerable) while qwen3.6:35b sweeps 9/9. Candidate fixes —
+routing document-level queries to the card, excluding the prefix from
+embedded text, IDF-aware enrichment — must beat this slice WITHOUT
+moving the smoke/large baselines.
+
 ### 3.1 Cross-family judge — DELIVERED same-provider (Experiment 11); different-provider judge still open
 The judge and the answering model are both gpt-4o-mini; self-preference
 inflation is a known LLM-as-judge bias, and it is now disclosed in

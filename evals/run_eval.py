@@ -30,6 +30,14 @@ CORPUS_DIR = EVALS_DIR / "corpus"  # original 6 docs — the smoke gate's world
 # Extended fictional universe (generated, distractor-engineered) used only
 # by the large set, so smoke baselines keep measuring the same corpus.
 EXTENDED_CORPUS_DIR = EVALS_DIR / "corpus_extended"
+# ONE paper-shaped document, alone. Captures a failure class found live
+# (July 2026, single uploaded PDF): for document-level queries ("what is
+# X?"), the source-identity enrichment prefix dominates the embeddings of
+# content-empty chunks (contributor lists, TOC), making them nearest
+# neighbors, while the document's own name has ~zero BM25 IDF because the
+# prefix puts it in every chunk. Neither multi-doc corpus can express
+# this; the document here engineers those decoy structures deliberately.
+SINGLE_DOC_CORPUS_DIR = EVALS_DIR / "corpus_single_doc"
 BASELINE_PATH = EVALS_DIR / "baseline.json"
 REPORT_PATH = EVALS_DIR / "report.md"
 
@@ -40,6 +48,7 @@ REPORT_PATH = EVALS_DIR / "report.md"
 GOLDEN_SETS = {
     "smoke": EVALS_DIR / "golden.jsonl",
     "large": EVALS_DIR / "golden_large.jsonl",
+    "single_doc": EVALS_DIR / "golden_single_doc.jsonl",
 }
 
 # How far a metric may drop below the baseline before the run fails.
@@ -110,6 +119,8 @@ def build_pipeline(args):
         pipeline = OllamaPipeline(model=args.model, **store_kwargs)
 
     corpus_dir = CORPUS_DIR
+    if args.set == "single_doc":
+        corpus_dir = SINGLE_DOC_CORPUS_DIR
     if args.set == "large":
         # The large set spans both corpus dirs; merge into a temp dir since
         # the loader takes a single directory.

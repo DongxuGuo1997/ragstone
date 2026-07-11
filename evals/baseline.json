@@ -129,5 +129,37 @@
       "mrr": 1.0
     },
     "date": "2026-07-09"
+  },
+  "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=retrieval|set=single_doc": {
+    "metrics": {
+      "hit_rate": 0.875,
+      "mrr": 0.594
+    },
+    "date": "2026-07-11"
+  },
+  "ollama:qwen3.6:35b|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=retrieval|set=single_doc|ollama-reasoning=off": {
+    "metrics": {
+      "hit_rate": 0.875,
+      "mrr": 0.656
+    },
+    "date": "2026-07-11"
+  },
+  "openai:gpt-4o-mini|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|set=single_doc": {
+    "metrics": {
+      "hit_rate": 0.875,
+      "mrr": 0.594,
+      "correct_rate": 0.667,
+      "faithful_rate": 0.889
+    },
+    "date": "2026-07-11"
+  },
+  "ollama:qwen3.6:35b|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|set=single_doc|ollama-reasoning=off": {
+    "metrics": {
+      "hit_rate": 0.875,
+      "mrr": 0.51,
+      "correct_rate": 1.0,
+      "faithful_rate": 1.0
+    },
+    "date": "2026-07-11"
   }
 }
