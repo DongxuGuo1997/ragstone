@@ -60,6 +60,26 @@ default); embeddings likewise. Documents go to OpenAI at ingest only as
 chunk-embedding inputs. LangSmith/OTLP send traces only if you enable
 them. This is the mode the cloud baselines measure.
 
+## Where user text lives, and when it dies
+
+The GDPR storage-limitation question, answered per store (ROADMAP 5.10):
+
+| Store | Contains | Lives until |
+|---|---|---|
+| Conversation history (checkpointer) | questions + answers, per session | process exit (`memory` backend) or indefinitely (`sqlite`) — **unless** `RAGSTONE_SESSION_TTL` expires idle sessions or `DELETE /pipelines/{id}/sessions/{sid}` (also an MCP tool) erases one on request |
+| Response cache | question + answer text (history-free turns only; in-memory) | TTL (1 h default) or process exit |
+| Embedding cache | **no raw text** — sha256(model+text) keys and float vectors only | until the file is deleted |
+| Registry persistence | corpus chunks on disk | `DELETE /pipelines/{id}`, or disable with `RAGSTONE_REGISTRY_PERSIST=off` |
+| Request + audit logs | ids, key names, timings — **never content** | your log retention policy |
+| Eval answer dumps (`--dump-answers`) | full answers + contexts | opt-in flag, gitignored, delete at will |
+
+Erasure caveats, stated honestly: session TTL sweeps are lazy (paid on
+the next ask) and track activity per process — with the sqlite backend,
+sessions from before the last restart are not swept until touched
+again; `DELETE` covers those. Log lines referencing a session id are
+not retro-deleted — they carry no content, and the deletion request
+itself is auditable by design.
+
 ## Deployment checklist
 
 ```bash

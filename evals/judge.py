@@ -6,6 +6,7 @@ returns ``{"verdict": "pass" | "fail", "reason": "..."}``.
 """
 
 import json
+import re
 from typing import Optional
 
 CORRECTNESS_PROMPT = """\
@@ -77,11 +78,27 @@ def _parse_verdict(text: str) -> dict:
     start, end = cleaned.find("{"), cleaned.rfind("}")
     if start == -1 or end == -1:
         raise ValueError(f"no JSON object in judge output: {text!r}")
-    result = json.loads(cleaned[start : end + 1])
-    verdict = str(result.get("verdict", "")).strip().lower()
+    try:
+        result = json.loads(cleaned[start : end + 1])
+        verdict = str(result.get("verdict", "")).strip().lower()
+        reason = str(result.get("reason", ""))
+    except json.JSONDecodeError:
+        # Judges sometimes quote the answer inside their reason without
+        # escaping, producing invalid JSON around a perfectly clear
+        # verdict. Experiment 23 lost two "pass" verdicts to fail-closed
+        # parsing this way; rescue the verdict field by pattern instead
+        # of failing an answer for the judge's own formatting.
+        match = re.search(r'"verdict"\s*:\s*"(pass|fail)"', cleaned, re.IGNORECASE)
+        if not match:
+            raise ValueError(f"unparseable JSON in judge output: {text!r}")
+        verdict = match.group(1).lower()
+        reason_match = re.search(
+            r'"reason"\s*:\s*"(.*)"\s*}?\s*$', cleaned[start:], re.DOTALL
+        )
+        reason = reason_match.group(1) if reason_match else "(reason unparseable)"
     if verdict not in ("pass", "fail"):
         raise ValueError(f"invalid verdict in judge output: {text!r}")
-    return {"verdict": verdict, "reason": str(result.get("reason", ""))}
+    return {"verdict": verdict, "reason": reason}
 
 
 def _judge(

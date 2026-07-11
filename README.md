@@ -500,6 +500,10 @@ Production behaviors built in:
 - **Audit + usage**: every gated request leaves an append-only
   `ragstone.audit` line (key name, method, path, status, request id —
   never content), and `GET /usage` reports per-key request counts.
+- **Session lifecycle**: `DELETE /pipelines/{id}/sessions/{sid}` erases
+  a conversation's history on request (right to erasure), and
+  `RAGSTONE_SESSION_TTL` expires idle sessions — the full "where does
+  user text live" retention table is in [SECURITY.md](SECURITY.md).
 - **Backpressure**: at most `RAGSTONE_API_MAX_CONCURRENCY` (default 8)
   simultaneous `/ask` requests; beyond that the server answers `429`
   immediately instead of queueing until it collapses.

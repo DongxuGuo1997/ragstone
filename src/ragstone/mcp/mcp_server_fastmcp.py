@@ -312,6 +312,32 @@ def get_pipeline_info(pipeline_id: str) -> str:
 
 
 @mcp.tool()
+def delete_session(pipeline_id: str, session_id: str) -> str:
+    """Erase a conversation session's history (right to erasure).
+
+    After this, the pipeline holds no conversation history for the
+    session; asking again under the same session_id starts fresh.
+
+    Args:
+        pipeline_id: Pipeline the session belongs to
+        session_id: Conversation session to erase
+
+    Returns:
+        Success message stating whether the session existed
+    """
+    pipeline = _get_pipeline(pipeline_id)
+    if pipeline is None:
+        return f"Pipeline '{pipeline_id}' not found."
+    try:
+        existed = pipeline.delete_session(session_id)
+    except Exception as e:  # pragma: no cover - defensive
+        return _safe_error("Deleting session", e)
+    if existed:
+        return f"Session '{session_id}' erased from pipeline '{pipeline_id}'."
+    return f"Session '{session_id}' had no stored history (nothing to erase)."
+
+
+@mcp.tool()
 def delete_pipeline(pipeline_id: str) -> str:
     """Delete a pipeline and free up resources.
 

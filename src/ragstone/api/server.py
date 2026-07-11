@@ -462,6 +462,22 @@ def create_app(
             "use_reranker": body.use_reranker,
         }
 
+    @app.delete("/pipelines/{pipeline_id}/sessions/{session_id}")
+    async def delete_session(pipeline_id: str, session_id: str, request: Request):
+        # Right to erasure (ROADMAP 5.10): after this, the checkpointer
+        # holds no history for the session and the same id starts fresh.
+        # Idempotent — the response says whether anything existed, the
+        # status is 200 either way. The audit trail records the deletion
+        # request itself (path + key name), never the content it removed.
+        _require_key(request)
+        pipeline = await _get_or_404(pipeline_id)
+        existed = await to_thread.run_sync(pipeline.delete_session, session_id)
+        return {
+            "pipeline_id": pipeline_id,
+            "session_id": session_id,
+            "deleted": existed,
+        }
+
     # -- asking -------------------------------------------------------------
 
     @app.post("/pipelines/{pipeline_id}/ask")

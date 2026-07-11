@@ -7,6 +7,17 @@ Notable changes to Ragstone. The format follows
 ## [Unreleased]
 
 ### Added
+- **Session TTL + right to erasure** (ROADMAP 5.10):
+  `RAGSTONE_SESSION_TTL` expires idle conversation sessions lazily on
+  the ask path; `DELETE /pipelines/{id}/sessions/{sid}` (and an MCP
+  `delete_session` tool) erases a session's history on request,
+  idempotently and audited. SECURITY.md now answers "where does user
+  text live and when does it die" per store. Also hardened the eval
+  judge's verdict parser: a clear pass/fail is rescued from invalid
+  JSON (unescaped quotes in the judge's reason) instead of
+  fail-closing the answer for the judge's formatting — the bug that
+  cost two verdicts in Experiment 23.
+
 - **Second evaluation corpus, v1** (Experiment 23 / ROADMAP 3.0): the
   GDPR + EU AI Act from EUR-Lex as `--set regulatory` (1,331 chunks, 27
   hand-written cases with grep-verified needles). First cross-corpus

@@ -203,6 +203,71 @@ class TestRephraseModelSelection:
         assert built["model"] == "tiny-model"
 
 
+class TestSessionLifecycle:
+    """Right to erasure + idle-session TTL (ROADMAP 5.10)."""
+
+    def test_delete_session_erases_history_and_reports_existence(self):
+        llm = _CountingFakeChatModel(responses=["Paris.", "fresh answer"])
+        full_chain = _make_full_chain(llm)
+        full_chain.ask_question("capital?", session_id="gone")
+        assert full_chain.has_history("gone")
+
+        assert full_chain.delete_session("gone") is True
+        assert not full_chain.has_history("gone")
+        # Deleting again (or an unknown id) is idempotent, not an error.
+        assert full_chain.delete_session("gone") is False
+        assert full_chain.delete_session("never-existed") is False
+
+    def test_next_ask_after_delete_starts_fresh(self):
+        # The proof that erasure worked: the turn AFTER deletion behaves
+        # like a first turn (no rephrase call against stale history).
+        llm = _CountingFakeChatModel(responses=["Paris.", "Oslo."])
+        full_chain = _make_full_chain(llm)
+        full_chain.ask_question("capital of France?", session_id="s")
+        full_chain.delete_session("s")
+
+        calls_before = llm.calls
+        full_chain.ask_question("capital of Norway?", session_id="s")
+        assert llm.calls == calls_before + 1  # answer only, no rephrase
+
+    def test_delete_before_chain_built_is_false(self):
+        proxy = MemoryProxy()
+        assert proxy.delete_session("anything") is False
+
+    def test_idle_sessions_expire_after_ttl(self, monkeypatch):
+        llm = _CountingFakeChatModel(responses=["a", "b", "c"])
+        full_chain = _make_full_chain(llm)
+        proxy = full_chain._memory
+        clock = {"t": 0.0}
+        monkeypatch.setattr(proxy, "_now", lambda: clock["t"])
+        from ragstone.config.settings import get_config
+
+        monkeypatch.setattr(get_config().memory, "session_ttl_seconds", 100)
+
+        full_chain.ask_question("q1", session_id="old")
+        clock["t"] = 50.0
+        full_chain.ask_question("q2", session_id="young")
+        assert full_chain.has_history("old")  # 50s idle < TTL
+
+        clock["t"] = 151.0  # "old" idle 151s, "young" idle 101s
+        full_chain.ask_question("q3", session_id="third")
+        assert not full_chain.has_history("old")
+        assert not full_chain.has_history("young")
+        assert full_chain.has_history("third")
+
+    def test_ttl_zero_never_expires(self, monkeypatch):
+        llm = _CountingFakeChatModel(responses=["a", "b"])
+        full_chain = _make_full_chain(llm)
+        proxy = full_chain._memory
+        clock = {"t": 0.0}
+        monkeypatch.setattr(proxy, "_now", lambda: clock["t"])
+
+        full_chain.ask_question("q1", session_id="eternal")
+        clock["t"] = 10_000_000.0
+        full_chain.ask_question("q2", session_id="other")
+        assert full_chain.has_history("eternal")
+
+
 class TestCheckpointBackend:
     def test_unknown_backend_raises(self):
         with pytest.raises(ValueError):

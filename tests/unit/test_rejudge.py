@@ -185,3 +185,51 @@ class TestJudgeReasoningThreading:
             "q?", "gold", "answer", "local-j", "ollama", True
         )
         assert verdict == {"verdict": "pass", "reason": "r"}
+
+
+class TestVerdictParsing:
+    """_parse_verdict must not fail an ANSWER for the JUDGE's formatting.
+
+    Experiment 23 lost two visible-"pass" verdicts to fail-closed parsing
+    when the judge quoted the answer inside its reason without escaping.
+    """
+
+    @pytest.fixture()
+    def judge_real(self, monkeypatch):
+        monkeypatch.setitem(
+            sys.modules, "langchain_ollama", SimpleNamespace(ChatOllama=object)
+        )
+        spec = importlib.util.spec_from_file_location(
+            "judge_parse", EVALS_DIR / "judge.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_clean_json_parses(self, judge_real):
+        verdict = judge_real._parse_verdict('{"verdict": "pass", "reason": "ok"}')
+        assert verdict == {"verdict": "pass", "reason": "ok"}
+
+    def test_code_fenced_json_parses(self, judge_real):
+        text = '```json\n{"verdict": "fail", "reason": "wrong tier"}\n```'
+        assert judge_real._parse_verdict(text)["verdict"] == "fail"
+
+    def test_unescaped_quotes_in_reason_are_rescued(self, judge_real):
+        # The Experiment 23 failure shape: valid verdict, broken JSON.
+        text = (
+            '{"verdict": "pass", "reason": "the answer says "10^25" '
+            'which matches the "systemic risk" threshold"}'
+        )
+        verdict = judge_real._parse_verdict(text)
+        assert verdict["verdict"] == "pass"
+        assert "10^25" in verdict["reason"]
+
+    def test_missing_verdict_still_fails_closed(self, judge_real):
+        with pytest.raises(ValueError):
+            judge_real._parse_verdict('{"reason": "no verdict here"}')
+        with pytest.raises(ValueError):
+            judge_real._parse_verdict("no json at all")
+
+    def test_invalid_verdict_value_fails_closed(self, judge_real):
+        with pytest.raises(ValueError):
+            judge_real._parse_verdict('{"verdict": "maybe", "reason": "r"}')

@@ -1,7 +1,9 @@
 import logging
 import sqlite3
+import threading
+import time
 from pathlib import Path
-from typing import Annotated, Any, Iterable, List, Optional, Union
+from typing import Annotated, Any, Callable, Dict, Iterable, List, Optional, Union
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
@@ -15,7 +17,7 @@ from langchain_core.messages import (
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.retrievers import BaseRetriever
-from langchain_core.runnables import Runnable
+from langchain_core.runnables import Runnable, RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.config import get_stream_writer
@@ -138,6 +140,16 @@ class MemoryProxy:
         # Holds the SQLite connection for a "sqlite" backend so it outlives
         # this call and is not garbage-collected while the graph uses it.
         self._conn: Optional[sqlite3.Connection] = None
+        # Session lifecycle (ROADMAP 5.10): the checkpointer instance is
+        # kept so sessions can be deleted (right to erasure) and expired
+        # (RAGSTONE_SESSION_TTL). Activity is tracked per session in this
+        # process; with the sqlite backend, threads from BEFORE the last
+        # restart are not swept until touched again — documented in
+        # SECURITY.md. The clock is injectable for deterministic TTL tests.
+        self._checkpointer: Optional[BaseCheckpointSaver] = None
+        self._last_used: Dict[str, float] = {}
+        self._lifecycle_lock = threading.Lock()
+        self._now: Callable[[], float] = time.monotonic
 
     def _make_checkpointer(self) -> BaseCheckpointSaver:
         """Build the checkpointer backing the memory graph.
@@ -184,6 +196,55 @@ class MemoryProxy:
         if self._conn is not None:
             self._conn.close()
             self._conn = None
+
+    # -- session lifecycle (ROADMAP 5.10) --------------------------------
+
+    def delete_session(self, session_id: str) -> bool:
+        """Erase a session's conversation history. True if it existed.
+
+        The right-to-erasure primitive: after this, the checkpointer holds
+        no state for the thread and the next ask under the same id starts
+        a fresh conversation. Idempotent — deleting an unknown session is
+        False, not an error.
+        """
+        if self._checkpointer is None:
+            return False
+        config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+        existed = self._checkpointer.get(config) is not None
+        self._checkpointer.delete_thread(session_id)
+        with self._lifecycle_lock:
+            self._last_used.pop(session_id, None)
+        if existed:
+            logger.info("Session deleted: %s", session_id)
+        return existed
+
+    def touch_session(self, session_id: str) -> None:
+        """Record session activity and lazily expire idle sessions.
+
+        Called on every ask. Sweeping happens here (not on a timer) for
+        the same reason the response cache expires lazily: no background
+        thread to leak, and expiry cost is paid by the traffic that
+        benefits from it.
+        """
+        ttl = get_config().memory.session_ttl_seconds
+        now = self._now()
+        expired: List[str] = []
+        with self._lifecycle_lock:
+            if ttl > 0:
+                cutoff = now - ttl
+                expired = [s for s, t in self._last_used.items() if t <= cutoff]
+                for session in expired:
+                    self._last_used.pop(session, None)
+            self._last_used[session_id] = now
+        for session in expired:
+            if self._checkpointer is not None:
+                self._checkpointer.delete_thread(session)
+        if expired:
+            logger.info(
+                "Expired %d idle session(s) past RAGSTONE_SESSION_TTL=%ds",
+                len(expired),
+                ttl,
+            )
 
     def create_memory_chain(
         self, llm: BaseChatModel, base_chain: Runnable
@@ -318,7 +379,8 @@ class MemoryProxy:
         graph.add_edge("rephrase", "answer")
         graph.add_edge("answer", END)
 
-        return graph.compile(checkpointer=self._make_checkpointer())
+        self._checkpointer = self._make_checkpointer()
+        return graph.compile(checkpointer=self._checkpointer)
 
 
 class SimpleTextRetriever(BaseRetriever):

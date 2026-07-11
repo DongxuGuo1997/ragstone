@@ -294,14 +294,19 @@ Freeze today's REST surface as `/v1`; every error becomes a
 `application/problem+json` body with type/title/detail/instance and the
 request id. Contract tests pin the schema.
 
-#### 5.10 Session TTL and deletion — the right-to-erasure item — M
-Sessions currently live until process death (or forever with sqlite).
-Add per-session TTL, an explicit `DELETE /v1/sessions/{id}`, and a
-documented answer to "where does user text live and when does it die"
-(checkpointer, caches, logs). This is the GDPR question every privacy-
-minded client asks first.
-*Measure:* deletion test — after DELETE, no trace of the session in
-checkpointer, response cache, or logs beyond the audit line.
+#### 5.10 Session TTL and deletion — DELIVERED (July 2026)
+`RAGSTONE_SESSION_TTL` expires idle sessions (lazy sweep on the ask
+path, same pattern as the response cache; injectable clock in tests);
+`MemoryProxy.delete_session` erases a thread from the checkpointer via
+`delete_thread`, surfaced as `DELETE /pipelines/{id}/sessions/{sid}`
+(idempotent, audited, worker-thread offloaded) and an MCP
+`delete_session` tool. SECURITY.md gained the "where user text lives,
+and when it dies" retention table — per store, with the erasure
+caveats stated honestly (lazy sweeps track activity per process;
+pre-restart sqlite threads need explicit DELETE; logs carry ids, never
+content, and are not retro-edited). The deletion test proves the turn
+AFTER erasure behaves as a first turn (no rephrase against ghost
+history). `/v1` path prefixes land with 5.9.
 
 #### 5.11 Boot-time config validation, fail-fast — S
 Validate the full config at startup (store reachable, model available,

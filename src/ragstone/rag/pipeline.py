@@ -400,6 +400,17 @@ class Pipeline:
             logger.warning("Attempted to get chain, but it has not been created yet.")
         return self._chain
 
+    def delete_session(self, session_id: str) -> bool:
+        """Erase a session's conversation history (ROADMAP 5.10).
+
+        True if the session existed. False for unknown sessions or when
+        no chain has been built yet — deletion is idempotent, never an
+        error: the caller's guarantee is "after this call, no history".
+        """
+        if self._chain is None:
+            return False
+        return self._chain.delete_session(session_id)
+
     def get_retriever(self):
         """Return the configured retriever, or None if not set."""
         return self._retriever

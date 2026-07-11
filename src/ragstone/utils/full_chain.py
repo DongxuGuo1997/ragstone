@@ -92,6 +92,10 @@ class FullChain:
         """
         self._memory.close()
 
+    def delete_session(self, session_id: str) -> bool:
+        """Erase a session's conversation history; True if it existed."""
+        return self._memory.delete_session(session_id)
+
     def get_interpretation(self, session_id: str) -> Optional[str]:
         """
         Return the standalone question the rephrase step produced for the
@@ -122,6 +126,9 @@ class FullChain:
             raise ChainInitializationError(
                 "Chain not built; call create_full_chain() first."
             )
+        # Session lifecycle: record activity (and lazily expire idle
+        # sessions) on the same call that touches the history.
+        self._memory.touch_session(session_id)
         result = self._chain.invoke(
             {"question": query},
             config={"configurable": {"thread_id": session_id}},
@@ -143,6 +150,7 @@ class FullChain:
             raise ChainInitializationError(
                 "Chain not built; call create_full_chain() first."
             )
+        self._memory.touch_session(session_id)
         for chunk in self._chain.stream(
             {"question": query},
             config={"configurable": {"thread_id": session_id}},

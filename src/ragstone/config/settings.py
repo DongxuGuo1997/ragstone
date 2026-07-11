@@ -349,6 +349,13 @@ class MemoryConfig:
             "RAGSTONE_CHECKPOINT_DB", "store/checkpoints.sqlite"
         )
     )
+    # Idle sessions are erased after this many seconds of inactivity
+    # (ROADMAP 5.10). 0 (the default) disables expiry — but a deployment
+    # answering GDPR storage-limitation questions should set it; see the
+    # SECURITY.md retention table.
+    session_ttl_seconds: int = field(
+        default_factory=lambda: int(os.getenv("RAGSTONE_SESSION_TTL", "0"))
+    )
 
     def __post_init__(self):
         """Validate memory configuration."""
@@ -359,6 +366,8 @@ class MemoryConfig:
                 "Valid values are 'memory' and 'sqlite' "
                 "(set via RAGSTONE_CHECKPOINT_BACKEND or config)."
             )
+        if self.session_ttl_seconds < 0:
+            raise ConfigurationError("RAGSTONE_SESSION_TTL must be >= 0")
 
 
 @dataclass

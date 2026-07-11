@@ -60,10 +60,19 @@ class _StubPipeline:
         return self._chain
 
     def ask_question(self, question, session_id=None, use_cache=True):
+        if session_id:
+            self.sessions = getattr(self, "sessions", set())
+            self.sessions.add(session_id)
         return f"answer to: {question}"
 
     def ask_question_stream(self, question, session_id=None, use_cache=True):
         yield from ["streamed ", "answer"]
+
+    def delete_session(self, session_id):
+        sessions = getattr(self, "sessions", set())
+        existed = session_id in sessions
+        sessions.discard(session_id)
+        return existed
 
     def close(self):
         self.closed = True
@@ -367,6 +376,38 @@ class TestAuth:
         client = TestClient(server.create_app(api_key="sekret"))
         assert client.get("/health").status_code == 200
         assert client.get("/ready").status_code == 503  # open, just not ready
+
+
+class TestSessionDeletion:
+    """DELETE /pipelines/{id}/sessions/{sid} — the right-to-erasure
+    endpoint (ROADMAP 5.10)."""
+
+    def test_delete_reports_existence_and_is_idempotent(self, client):
+        _create_ready_pipeline(client)
+        client.post(
+            "/pipelines/p1/ask", json={"question": "q?", "session_id": "erase-me"}
+        )
+
+        first = client.delete("/pipelines/p1/sessions/erase-me")
+        assert first.status_code == 200
+        assert first.json() == {
+            "pipeline_id": "p1",
+            "session_id": "erase-me",
+            "deleted": True,
+        }
+        # Second delete: still 200, honestly reports nothing existed.
+        second = client.delete("/pipelines/p1/sessions/erase-me")
+        assert second.status_code == 200
+        assert second.json()["deleted"] is False
+
+    def test_unknown_pipeline_is_404(self, client):
+        response = client.delete("/pipelines/ghost/sessions/s1")
+        assert response.status_code == 404
+
+    def test_requires_api_key_when_auth_enabled(self):
+        client = TestClient(server.create_app(api_key="k1", max_concurrency=2))
+        response = client.delete("/pipelines/p1/sessions/s1")
+        assert response.status_code == 401
 
 
 class TestPersistence:
