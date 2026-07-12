@@ -425,6 +425,8 @@ class StreamlitApp:
         kind = event.get("event")
         if kind == "search":
             return f'🔍 Searching: "{event.get("query", "")}"'
+        if kind == "calculate":
+            return f'🧮 Calculating: "{event.get("expression", "")}"'
         if kind == "retrieve":
             return f'📥 Retrieving: "{event.get("query", "")}"'
         if kind == "grade":

@@ -2,9 +2,10 @@
 
 The fixed chains (simple / multi_query / fusion) retrieve exactly once,
 before the LLM sees any context — one retrieval, one answer call,
-predictable latency and cost. In agent mode the LLM is instead given the
-retriever as a tool and drives the loop itself: search, read the results,
-optionally search again with a refined query, then answer.
+predictable latency and cost. In agent mode the LLM is instead given
+tools — the retriever as a search tool, plus an exact calculator — and
+drives the loop itself: search, read the results, optionally search
+again with a refined query, compute what needs computing, then answer.
 
 That flexibility can recover from a bad first retrieval, but it costs
 extra LLM calls, tokens, and latency. Whether it is worth it is an
@@ -16,7 +17,9 @@ empirical question — measure it with the eval harness:
 and compare quality and efficiency in evals/report.md.
 """
 
+import ast
 import logging
+import operator
 from typing import Any, Dict, Iterator, Optional, Union
 
 from langchain.agents import create_agent
@@ -36,9 +39,82 @@ AGENT_SYSTEM_PROMPT = (
     "collection. Use the search_documents tool to find relevant context "
     "before answering. If the first results do not answer the question, "
     "refine your query and search again — but use at most three searches. "
-    "If the documents do not contain the answer, just say that you don't "
-    "know. Use three sentences maximum and keep the answer concise."
+    "When the answer requires arithmetic (a percentage, total, or "
+    "difference over retrieved numbers), compute it with the calculate "
+    "tool instead of estimating. If the documents do not contain the "
+    "answer, just say that you don't know. Use three sentences maximum "
+    "and keep the answer concise."
 )
+
+# --- calculate tool -------------------------------------------------------
+# LLMs retrieve numbers well and multiply them badly; the regulatory set's
+# fine-tier questions (4 % of turnover, EUR 20 000 000 caps) are exactly
+# the shape that goes wrong. The evaluator is a strict arithmetic-only AST
+# walk — never eval(): a tool argument is model-generated text, and models
+# can be prompt-injected by retrieved documents.
+
+_BIN_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+_MAX_EXPRESSION_CHARS = 200
+# Big-int growth guard: exponents and results are bounded so a hostile
+# expression cannot burn CPU on million-digit arithmetic.
+_MAX_POW_EXPONENT = 64
+_MAX_RESULT_BITS = 10_000
+
+
+def _eval_node(node: ast.AST) -> Any:
+    if isinstance(node, ast.Expression):
+        return _eval_node(node.body)
+    if (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, (int, float))
+        and not isinstance(node.value, bool)
+    ):
+        return node.value
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        value = _eval_node(node.operand)
+        return -value if isinstance(node.op, ast.USub) else value
+    if isinstance(node, ast.BinOp) and type(node.op) in _BIN_OPS:
+        left, right = _eval_node(node.left), _eval_node(node.right)
+        if isinstance(node.op, ast.Pow) and abs(right) > _MAX_POW_EXPONENT:
+            raise ValueError(f"exponent above the limit of {_MAX_POW_EXPONENT}")
+        result = _BIN_OPS[type(node.op)](left, right)
+        if isinstance(result, int) and result.bit_length() > _MAX_RESULT_BITS:
+            raise ValueError("intermediate result too large")
+        return result
+    raise ValueError("only numbers and + - * / // % ** ( ) are supported")
+
+
+def evaluate_arithmetic(expression: str) -> str:
+    """Evaluate a pure arithmetic expression; errors come back as text.
+
+    The agent reads the tool result either way — a readable error lets it
+    correct the expression and retry, where an exception would abort the
+    whole answer.
+    """
+    if len(expression) > _MAX_EXPRESSION_CHARS:
+        return f"Error: expression longer than {_MAX_EXPRESSION_CHARS} characters."
+    try:
+        result = _eval_node(ast.parse(expression, mode="eval"))
+    except ZeroDivisionError:
+        return "Error: division by zero."
+    except (ValueError, SyntaxError, OverflowError) as exc:
+        return (
+            f"Error: {exc}. Give a pure arithmetic expression, "
+            f"e.g. '0.04 * 20000000'."
+        )
+    if isinstance(result, float):
+        # .12g strips float noise (0.1 + 0.2 -> 0.3) without rounding
+        # away real precision at the magnitudes documents contain.
+        return f"{result:.12g}"
+    return str(result)
 
 
 def _content_text(content: Any) -> str:
@@ -79,8 +155,17 @@ class AgentRagChain(Runnable[Any, str]):
             docs = retriever.invoke(query)
             return format_docs(docs) or "No matching passages found."
 
+        @tool
+        def calculate(expression: str) -> str:
+            """Evaluate an arithmetic expression exactly (numbers and
+            + - * / // % ** only), e.g. "0.04 * 20000000". Use it for any
+            percentage, total, or difference instead of computing in your
+            head."""
+            get_stream_writer()({"event": "calculate", "expression": expression})
+            return evaluate_arithmetic(expression)
+
         self._agent = create_agent(
-            llm, [search_documents], system_prompt=AGENT_SYSTEM_PROMPT
+            llm, [search_documents, calculate], system_prompt=AGENT_SYSTEM_PROMPT
         )
         # "At most three searches" in the system prompt is a soft bound a
         # misbehaving model can ignore; this is the hard one. Each search

@@ -16,6 +16,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.outputs import ChatGenerationChunk
 
+from ragstone.rag.agent import evaluate_arithmetic
 from ragstone.rag.memory import MemoryProxy, SimpleTextRetriever
 from ragstone.rag.rag import RagProxy
 from ragstone.utils.exceptions import ValidationError
@@ -79,6 +80,15 @@ def _search_call(query, call_id):
         "",
         tool_calls=[
             {"name": "search_documents", "args": {"query": query}, "id": call_id}
+        ],
+    )
+
+
+def _calculate_call(expression, call_id):
+    return AIMessage(
+        "",
+        tool_calls=[
+            {"name": "calculate", "args": {"expression": expression}, "id": call_id}
         ],
     )
 
@@ -207,6 +217,104 @@ class TestAgentRagChain:
         full_chain.create_full_chain("agent")
 
         assert full_chain.ask_question("capital?", session_id="s1") == "Paris."
+
+
+class TestCalculatorEvaluator:
+    """The arithmetic evaluator: exact, strict, and never an eval()."""
+
+    @pytest.mark.parametrize(
+        "expression,expected",
+        [
+            ("0.04 * 20000000", "800000"),
+            ("2 + 3 * 4", "14"),  # precedence
+            ("(2 + 3) * 4", "20"),
+            ("7 // 2", "3"),
+            ("7 % 2", "1"),
+            ("2 ** 10", "1024"),
+            ("-5 + 3", "-2"),
+            ("10_000_000 * 0.02", "200000"),  # underscored literals
+            ("0.1 + 0.2", "0.3"),  # float noise stripped by .12g
+            ("1 / 3", "0.333333333333"),
+        ],
+    )
+    def test_evaluates_exactly(self, expression, expected):
+        assert evaluate_arithmetic(expression) == expected
+
+    @pytest.mark.parametrize(
+        "expression",
+        [
+            "__import__('os').system('true')",  # call/name
+            "().__class__",  # attribute access
+            "[1][0]",  # subscript
+            "'a' * 3",  # strings
+            "True + 1",  # bools are not numbers here
+            "lambda: 1",
+            "x + 1",  # free variable
+            "1; 2",  # statements
+        ],
+    )
+    def test_non_arithmetic_is_refused_as_text(self, expression):
+        result = evaluate_arithmetic(expression)
+        assert result.startswith("Error:")
+        assert "0.04 * 20000000" in result  # the fix-it example rides along
+
+    def test_division_by_zero_is_a_message_not_a_crash(self):
+        assert evaluate_arithmetic("1 / 0") == "Error: division by zero."
+
+    def test_runaway_exponent_is_bounded(self):
+        assert evaluate_arithmetic("9 ** 9 ** 9").startswith("Error:")
+
+    def test_runaway_bigint_growth_is_bounded(self):
+        # Each exponent obeys the per-op limit; the RESULT-size guard is
+        # what stops the chain from growing to millions of digits.
+        assert evaluate_arithmetic("((9 ** 64) ** 64) ** 64").startswith("Error:")
+
+    def test_overlong_expression_is_refused(self):
+        assert evaluate_arithmetic("1 + " * 100 + "1").startswith("Error:")
+
+
+class TestCalculatorTool:
+    """The agent can call calculate and its result reaches the answer."""
+
+    def test_agent_calculates_then_answers(self):
+        chain, _ = _make_agent_chain(
+            [
+                _calculate_call("0.04 * 20000000", "c1"),
+                AIMessage("The maximum fine is 800000 euros."),
+            ]
+        )
+        answer = chain.invoke("what is 4% of 20 million?")
+        assert answer == "The maximum fine is 800000 euros."
+
+    def test_agent_can_mix_search_and_calculate(self):
+        retriever = QueryRecordingRetriever.from_texts(
+            ["The cap is 4% of 20000000 EUR turnover."]
+        )
+        chain, _ = _make_agent_chain(
+            [
+                _search_call("fine cap", "c1"),
+                _calculate_call("0.04 * 20000000", "c2"),
+                AIMessage("800000 EUR."),
+            ],
+            retriever=retriever,
+        )
+        assert chain.invoke("maximum fine?") == "800000 EUR."
+        assert retriever.queries == ["fine cap"]
+
+    def test_calculate_surfaces_as_progress_event(self):
+        llm = StreamingToolCallFakeModel(
+            messages=iter(
+                [_calculate_call("2 + 2", "c1"), AIMessage("The total is 4.")]
+            )
+        )
+        retriever = SimpleTextRetriever.from_texts(["doc"])
+        chain = RagProxy(model=llm, retriever=retriever).make_agent_chain()
+
+        items = list(chain.stream_with_events("total?"))
+
+        events = [i for i in items if isinstance(i, dict)]
+        assert events == [{"event": "calculate", "expression": "2 + 2"}]
+        assert "".join(i for i in items if isinstance(i, str)) == "The total is 4."
 
 
 class TestHardBound:

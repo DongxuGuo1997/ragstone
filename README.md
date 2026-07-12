@@ -398,10 +398,16 @@ mode too. In the Streamlit UI, enable it under Advanced Settings.
 ### Agent mode: pipeline vs. agent, measured
 
 Ragstone's default is a fixed pipeline — retrieve once, answer once. The
-`agent` chain type is the counterpoint: the LLM gets the retriever as a
-`search_documents` tool and drives the loop itself, searching again with a
-refined query when the first results don't answer the question (built on
-LangChain 1.x `create_agent`).
+`agent` chain type is the counterpoint: the LLM gets tools — the retriever
+as `search_documents`, plus an exact `calculate` tool (LLMs retrieve
+numbers well and multiply them badly; the calculator is a strict
+arithmetic-only AST evaluator, never an `eval()`) — and drives the loop
+itself, searching again with a refined query when the first results don't
+answer the question (built on LangChain 1.x `create_agent`). Adding the
+calculator was gated the usual way: a before/after smoke pair measured
+identical quality (correct 0.951, faithful 1.0) with the tool in the menu,
+and answers to comparison questions started including correctly computed
+deltas ("longer by 3 years") instead of leaving arithmetic to the reader.
 
 ```python
 pipeline.create_rag_chain(chain_type="agent")

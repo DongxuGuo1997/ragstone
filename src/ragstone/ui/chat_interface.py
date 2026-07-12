@@ -88,6 +88,8 @@ def format_event_line(event: Dict[str, Any]) -> Optional[str]:
     kind = event.get("event")
     if kind == "search":
         return f"searching: {event.get('query', '')}"
+    if kind == "calculate":
+        return f"calculating: {event.get('expression', '')}"
     if kind == "retrieve":
         return f"retrieving: {event.get('query', '')}"
     if kind == "grade":
