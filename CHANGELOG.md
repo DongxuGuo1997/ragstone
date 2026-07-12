@@ -6,6 +6,19 @@ Notable changes to Ragstone. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **Local embedding default: embeddinggemma** (Experiment 25 / ROADMAP
+  8.2): a 622 MB model that matches the cloud embedder on real legal
+  text (hit 0.80/MRR 0.65 vs nomic's 0.56/0.47) and improves the smoke
+  slice (1.0/0.939); end-to-end local correctness rose +7–14pp from the
+  swap alone. New machinery: a per-family task-convention table
+  (validated empirically — embeddinggemma's documented templates
+  measured HARMFUL and are deliberately not applied),
+  `RAGSTONE_OLLAMA_EMBED_MODEL` (pin an embedder, fail-loud), and
+  `RAGSTONE_EMBED_TASK_PREFIXES` (A-B knob). Also measured: thinking
+  mode bought zero correctness at 33× latency — reasoning does not fix
+  retrieval ambiguity.
+
 ### Added
 - **Second corpus at full power** (Experiment 24 / ROADMAP 3.0 v2):
   the regulatory golden set expanded 27 → 68 machine-audited cases

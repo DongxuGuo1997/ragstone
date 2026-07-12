@@ -1290,6 +1290,78 @@ verdict we'd rejected and rejected one we'd just celebrated.**
 
 ---
 
+## Experiment 25 — Local embedding tiers: a 622 MB model closes the gap thinking couldn't
+
+**Question.** Experiments 23–24 isolated the local stack's weakness to
+its embedder: nomic hit 0.56 vs the cloud's 0.78 on real legal text
+while local *generation* held. Two candidate fixes were on the table —
+better local embeddings, or reasoning mode compensating for ambiguous
+retrieval. Both got measured; only one survived.
+
+**Method.** Four freshly pulled local embedders on the regulatory
+retrieval slice (n=50, free, all-local), each run WITH its model-card
+task convention and WITHOUT (`RAGSTONE_EMBED_TASK_PREFIXES=off` — the
+A-B knob added for exactly this, so conventions are validated, not
+trusted; the Experiment 22 lesson institutionalized). New machinery:
+the nomic-only wrapper generalized to a per-family convention table,
+and `RAGSTONE_OLLAMA_EMBED_MODEL` to pin an embedder with fail-LOUD
+semantics (substituting an embedder under a persisted index would query
+vectors the corpus was never embedded in).
+
+| local embedder (size) | prefixes | hit | MRR |
+|---|---|---:|---:|
+| nomic-embed-text, 274 MB (old default) | card | 0.56 | 0.470 |
+| mxbai-embed-large, 669 MB | card | 0.68 | 0.548 |
+| mxbai-embed-large | bare | 0.68 | 0.532 |
+| bge-m3, 1.2 GB | (none needed) | 0.78 | 0.620 |
+| embeddinggemma, 622 MB | card | 0.76 | 0.620 |
+| **embeddinggemma** | **bare** | **0.80** | **0.650** |
+| snowflake-arctic-embed2, 568 MB | card | 0.76 | 0.608 |
+| snowflake-arctic-embed2 | bare | 0.66 | 0.523 |
+| *cloud text-embedding-3-small* | — | 0.78 | 0.657 |
+
+**The A-B arms earned their keep twice.** Arctic's `query:` prefix is
+worth +10pp hit — its convention confirmed. embeddinggemma's documented
+templates measured HARMFUL through Ollama (−4pp hit vs bare; the
+modelfile template is a passthrough, so the cause is uncertain —
+possibly runner-side handling). Its table entry is deliberately absent,
+with the measurement cited. Conventions are hypotheses; slices vote.
+
+**Promotion gates — all passed.** embeddinggemma (bare) had to hold
+every other slice before becoming the probed default: smoke retrieval
+**1.0/0.939** (beats nomic's 0.974/0.895); single_doc 0.875/0.667
+(held, inside nomic's card-noise band); and end-to-end on regulatory
+the swap alone lifted local correctness **0.643 → 0.714–0.786** across
+runs (band = answerer temperature + card nondeterminism; both ends
+clear of nomic) with multi-turn 0.75 — the local stack now sits at the
+cloud stack's level on this corpus (0.750). One honest miss: the local
+cross-encoder is NOT additive on top of embeddinggemma here
+(0.78/0.622 with rerank vs 0.80/0.65 without) — the reranker's
+"biggest lever" role was specific to weaker first-stage embeddings.
+
+**The alternative that lost: thinking mode.** qwen3.5:9b with
+reasoning ON on the same corpus: correct **0.714 at n=42 — identical
+to thinking-off — at a mean 150 s/ask vs 4.6 s (33×)**, ~2,900
+reasoning tokens per answer. The run was stopped at 42/68 cases after
+the host machine logged a thermal-emergency sleep: the verdict was
+already unambiguous (partial n and the missing multi-turn slice noted;
+no conceivable remaining outcome flips "equal quality at 33× cost").
+Reasoning does not fix retrieval ambiguity — the model deliberates
+eloquently over the wrong chunks. Better embeddings fix it at zero
+latency cost. Process note, recorded: the thinking arm was launched
+off short-answer probe timings instead of its own `--limit` pilot —
+per-arm pilots are now the rule.
+
+**Decision.** embeddinggemma leads the probe order (nomic stays as
+fallback); baselines re-recorded for the new default; the convention
+table + pin + A-B knob ship as the durable machinery. The transferable
+lessons: **the cheapest component swap in the stack (274→622 MB
+embedder) outperformed a 33× latency spend on reasoning — fix
+retrieval at the retrieval layer; and validate every model-card
+convention empirically, because one of four was measurably wrong.**
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

@@ -676,10 +676,12 @@ current 49-case smoke set, thinking disabled via
 `RAGSTONE_OLLAMA_REASONING=off`, scored by the same cloud judge as the
 cloud baseline, M4 Max / 128 GB).
 
-**Local retrieval** (k=4): `nomic-embed-text` + ensemble reaches hit
-0.947–0.974 / MRR ~0.89; adding the local reranker lands **hit 1.0 /
-MRR 1.0** — fully-local retrieval matches the best cloud configuration
-on this corpus.
+**Local retrieval** (k=4): the probed default is now
+`embeddinggemma` (622 MB, promoted by Experiment 25): smoke hit **1.0 /
+MRR 0.939**, and on the real regulatory corpus it matches the cloud
+embedder (hit 0.80 vs 0.78) where the previous default trailed badly
+(0.56). Adding the local reranker on the fictional corpus lands **hit
+1.0 / MRR 1.0**.
 
 **Local generation**, by hardware tier:
 

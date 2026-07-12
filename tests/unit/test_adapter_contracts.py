@@ -422,7 +422,10 @@ class TestEmbedTextsCached:
 
 def _stub_config(prefer_ollama: bool):
     return SimpleNamespace(
-        llm=SimpleNamespace(prefer_ollama_embeddings=prefer_ollama), profile=""
+        llm=SimpleNamespace(
+            prefer_ollama_embeddings=prefer_ollama, ollama_embed_model=None
+        ),
+        profile="",
     )
 
 
@@ -443,33 +446,66 @@ class _RecordingOllamaEmbeddings:
         return [0.1]
 
 
-class TestNomicTaskPrefixes:
-    """nomic requires search_query:/search_document: prefixes; the wrapper
-    is what applies them (Experiment 22 — bare nomic ranks contributor
-    name-lists as near-universal nearest neighbors)."""
+class TestTaskPrefixes:
+    """Embedding models have per-family task conventions from their model
+    cards; the wrapper applies them (Experiment 22 — bare nomic ranked
+    contributor name-lists as near-universal nearest neighbors)."""
 
-    def test_document_and_query_sides_get_their_prefixes(self):
+    def test_nomic_prefixes_both_sides(self):
         inner = _RecordingOllamaEmbeddings(model="nomic-embed-text:latest")
-        wrapped = embeddings_module.NomicTaskEmbeddings(inner)
-
+        wrapped = embeddings_module.TaskPrefixedEmbeddings(
+            inner, *embeddings_module._task_convention_for("nomic-embed-text:latest")
+        )
         wrapped.embed_documents(["chunk one", "chunk two"])
         wrapped.embed_query("what is kestrelnet?")
-
         assert inner.document_calls == [
             ["search_document: chunk one", "search_document: chunk two"]
         ]
         assert inner.query_calls == ["search_query: what is kestrelnet?"]
 
-    def test_probe_wraps_nomic_but_not_other_models(self, monkeypatch):
+    def test_mxbai_prefixes_queries_only(self):
+        inner = _RecordingOllamaEmbeddings(model="mxbai-embed-large")
+        wrapped = embeddings_module.TaskPrefixedEmbeddings(
+            inner, *embeddings_module._task_convention_for("mxbai-embed-large")
+        )
+        wrapped.embed_documents(["a chunk"])
+        wrapped.embed_query("a query")
+        assert inner.document_calls == [["a chunk"]]  # docs stay bare
+        assert inner.query_calls == [
+            "Represent this sentence for searching relevant passages: a query"
+        ]
+
+    def test_embeddinggemma_has_no_convention_by_measurement(self):
+        # Its documented templates measured HARMFUL through Ollama
+        # (Experiment 25's A-B: 0.76/0.62 templated vs 0.80/0.65 bare),
+        # so the default probe must yield the BARE embedder.
+        assert embeddings_module._task_convention_for("embeddinggemma") is None
+
+    def test_probe_wraps_known_families_but_not_others(self, monkeypatch):
         monkeypatch.setattr(
             embeddings_module,
             "_ollama_embeddings_cls",
             lambda: _RecordingOllamaEmbeddings,
         )
-        nomic = embeddings_module._probe_ollama_model("nomic-embed-text:latest")
-        other = embeddings_module._probe_ollama_model("all-minilm")
-        assert isinstance(nomic, embeddings_module.NomicTaskEmbeddings)
-        assert isinstance(other, _RecordingOllamaEmbeddings)
+        for family_model in ("nomic-embed-text:latest", "mxbai-embed-large"):
+            probed = embeddings_module._probe_ollama_model(family_model)
+            assert isinstance(probed, embeddings_module.TaskPrefixedEmbeddings)
+        # bge-m3 / embeddinggemma need no convention: bare embedder.
+        for bare_model in ("bge-m3", "embeddinggemma"):
+            assert isinstance(
+                embeddings_module._probe_ollama_model(bare_model),
+                _RecordingOllamaEmbeddings,
+            )
+
+    def test_prefixes_can_be_disabled_for_ab_measurement(self, monkeypatch):
+        monkeypatch.setattr(
+            embeddings_module,
+            "_ollama_embeddings_cls",
+            lambda: _RecordingOllamaEmbeddings,
+        )
+        monkeypatch.setenv("RAGSTONE_EMBED_TASK_PREFIXES", "off")
+        probed = embeddings_module._probe_ollama_model("nomic-embed-text:latest")
+        assert isinstance(probed, _RecordingOllamaEmbeddings)
 
     def test_wrapper_gets_its_own_cache_namespace(self):
         # The cache and corpus fingerprint key on class name + model:
@@ -477,9 +513,51 @@ class TestNomicTaskPrefixes:
         from ragstone.rag.embedding_cache import model_id_for
 
         inner = _RecordingOllamaEmbeddings(model="nomic-embed-text:latest")
-        wrapped = embeddings_module.NomicTaskEmbeddings(inner)
+        wrapped = embeddings_module.TaskPrefixedEmbeddings(inner, "{t}", "{q}")
         assert model_id_for(wrapped) != model_id_for(inner)
         assert "nomic-embed-text:latest" in model_id_for(wrapped)
+
+
+class TestPinnedEmbedder:
+    """RAGSTONE_OLLAMA_EMBED_MODEL: honor the pin or fail loud — never
+    substitute a different embedder than the operator chose."""
+
+    @pytest.fixture(autouse=True)
+    def _fresh(self, monkeypatch):
+        monkeypatch.setattr(embeddings_module, "_selected_embeddings", None)
+
+    def _config(self, pinned):
+        return SimpleNamespace(
+            llm=SimpleNamespace(
+                prefer_ollama_embeddings=True, ollama_embed_model=pinned
+            ),
+            profile="",
+        )
+
+    def test_pinned_model_is_probed_directly(self, monkeypatch):
+        winner = object()
+        probed = []
+
+        def fake_probe(name):
+            probed.append(name)
+            return winner
+
+        monkeypatch.setattr(embeddings_module, "_probe_ollama_model", fake_probe)
+        monkeypatch.setattr(
+            embeddings_module, "get_config", lambda: self._config("mxbai-embed-large")
+        )
+        assert embeddings_module._select_smart_embeddings() is winner
+        assert probed == ["mxbai-embed-large"]
+
+    def test_unavailable_pin_fails_loud_not_fallback(self, monkeypatch):
+        monkeypatch.setattr(embeddings_module, "_probe_ollama_model", lambda name: None)
+        monkeypatch.setattr(
+            embeddings_module, "get_config", lambda: self._config("ghost-model")
+        )
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-real")
+        # Even with an OpenAI key available, the pin must not silently
+        # substitute: None -> the caller raises a clear error.
+        assert embeddings_module._select_smart_embeddings() is None
 
 
 class TestSmartEmbeddingSelection:
@@ -493,12 +571,13 @@ class TestSmartEmbeddingSelection:
 
         def fake_probe(model_name):
             probed.append(model_name)
-            return winner if model_name == "nomic-embed-text:latest" else None
+            return winner if model_name == "embeddinggemma:latest" else None
 
         monkeypatch.setattr(embeddings_module, "_probe_ollama_model", fake_probe)
         monkeypatch.setattr(embeddings_module, "get_config", lambda: _stub_config(True))
         assert _select_smart_embeddings() is winner
-        assert probed == ["nomic-embed-text:latest"]  # stopped at first hit
+        # embeddinggemma leads the probe order by measurement (Exp 25).
+        assert probed == ["embeddinggemma:latest"]  # stopped at first hit
 
     def test_probe_failure_falls_back_to_openai(self, monkeypatch):
         sentinel = object()

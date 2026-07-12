@@ -160,6 +160,14 @@ class LLMConfig:
         )
     )
     prefer_ollama_embeddings: bool = True  # Try Ollama first, fallback to OpenAI
+    # Pin the local embedding model instead of probing the default order
+    # (RAGSTONE_OLLAMA_EMBED_MODEL, e.g. "mxbai-embed-large"). Unset =
+    # probe. A pinned model that does not respond is a LOUD failure, not
+    # a fallback: with a persisted index, substituting an embedder means
+    # querying with vectors the corpus was never embedded in.
+    ollama_embed_model: Optional[str] = field(
+        default_factory=lambda: os.getenv("RAGSTONE_OLLAMA_EMBED_MODEL") or None
+    )
     default_temperature: float = 0.0
     # Applied to every LLM/embedding client (see models/base_model.py and
     # rag/embeddings.py): bounded retries on transient API errors, and a

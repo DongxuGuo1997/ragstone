@@ -443,15 +443,20 @@ Data-flow modes (strict-local / local-with-cloud-eval / hybrid)
 documented in SECURITY.md. Honest limitation recorded: the guard sees
 connections, not libc DNS lookups.
 
-### 8.2 A measured local model menu, in tiers — M
-`llama3` as the sole local default is dated. Curate and MEASURE three
-tiers — edge (3-4B class), workstation (7-14B), server (70B+ / MoE) —
-plus one reasoning-distill model to answer whether thinking models
-close the local corrective/agent gap. The default per tier is decided
-by the harness, like every other default in this repo.
-*Measure:* eval columns per tier; the size-vs-quality knee is the
-deliverable clients ask for ("what is the smallest model we can
-defend?").
+### 8.2 A measured local model menu, in tiers — SUBSTANTIALLY DELIVERED (Experiments 21 + 25)
+Answerer tiers measured in Experiment 21 (edge/workstation/server ×
+quality/latency/tokens-per-second; qwen3.5:9b promoted to default).
+Embedding tiers measured in Experiment 25 — the gap Experiments 23/24
+isolated: embeddinggemma (622 MB, bare) matched the cloud embedder on
+real legal text (0.80/0.65 vs nomic's 0.56/0.47) and was promoted to
+the probe default behind all four promotion gates; per-family task
+conventions are now a validated table with an A-B knob, and
+RAGSTONE_OLLAMA_EMBED_MODEL pins an embedder fail-loud. The thinking
+question is answered: reasoning mode bought ZERO correctness at 33×
+latency on retrieval-confused questions (n=42, run stopped at a
+thermal-emergency sleep) — better embeddings, not deliberation, fix
+retrieval ambiguity. Remaining: a 70B-class local judge rerun, and
+re-running the answerer menu on the regulatory corpus.
 
 ### 8.3 Local utility model + constrained decoding — S/M
 Rephrase/grade/route on a small local sibling is the local analogue of

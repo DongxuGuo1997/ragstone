@@ -19,8 +19,15 @@ from ..config.settings import get_config
 
 logger = logging.getLogger(__name__)
 
-# Dedicated embedding models, fastest first.
+# Dedicated embedding models, probed in order. embeddinggemma leads by
+# measurement (Experiment 25): on real legal text it matched the cloud
+# embedder (hit 0.80/MRR 0.65 vs nomic's 0.56/0.47) and improved the
+# fictional smoke slice (1.0/0.939) — end-to-end, the local stack's
+# correctness rose +14.3pp from this swap alone. nomic remains the
+# fallback for installs that don't have it.
 _DEDICATED_MODELS = [
+    "embeddinggemma:latest",
+    "embeddinggemma",
     "nomic-embed-text:latest",
     "nomic-embed-text",
     "all-minilm:latest",
@@ -143,48 +150,84 @@ def make_openai_embeddings() -> Any:
     )
 
 
-class NomicTaskEmbeddings(Embeddings):
-    """nomic-embed-text with the task prefixes its model card requires.
+# Per-family retrieval task conventions, from each model's card. Embedding
+# models are trained with these markers; omitting them degrades silently —
+# Experiment 22 measured bare nomic ranking a needle chunk 5th behind
+# three contributor name-lists, 1st with prefixes. A model with no entry
+# (bge-m3) genuinely needs none. Each convention is validated empirically
+# (prefix on/off A-B on the retrieval slices, Experiment 25) — the table
+# records model-card contracts, the harness checks they actually help.
+_TASK_CONVENTIONS = {
+    "nomic-embed-text": ("search_document: {t}", "search_query: {q}"),
+    "mxbai-embed-large": (
+        "{t}",
+        "Represent this sentence for searching relevant passages: {q}",
+    ),
+    "snowflake-arctic-embed": ("{t}", "query: {q}"),
+    # embeddinggemma deliberately has NO entry: its documented templates
+    # measured HARMFUL through Ollama (hit 0.76/MRR 0.62 templated vs
+    # 0.80/0.65 bare — Experiment 25's A-B; the modelfile template is a
+    # passthrough, so the cause is uncertain). The A-B knob exists for
+    # exactly this: conventions are hypotheses until the slice votes.
+    "qwen3-embedding": (
+        "{t}",
+        "Instruct: Given a web search query, retrieve relevant passages "
+        "that answer the query\nQuery: {q}",
+    ),
+}
+
+
+class TaskPrefixedEmbeddings(Embeddings):
+    """An Ollama embedder with the task templates its model card requires.
 
     Subclasses the langchain Embeddings ABC — vector stores isinstance-
-    check it (FAISS treats anything else as a bare callable).
-
-    nomic embeds queries and documents into a shared space ONLY when told
-    which side each text is on (``search_query:`` / ``search_document:``);
-    langchain-ollama does not add them. Without the prefixes the geometry
-    degrades measurably — content-empty chunks (contributor name lists)
-    become near-universal nearest neighbors (Experiment 22: the sd08
-    needle chunk ranked 5th behind three name lists bare, 1st prefixed).
-
-    The class name is deliberately distinct: the embedding cache and the
-    corpus fingerprint both key on ``type(embeddings).__name__`` plus the
-    model attribute, so prefixed vectors can never collide with vectors
-    cached by the bare embedder. mxbai-embed-large has its own query
-    prompt convention — wire it here if it ever becomes the probed
-    default, with its own measurement.
+    check it (FAISS treats anything else as a bare callable). The class
+    name plus the model attribute form the embedding-cache and corpus-
+    fingerprint identity, so prefixed vectors can never collide with
+    vectors from the bare embedder; templates are keyed 1:1 by model
+    family, so one identity never spans two conventions.
     """
 
-    def __init__(self, inner: Any) -> None:
+    def __init__(self, inner: Any, doc_template: str, query_template: str) -> None:
         self._inner = inner
+        self._doc_template = doc_template
+        self._query_template = query_template
         self.model = inner.model  # cache/fingerprint identity
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        return self._inner.embed_documents([f"search_document: {t}" for t in texts])
+        return self._inner.embed_documents(
+            [self._doc_template.replace("{t}", t) for t in texts]
+        )
 
     def embed_query(self, text: str) -> List[float]:
-        return self._inner.embed_query(f"search_query: {text}")
+        return self._inner.embed_query(self._query_template.replace("{q}", text))
+
+
+def _task_convention_for(model_name: str):
+    """The (doc, query) templates for a model, or None if it needs none."""
+    for family, templates in _TASK_CONVENTIONS.items():
+        if model_name.startswith(family):
+            return templates
+    return None
 
 
 def _probe_ollama_model(model_name: str) -> Optional[Any]:
     """Build OllamaEmbeddings for a model and verify it actually embeds.
 
-    Returns the working embeddings (task-prefixed for nomic), or None if
-    the model is unavailable or the test embedding fails.
+    Returns the working embeddings (task-prefixed per the model's
+    convention), or None if the model is unavailable or the test
+    embedding fails. RAGSTONE_EMBED_TASK_PREFIXES=off disables wrapping —
+    the A-B knob that lets the harness validate each convention instead
+    of trusting the table.
     """
     try:
         embeddings: Any = _ollama_embeddings_cls()(model=model_name)
-        if model_name.startswith("nomic-embed-text"):
-            embeddings = NomicTaskEmbeddings(embeddings)
+        convention = _task_convention_for(model_name)
+        prefixes_on = (
+            os.getenv("RAGSTONE_EMBED_TASK_PREFIXES", "on").strip().lower() != "off"
+        )
+        if convention is not None and prefixes_on:
+            embeddings = TaskPrefixedEmbeddings(embeddings, *convention)
         if embeddings.embed_query("test"):
             logger.info(f"Using Ollama embedding model: {model_name}")
             return embeddings
@@ -209,6 +252,22 @@ def get_smart_embeddings() -> Optional[Any]:
 def _select_smart_embeddings() -> Optional[Any]:
     """Probe dedicated Ollama embedders, then the OpenAI fallback (uncached)."""
     config = get_config()
+
+    # An explicitly pinned embedder is an operator decision: honor it or
+    # fail LOUD. Falling back to a different model here would silently
+    # serve different retrieval than the operator chose (and with a
+    # persisted index, different vectors than the corpus was built with).
+    pinned = config.llm.ollama_embed_model
+    if pinned:
+        embeddings = _probe_ollama_model(pinned)
+        if embeddings:
+            return embeddings
+        logger.error(
+            f"RAGSTONE_OLLAMA_EMBED_MODEL={pinned!r} did not respond "
+            f"(fix: `ollama pull {pinned}`); refusing to substitute "
+            "another embedder."
+        )
+        return None
 
     if config.llm.prefer_ollama_embeddings:
         for model in _DEDICATED_MODELS:
