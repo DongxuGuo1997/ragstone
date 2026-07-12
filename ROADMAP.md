@@ -319,10 +319,19 @@ content, and are not retro-edited). The deletion test proves the turn
 AFTER erasure behaves as a first turn (no rephrase against ghost
 history). `/v1` path prefixes land with 5.9.
 
-#### 5.11 Boot-time config validation, fail-fast — S
-Validate the full config at startup (store reachable, model available,
-key present for the chosen provider) and refuse to boot half-working,
-with an actionable message per failure.
+#### 5.11 Boot-time config validation, fail-fast — DELIVERED (July 2026)
+`config/boot_check.py`, run by both server entry points (ragstone-api,
+ragstone-mcp) before serving: an answer path exists (Ollama responds or
+a key is present; under profile=local, Ollama specifically), pinned/
+required models are actually pulled (`ollama pull ...` named per miss),
+the selected store backend's extra is installed and its server answers
+(Qdrant HTTP, Postgres connect), the sqlite checkpointer extra is
+present, RAGSTONE_DATA_ROOT exists, and a configured OTLP endpoint has
+the otel extra behind it. ALL problems are reported in one message,
+each with its fix — not just the first. Probes touch only operator-
+configured endpoints (no-egress safe); RAGSTONE_BOOT_CHECKS=off is the
+escape hatch. Deliberately NOT in create_app()/tests — boot checks
+gate deployments, not test suites.
 
 #### 5.4 SSRF: per-hop redirect validation — S *(existing item, fits here)*
 #### 5.5 Output moderation hook — S *(existing item, fits here)*
@@ -352,11 +361,17 @@ backup and a hope.
 
 ## 6. Product surface
 
-### 6.1 Citation offsets — M
-`get_sources` returns chunks; returning character offsets per claim
-enables click-to-highlight in the UI — the single most convincing
-glass-box feature in demos.
-*Measure:* offsets verified against source docs in tests.
+### 6.1 Citation offsets — DELIVERED (July 2026)
+Shipped as `rag/citations.py`, the zero-risk way: instead of prompting
+the model to emit citation markers (a generation change that would need
+its own eval gate), maximal word-sequence matches between the answer
+and each retrieved snippet are computed AFTER the fact and mapped to
+exact character offsets. Both UIs render the offsets as evidence
+highlights — the reader sees which source words the answer is built
+from. Paraphrases deliberately don't highlight: a highlight is a
+verbatim-level claim, and fewer true highlights beat fuzzy ones.
+Offsets are verified against source text in `test_citations_spans.py`
+and the streaming path in `test_citations_streaming.py`.
 
 ### 6.2 Feedback loop → golden candidates — M
 A thumbs-down in the UI writes (question, answer, sources, session) to a

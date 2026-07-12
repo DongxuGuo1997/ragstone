@@ -373,6 +373,11 @@ def main():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
+    # Same boot doctrine as ragstone-api (ROADMAP 5.11): probe the
+    # environment and refuse to start half-working, all problems at once.
+    from ragstone.config.boot_check import run_boot_checks
+
+    run_boot_checks(config)
     logger.info("Starting Ragstone FastMCP Server...")
     mcp.run()
 

@@ -56,6 +56,7 @@ from anyio import to_thread
 
 from ragstone import __version__
 from ragstone.api.keys import ApiKeyRecord, ApiKeyStore
+from ragstone.config.boot_check import run_boot_checks
 from ragstone.config.settings import get_config
 from ragstone.rag.pipeline import DEFAULT_MODELS, build_pipeline
 from ragstone.utils.exceptions import PipelineError, ValidationError
@@ -783,7 +784,12 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    get_config()  # fail fast on invalid configuration
+    config = get_config()  # fail fast on invalid configuration VALUES
+    # ... and on a half-working ENVIRONMENT: store extras/endpoints,
+    # models pulled, credentials present (ROADMAP 5.11). Every problem
+    # is reported at once, each with its fix; RAGSTONE_BOOT_CHECKS=off
+    # is the escape hatch.
+    run_boot_checks(config)
     _maybe_setup_otel()
     host = os.getenv("RAGSTONE_API_HOST", "127.0.0.1")
     port = int(os.getenv("RAGSTONE_API_PORT", "8000"))
