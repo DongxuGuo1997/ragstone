@@ -200,6 +200,11 @@ class OllamaProxy(LLMProxy):
             # winning, same as base_url above.
             if config.llm.ollama_reasoning is not None:
                 kwargs.setdefault("reasoning", config.llm.ollama_reasoning)
+            # Same temperature default as the OpenAI proxy (0.0): factual
+            # RAG answering wants determinism, and Ollama model defaults
+            # (~0.6-0.8) sample. Gated July 2026: smoke quality held at
+            # temperature=0. The UI slider still wins via setdefault.
+            kwargs.setdefault("temperature", config.llm.default_temperature)
             self._llm = ChatOllama(
                 model=model_name, **kwargs
             )  # 'model' is the correct param for ChatOllama

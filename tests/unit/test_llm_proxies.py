@@ -55,3 +55,23 @@ class TestOllamaReasoningPassthrough:
         kwargs = recording_ollama.last_kwargs
         assert kwargs["base_url"] == get_config().api.ollama_base_url
         assert kwargs["client_kwargs"] == {"timeout": get_config().llm.timeout}
+
+
+class TestOllamaTemperatureParity:
+    """OllamaProxy defaults temperature like the OpenAI proxy does.
+
+    Before July 2026 only the OpenAI path defaulted to 0.0; Ollama
+    models silently ran at their own sampling defaults (~0.6-0.8), so
+    "the same pipeline, locally" answered with more randomness than the
+    cloud path it was measured against.
+    """
+
+    def test_temperature_defaults_to_config_value(self, recording_ollama):
+        base_model.OllamaProxy().set_llm(model_name="m")
+        expected = get_config().llm.default_temperature
+        assert recording_ollama.last_kwargs["temperature"] == expected == 0.0
+
+    def test_caller_temperature_beats_the_default(self, recording_ollama):
+        # The UI slider passes temperature explicitly; it must still win.
+        base_model.OllamaProxy().set_llm(model_name="m", temperature=0.7)
+        assert recording_ollama.last_kwargs["temperature"] == 0.7

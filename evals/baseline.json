@@ -81,14 +81,14 @@
   },
   "ollama:qwen3.5:9b|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|ollama-reasoning=off": {
     "metrics": {
-      "hit_rate": 0.974,
-      "mrr": 0.895,
-      "correct_rate": 0.976,
-      "faithful_rate": 0.951,
+      "hit_rate": 1.0,
+      "mrr": 0.939,
+      "correct_rate": 0.951,
+      "faithful_rate": 1.0,
       "multi_turn_correct_rate": 1.0,
       "multi_turn_faithful_rate": 1.0
     },
-    "date": "2026-07-09"
+    "date": "2026-07-12"
   },
   "ollama:gemma4:e4b|judge:openai:gpt-4o-mini|k=4|chain=simple|mode=full|ollama-reasoning=off": {
     "metrics": {
