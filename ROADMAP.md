@@ -523,6 +523,56 @@ no-egress test asserting the pin holds under every chain type.
 *Measure:* adversarial tests — no tagged-corpus token in any outbound
 request, including embeddings, rephrase, and eval calls.
 
+## 9. Staffing match — the showcase case (requested by management, July 2026)
+
+Match consultant CVs against a client assignment request: shortlist the
+best candidates and analyze each one's strengths and weaknesses with
+CV-cited evidence. Strategically ideal for the local-first path — CVs
+are GDPR personal data, so "no CV leaves the machine" turns 8.x from a
+benchmark into a business argument. Exercises hybrid retrieval (skills
+are keyword-dense), multi-step LangGraph orchestration, citations, and
+the eval culture end to end. Framing note for the pitch: candidate–job
+matching brushes the EU AI Act's high-risk employment category — this
+is human-in-the-loop decision support with evidence-cited claims, never
+automated selection.
+
+### 9.0 Synthetic staffing bench — DELIVERED (July 2026)
+40 fictional consultant CVs (embedded automotive, telecom, cloud,
+DevOps — the actual consultant mix) plus 8 client assignment briefs,
+generated spec-first by `evals/generate_staffing.py`. Ground truth is
+true by construction: personas are structured specs, expected match
+tiers come from a mechanical oracle (strong = every must-have met;
+partial = exactly one missing), and rendered prose is verified against
+the skill taxonomy — every spec skill mentioned, nothing leaked, OR
+requirements phrased as alternatives — so the labels cannot drift from
+what a matcher can read. Assignment a08 is deliberately unsatisfiable
+(zero strong matches): honest "no full match" reporting is itself
+measurable. The corpus doubles as contamination control — no model has
+ever seen these documents.
+
+### 9.1 Match chain: assignment → ranked shortlist — M
+Parse the brief into structured requirements (must/nice/years/language/
+domain), retrieve per requirement over person-tagged chunks, aggregate
+hits per candidate, score requirement coverage (not raw similarity),
+return a ranked shortlist with per-requirement evidence.
+*Measure:* eval slice against `golden_staffing.jsonl` — every
+expected-strong candidate surfaces in the top-k; no out-of-tier
+candidate outranks a strong one; a08 yields an explicit "no full
+match".
+
+### 9.2 Strengths/weaknesses analyst — M
+Per shortlisted candidate: strengths cited to CV lines (citations v1
+reuse) and gaps phrased as "not evidenced in CV" — absence of evidence
+is not evidence of absence, and the phrasing must say so.
+*Measure:* judged faithfulness of every claim against the CV text;
+for expected-partial candidates the oracle's missing requirement must
+be surfaced as the gap.
+
+### 9.3 Demo surface — S
+Streamlit flow: paste a brief, get the shortlist, drill into one
+candidate's evidence table — running fully on the local stack.
+*Measure:* end-to-end demo run with the no-egress profile.
+
 ## Inspiration / references
 
 Surveyed July 2026 while drafting this document:

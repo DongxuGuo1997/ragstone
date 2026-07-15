@@ -20,6 +20,16 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Staffing-match bench** (ROADMAP 9.0): 40 synthetic consultant CVs
+  (embedded automotive, telecom, cloud, DevOps) plus 8 client
+  assignment briefs for the CV↔assignment matching showcase, with
+  ground truth true by construction — personas are structured specs,
+  expected match tiers come from a mechanical oracle, and rendered
+  prose is regex-verified against the skill taxonomy (every spec skill
+  mentioned, none leaked, OR-requirements phrased as alternatives).
+  One assignment is deliberately unsatisfiable, so honest "no full
+  match" reporting is measurable. Also serves as a contamination
+  control: no model has ever seen these documents.
 - **Second corpus at full power** (Experiment 24 / ROADMAP 3.0 v2):
   the regulatory golden set expanded 27 → 68 machine-audited cases
   (multi-turn ×3) and the full chain matrix re-ran with statistical

@@ -1,0 +1,2792 @@
+[
+  {
+    "id": "cv01",
+    "name": "Astrid Okafor",
+    "title": "Senior Embedded Software Engineer",
+    "archetype": "auto_classic",
+    "years": 9,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "AUTOSAR Classic",
+      "CAN bus",
+      "MISRA C",
+      "ISO 26262",
+      "Python",
+      "Jenkins",
+      "FreeRTOS",
+      "SOME/IP"
+    ],
+    "certifications": [
+      "ISO 26262 functional-safety training (TUV)"
+    ],
+    "education": "MSc Computer Science and Engineering, Linkoping University, 2015",
+    "engagements": [
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2023-present",
+        "stack": [
+          "Embedded C",
+          "ISO 26262",
+          "SOME/IP",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "an ADAS software company",
+        "period": "2020-2023",
+        "stack": [
+          "AUTOSAR Classic",
+          "Python",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a tier-1 automotive supplier",
+        "period": "2018-2020",
+        "stack": [
+          "CAN bus",
+          "Jenkins",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2017-2018",
+        "stack": [
+          "MISRA C",
+          "FreeRTOS",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv02",
+    "name": "Aino Lindqvist",
+    "title": "Senior Embedded Software Engineer",
+    "archetype": "auto_classic",
+    "years": 16,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "AUTOSAR Classic",
+      "CAN bus",
+      "Vector CANoe",
+      "MISRA C",
+      "ASPICE"
+    ],
+    "certifications": [],
+    "education": "BSc Computer Science and Engineering, Lund University, 2009",
+    "engagements": [
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2022-present",
+        "stack": [
+          "Embedded C",
+          "ASPICE",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2018-2022",
+        "stack": [
+          "AUTOSAR Classic",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2015-2018",
+        "stack": [
+          "CAN bus",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "an ADAS software company",
+        "period": "2013-2015",
+        "stack": [
+          "Vector CANoe",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2010-2013",
+        "stack": [
+          "MISRA C",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv03",
+    "name": "Ingrid Lund",
+    "title": "Embedded Software Engineer",
+    "archetype": "auto_classic",
+    "years": 6,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "AUTOSAR Classic",
+      "CAN bus",
+      "Vector CANoe",
+      "MISRA C",
+      "Simulink",
+      "Jenkins",
+      "SOME/IP"
+    ],
+    "certifications": [],
+    "education": "BSc Computer Science and Engineering, Chalmers University of Technology, 2018",
+    "engagements": [
+      {
+        "role": "Embedded Software Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2024-present",
+        "stack": [
+          "Embedded C",
+          "Vector CANoe",
+          "Jenkins",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Embedded Software Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2022-2024",
+        "stack": [
+          "AUTOSAR Classic",
+          "MISRA C",
+          "SOME/IP",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Embedded Software Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2020-2022",
+        "stack": [
+          "CAN bus",
+          "Simulink",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv04",
+    "name": "Tomas Karlsson",
+    "title": "Embedded Software Engineer",
+    "archetype": "auto_classic",
+    "years": 3,
+    "location": "Lund, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "AUTOSAR Classic",
+      "CAN bus",
+      "Vector CANoe",
+      "ISO 26262",
+      "LIN",
+      "Python",
+      "Jenkins",
+      "dSPACE HIL",
+      "ASPICE"
+    ],
+    "certifications": [
+      "ISO 26262 functional-safety training (TUV)"
+    ],
+    "education": "MSc Computer Science and Engineering, Chalmers University of Technology, 2023",
+    "engagements": [
+      {
+        "role": "Embedded Software Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2024-present",
+        "stack": [
+          "Embedded C",
+          "CAN bus",
+          "ISO 26262",
+          "Python",
+          "dSPACE HIL",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Embedded Software Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2023-2024",
+        "stack": [
+          "AUTOSAR Classic",
+          "Vector CANoe",
+          "LIN",
+          "Jenkins",
+          "ASPICE",
+          "Embedded C"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv05",
+    "name": "Johan Haddad",
+    "title": "Senior Embedded Software Engineer",
+    "archetype": "auto_classic",
+    "years": 8,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "AUTOSAR Classic",
+      "CAN bus",
+      "Vector CANoe",
+      "MISRA C",
+      "LIN",
+      "dSPACE HIL"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Uppsala University, 2016",
+    "engagements": [
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2023-present",
+        "stack": [
+          "Embedded C",
+          "Vector CANoe",
+          "dSPACE HIL",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2020-2023",
+        "stack": [
+          "AUTOSAR Classic",
+          "MISRA C",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2018-2020",
+        "stack": [
+          "CAN bus",
+          "LIN",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv06",
+    "name": "Viktor Oberg",
+    "title": "Embedded Software Engineer",
+    "archetype": "auto_classic",
+    "years": 5,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "AUTOSAR Classic",
+      "CAN bus",
+      "Vector CANoe",
+      "MISRA C",
+      "LIN"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Chalmers University of Technology, 2021",
+    "engagements": [
+      {
+        "role": "Embedded Software Engineer",
+        "client": "an ADAS software company",
+        "period": "2024-present",
+        "stack": [
+          "Embedded C",
+          "CAN bus",
+          "MISRA C",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Embedded Software Engineer",
+        "client": "a tier-1 automotive supplier",
+        "period": "2021-2024",
+        "stack": [
+          "AUTOSAR Classic",
+          "Vector CANoe",
+          "LIN",
+          "Embedded C"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv07",
+    "name": "Sebastian Nilsson",
+    "title": "Embedded Software Engineer",
+    "archetype": "auto_classic",
+    "years": 3,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "AUTOSAR Classic",
+      "CAN bus",
+      "Vector CANoe",
+      "LIN",
+      "Simulink",
+      "Python"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Lund University, 2023",
+    "engagements": [
+      {
+        "role": "Embedded Software Engineer",
+        "client": "an ADAS software company",
+        "period": "2024-present",
+        "stack": [
+          "Embedded C",
+          "CAN bus",
+          "LIN",
+          "Python",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Embedded Software Engineer",
+        "client": "an ADAS software company",
+        "period": "2023-2024",
+        "stack": [
+          "AUTOSAR Classic",
+          "Vector CANoe",
+          "Simulink",
+          "Embedded C"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv08",
+    "name": "Anders Nielsen",
+    "title": "Senior Embedded Software Engineer",
+    "archetype": "auto_classic",
+    "years": 12,
+    "location": "Lund, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "AUTOSAR Classic",
+      "CAN bus",
+      "Vector CANoe",
+      "MISRA C",
+      "ISO 26262",
+      "LIN",
+      "Python"
+    ],
+    "certifications": [],
+    "education": "BSc Computer Science and Engineering, Lund University, 2014",
+    "engagements": [
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2024-present",
+        "stack": [
+          "Embedded C",
+          "ISO 26262",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2021-2024",
+        "stack": [
+          "AUTOSAR Classic",
+          "LIN",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2019-2021",
+        "stack": [
+          "CAN bus",
+          "Python",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2016-2019",
+        "stack": [
+          "Vector CANoe",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      },
+      {
+        "role": "Senior Embedded Software Engineer",
+        "client": "a tier-1 automotive supplier",
+        "period": "2014-2016",
+        "stack": [
+          "MISRA C",
+          "Embedded C",
+          "AUTOSAR Classic"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv09",
+    "name": "Priya Aaltonen",
+    "title": "Senior Software Engineer, Software-Defined Vehicle",
+    "archetype": "auto_adaptive",
+    "years": 11,
+    "location": "Stockholm, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "C++",
+      "AUTOSAR Adaptive",
+      "SOME/IP",
+      "Ethernet TSN",
+      "ISO 21434",
+      "Embedded Linux",
+      "gRPC"
+    ],
+    "certifications": [
+      "ISO 21434 cybersecurity engineering training"
+    ],
+    "education": "MSc Computer Science and Engineering, Chalmers University of Technology, 2013",
+    "engagements": [
+      {
+        "role": "Senior Software Engineer, Software-Defined Vehicle",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2022-present",
+        "stack": [
+          "C++",
+          "ISO 21434",
+          "AUTOSAR Adaptive"
+        ]
+      },
+      {
+        "role": "Senior Software Engineer, Software-Defined Vehicle",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2019-2022",
+        "stack": [
+          "AUTOSAR Adaptive",
+          "Embedded Linux",
+          "C++"
+        ]
+      },
+      {
+        "role": "Senior Software Engineer, Software-Defined Vehicle",
+        "client": "a major Swedish truck OEM",
+        "period": "2017-2019",
+        "stack": [
+          "SOME/IP",
+          "gRPC",
+          "C++",
+          "AUTOSAR Adaptive"
+        ]
+      },
+      {
+        "role": "Senior Software Engineer, Software-Defined Vehicle",
+        "client": "a tier-1 automotive supplier",
+        "period": "2015-2017",
+        "stack": [
+          "Ethernet TSN",
+          "C++",
+          "AUTOSAR Adaptive"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv10",
+    "name": "Dario Kowalski",
+    "title": "Senior Software Engineer, Software-Defined Vehicle",
+    "archetype": "auto_adaptive",
+    "years": 8,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "C++",
+      "AUTOSAR Adaptive",
+      "SOME/IP",
+      "Ethernet TSN",
+      "QNX",
+      "Embedded Linux",
+      "CAN bus",
+      "Yocto",
+      "gRPC"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, KTH Royal Institute of Technology, 2018",
+    "engagements": [
+      {
+        "role": "Senior Software Engineer, Software-Defined Vehicle",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2022-present",
+        "stack": [
+          "C++",
+          "Ethernet TSN",
+          "CAN bus",
+          "AUTOSAR Adaptive"
+        ]
+      },
+      {
+        "role": "Senior Software Engineer, Software-Defined Vehicle",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2020-2022",
+        "stack": [
+          "AUTOSAR Adaptive",
+          "QNX",
+          "Yocto",
+          "C++"
+        ]
+      },
+      {
+        "role": "Senior Software Engineer, Software-Defined Vehicle",
+        "client": "an ADAS software company",
+        "period": "2018-2020",
+        "stack": [
+          "SOME/IP",
+          "Embedded Linux",
+          "gRPC",
+          "C++",
+          "AUTOSAR Adaptive"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv11",
+    "name": "Aleksi Rahman",
+    "title": "Software Engineer, Software-Defined Vehicle",
+    "archetype": "auto_adaptive",
+    "years": 4,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "C++",
+      "AUTOSAR Adaptive",
+      "SOME/IP",
+      "ISO 21434",
+      "CAN bus",
+      "gRPC"
+    ],
+    "certifications": [],
+    "education": "BSc Computer Science and Engineering, Lund University, 2021",
+    "engagements": [
+      {
+        "role": "Software Engineer, Software-Defined Vehicle",
+        "client": "a major Swedish truck OEM",
+        "period": "2024-present",
+        "stack": [
+          "C++",
+          "SOME/IP",
+          "CAN bus",
+          "AUTOSAR Adaptive"
+        ]
+      },
+      {
+        "role": "Software Engineer, Software-Defined Vehicle",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2022-2024",
+        "stack": [
+          "AUTOSAR Adaptive",
+          "ISO 21434",
+          "gRPC",
+          "C++"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv12",
+    "name": "Ola Larsen",
+    "title": "Software Engineer, Software-Defined Vehicle",
+    "archetype": "auto_adaptive",
+    "years": 5,
+    "location": "Stockholm, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "C++",
+      "AUTOSAR Adaptive",
+      "SOME/IP",
+      "CAN bus",
+      "Python"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Lund University, 2020",
+    "engagements": [
+      {
+        "role": "Software Engineer, Software-Defined Vehicle",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2023-present",
+        "stack": [
+          "C++",
+          "SOME/IP",
+          "Python",
+          "AUTOSAR Adaptive"
+        ]
+      },
+      {
+        "role": "Software Engineer, Software-Defined Vehicle",
+        "client": "an ADAS software company",
+        "period": "2021-2023",
+        "stack": [
+          "AUTOSAR Adaptive",
+          "CAN bus",
+          "C++"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv13",
+    "name": "Leila Andersson",
+    "title": "Embedded Linux Engineer",
+    "archetype": "embedded_linux",
+    "years": 7,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "Embedded Linux",
+      "Yocto",
+      "device drivers"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, KTH Royal Institute of Technology, 2017",
+    "engagements": [
+      {
+        "role": "Embedded Linux Engineer",
+        "client": "a European 5G infrastructure vendor",
+        "period": "2024-present",
+        "stack": [
+          "Embedded C",
+          "device drivers",
+          "Embedded Linux"
+        ]
+      },
+      {
+        "role": "Embedded Linux Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2022-2024",
+        "stack": [
+          "Embedded Linux",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Embedded Linux Engineer",
+        "client": "a European 5G infrastructure vendor",
+        "period": "2019-2022",
+        "stack": [
+          "Yocto",
+          "Embedded C",
+          "Embedded Linux"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv14",
+    "name": "Petri Hagg",
+    "title": "Embedded Linux Engineer",
+    "archetype": "embedded_linux",
+    "years": 5,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "Embedded Linux",
+      "Yocto",
+      "device drivers",
+      "C++",
+      "Python",
+      "secure boot",
+      "Docker",
+      "FreeRTOS",
+      "Rust"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Linkoping University, 2020",
+    "engagements": [
+      {
+        "role": "Embedded Linux Engineer",
+        "client": "a tier-1 automotive supplier",
+        "period": "2023-present",
+        "stack": [
+          "Embedded C",
+          "Yocto",
+          "C++",
+          "secure boot",
+          "FreeRTOS",
+          "Embedded Linux"
+        ]
+      },
+      {
+        "role": "Embedded Linux Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2021-2023",
+        "stack": [
+          "Embedded Linux",
+          "device drivers",
+          "Python",
+          "Docker",
+          "Rust",
+          "Embedded C"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv15",
+    "name": "Sofia Makinen",
+    "title": "Senior Embedded Linux Engineer",
+    "archetype": "embedded_linux",
+    "years": 12,
+    "location": "Oslo, Norway",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Norwegian",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "Embedded Linux",
+      "Yocto",
+      "device drivers",
+      "Python",
+      "secure boot",
+      "Docker",
+      "Rust",
+      "MQTT"
+    ],
+    "certifications": [],
+    "education": "BSc Computer Science and Engineering, NTNU Trondheim, 2012",
+    "engagements": [
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a European 5G infrastructure vendor",
+        "period": "2024-present",
+        "stack": [
+          "Embedded C",
+          "secure boot",
+          "Embedded Linux"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a Finnish network operator",
+        "period": "2022-2024",
+        "stack": [
+          "Embedded Linux",
+          "Docker",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a Finnish network operator",
+        "period": "2018-2022",
+        "stack": [
+          "Yocto",
+          "Rust",
+          "Embedded C",
+          "Embedded Linux"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2016-2018",
+        "stack": [
+          "device drivers",
+          "MQTT",
+          "Embedded C",
+          "Embedded Linux"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a Finnish network operator",
+        "period": "2014-2016",
+        "stack": [
+          "Python",
+          "Embedded C",
+          "Embedded Linux"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv16",
+    "name": "Sigrid Fischer",
+    "title": "Senior Embedded Linux Engineer",
+    "archetype": "embedded_linux",
+    "years": 8,
+    "location": "Helsinki, Finland",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Finnish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "Embedded Linux",
+      "Yocto",
+      "device drivers",
+      "Docker",
+      "FreeRTOS",
+      "Zephyr"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Aalto University, 2017",
+    "engagements": [
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2022-present",
+        "stack": [
+          "Embedded C",
+          "device drivers",
+          "Zephyr",
+          "Embedded Linux"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2019-2022",
+        "stack": [
+          "Embedded Linux",
+          "Docker",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "an ADAS software company",
+        "period": "2018-2019",
+        "stack": [
+          "Yocto",
+          "FreeRTOS",
+          "Embedded C",
+          "Embedded Linux"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv17",
+    "name": "Magnus Vik",
+    "title": "Senior Embedded Linux Engineer",
+    "archetype": "embedded_linux",
+    "years": 12,
+    "location": "Helsinki, Finland",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Finnish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Embedded C",
+      "Embedded Linux",
+      "Yocto",
+      "C++",
+      "Python",
+      "secure boot",
+      "Zephyr"
+    ],
+    "certifications": [],
+    "education": "BSc Computer Science and Engineering, Aalto University, 2014",
+    "engagements": [
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2023-present",
+        "stack": [
+          "Embedded C",
+          "secure boot",
+          "Embedded Linux"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a tier-1 automotive supplier",
+        "period": "2020-2023",
+        "stack": [
+          "Embedded Linux",
+          "Zephyr",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2018-2020",
+        "stack": [
+          "Yocto",
+          "Embedded C",
+          "Embedded Linux"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2015-2018",
+        "stack": [
+          "C++",
+          "Embedded C",
+          "Embedded Linux"
+        ]
+      },
+      {
+        "role": "Senior Embedded Linux Engineer",
+        "client": "an ADAS software company",
+        "period": "2014-2015",
+        "stack": [
+          "Python",
+          "Embedded C",
+          "Embedded Linux"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv18",
+    "name": "Lars Berg",
+    "title": "5G RAN Software Engineer",
+    "archetype": "telecom_ran",
+    "years": 6,
+    "location": "Stockholm, Sweden",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "C++",
+      "5G RAN",
+      "3GPP",
+      "O-RAN",
+      "Kubernetes",
+      "Docker",
+      "GitLab CI",
+      "gRPC"
+    ],
+    "certifications": [
+      "CKA (Certified Kubernetes Administrator)"
+    ],
+    "education": "MSc Computer Science and Engineering, Uppsala University, 2019",
+    "engagements": [
+      {
+        "role": "5G RAN Software Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2024-present",
+        "stack": [
+          "C++",
+          "O-RAN",
+          "GitLab CI",
+          "5G RAN"
+        ]
+      },
+      {
+        "role": "5G RAN Software Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2022-2024",
+        "stack": [
+          "5G RAN",
+          "Kubernetes",
+          "gRPC",
+          "C++"
+        ]
+      },
+      {
+        "role": "5G RAN Software Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2020-2022",
+        "stack": [
+          "3GPP",
+          "Docker",
+          "C++",
+          "5G RAN"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv19",
+    "name": "Ida Chen",
+    "title": "Senior 5G RAN Software Engineer",
+    "archetype": "telecom_ran",
+    "years": 13,
+    "location": "Stockholm, Sweden",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "C++",
+      "5G RAN",
+      "3GPP",
+      "DPDK",
+      "Kubernetes",
+      "Docker"
+    ],
+    "certifications": [],
+    "education": "BSc Computer Science and Engineering, Linkoping University, 2013",
+    "engagements": [
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Finnish network operator",
+        "period": "2022-present",
+        "stack": [
+          "C++",
+          "Docker",
+          "5G RAN"
+        ]
+      },
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Finnish network operator",
+        "period": "2019-2022",
+        "stack": [
+          "5G RAN",
+          "C++"
+        ]
+      },
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2016-2019",
+        "stack": [
+          "3GPP",
+          "C++",
+          "5G RAN"
+        ]
+      },
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a European 5G infrastructure vendor",
+        "period": "2014-2016",
+        "stack": [
+          "DPDK",
+          "C++",
+          "5G RAN"
+        ]
+      },
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Swedish telecom operator",
+        "period": "2013-2014",
+        "stack": [
+          "Kubernetes",
+          "C++",
+          "5G RAN"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv20",
+    "name": "Sara Eriksson",
+    "title": "Senior 5G RAN Software Engineer",
+    "archetype": "telecom_ran",
+    "years": 9,
+    "location": "Stockholm, Sweden",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "German",
+        "level": "basic"
+      }
+    ],
+    "skills": [
+      "C++",
+      "5G RAN",
+      "3GPP",
+      "O-RAN"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, KTH Royal Institute of Technology, 2017",
+    "engagements": [
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2024-present",
+        "stack": [
+          "C++",
+          "5G RAN"
+        ]
+      },
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Swedish telecom operator",
+        "period": "2022-2024",
+        "stack": [
+          "5G RAN",
+          "C++"
+        ]
+      },
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Finnish network operator",
+        "period": "2020-2022",
+        "stack": [
+          "3GPP",
+          "C++",
+          "5G RAN"
+        ]
+      },
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Swedish telecom operator",
+        "period": "2017-2020",
+        "stack": [
+          "O-RAN",
+          "C++",
+          "5G RAN"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv21",
+    "name": "Marta Strand",
+    "title": "Senior 5G RAN Software Engineer",
+    "archetype": "telecom_ran",
+    "years": 8,
+    "location": "Stockholm, Sweden",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "C++",
+      "5G RAN",
+      "3GPP",
+      "DPDK",
+      "Kubernetes",
+      "Golang"
+    ],
+    "certifications": [
+      "CKA (Certified Kubernetes Administrator)"
+    ],
+    "education": "BSc Computer Science and Engineering, Lund University, 2017",
+    "engagements": [
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2023-present",
+        "stack": [
+          "C++",
+          "DPDK",
+          "5G RAN"
+        ]
+      },
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2020-2023",
+        "stack": [
+          "5G RAN",
+          "Kubernetes",
+          "C++"
+        ]
+      },
+      {
+        "role": "Senior 5G RAN Software Engineer",
+        "client": "a European 5G infrastructure vendor",
+        "period": "2018-2020",
+        "stack": [
+          "3GPP",
+          "Golang",
+          "C++",
+          "5G RAN"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv22",
+    "name": "Bjorn Costa",
+    "title": "Cloud-Native Developer, 5G Core",
+    "archetype": "telecom_core",
+    "years": 7,
+    "location": "Stockholm, Sweden",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "Golang",
+      "5G Core",
+      "Kubernetes",
+      "gRPC",
+      "Docker",
+      "Azure"
+    ],
+    "certifications": [
+      "Microsoft Certified: Azure Administrator Associate",
+      "CKA (Certified Kubernetes Administrator)"
+    ],
+    "education": "BSc Computer Science and Engineering, Uppsala University, 2019",
+    "engagements": [
+      {
+        "role": "Cloud-Native Developer, 5G Core",
+        "client": "a Swedish telecom operator",
+        "period": "2023-present",
+        "stack": [
+          "Golang",
+          "gRPC",
+          "5G Core"
+        ]
+      },
+      {
+        "role": "Cloud-Native Developer, 5G Core",
+        "client": "a Finnish network operator",
+        "period": "2021-2023",
+        "stack": [
+          "5G Core",
+          "Docker",
+          "Golang"
+        ]
+      },
+      {
+        "role": "Cloud-Native Developer, 5G Core",
+        "client": "a Swedish telecom operator",
+        "period": "2019-2021",
+        "stack": [
+          "Kubernetes",
+          "Azure",
+          "Golang",
+          "5G Core"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv23",
+    "name": "Yusuf Patel",
+    "title": "Cloud-Native Developer, 5G Core",
+    "archetype": "telecom_core",
+    "years": 7,
+    "location": "Helsinki, Finland",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Finnish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Golang",
+      "5G Core",
+      "Kubernetes",
+      "gRPC",
+      "Docker",
+      "Helm",
+      "GitLab CI",
+      "Prometheus"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Tampere University, 2019",
+    "engagements": [
+      {
+        "role": "Cloud-Native Developer, 5G Core",
+        "client": "a European 5G infrastructure vendor",
+        "period": "2023-present",
+        "stack": [
+          "Golang",
+          "gRPC",
+          "GitLab CI",
+          "5G Core"
+        ]
+      },
+      {
+        "role": "Cloud-Native Developer, 5G Core",
+        "client": "a Swedish telecom operator",
+        "period": "2021-2023",
+        "stack": [
+          "5G Core",
+          "Docker",
+          "Prometheus",
+          "Golang"
+        ]
+      },
+      {
+        "role": "Cloud-Native Developer, 5G Core",
+        "client": "a Finnish network operator",
+        "period": "2019-2021",
+        "stack": [
+          "Kubernetes",
+          "Helm",
+          "Golang",
+          "5G Core"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv24",
+    "name": "Henrik Engstrom",
+    "title": "Cloud-Native Developer, 5G Core",
+    "archetype": "telecom_core",
+    "years": 5,
+    "location": "Helsinki, Finland",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Finnish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Golang",
+      "5G Core",
+      "Kubernetes",
+      "Kafka",
+      "3GPP",
+      "Azure"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Aalto University, 2019",
+    "engagements": [
+      {
+        "role": "Cloud-Native Developer, 5G Core",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2024-present",
+        "stack": [
+          "Golang",
+          "Kubernetes",
+          "3GPP",
+          "5G Core"
+        ]
+      },
+      {
+        "role": "Cloud-Native Developer, 5G Core",
+        "client": "a Swedish telecom operator",
+        "period": "2021-2024",
+        "stack": [
+          "5G Core",
+          "Kafka",
+          "Azure",
+          "Golang"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv25",
+    "name": "Emil Hansen",
+    "title": "Senior DevOps Engineer",
+    "archetype": "devops_embedded",
+    "years": 10,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Python",
+      "Jenkins",
+      "Docker"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Linkoping University, 2014",
+    "engagements": [
+      {
+        "role": "Senior DevOps Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2023-present",
+        "stack": [
+          "Python",
+          "Jenkins"
+        ]
+      },
+      {
+        "role": "Senior DevOps Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2021-2023",
+        "stack": [
+          "Jenkins",
+          "Python"
+        ]
+      },
+      {
+        "role": "Senior DevOps Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2019-2021",
+        "stack": [
+          "Docker",
+          "Python",
+          "Jenkins"
+        ]
+      },
+      {
+        "role": "Senior DevOps Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2016-2019",
+        "stack": [
+          "Python",
+          "Jenkins"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv26",
+    "name": "Nikolai Novak",
+    "title": "DevOps Engineer",
+    "archetype": "devops_embedded",
+    "years": 3,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Python",
+      "Jenkins",
+      "Docker",
+      "Yocto",
+      "Artifactory",
+      "Kubernetes",
+      "Azure DevOps",
+      "Vector CANoe"
+    ],
+    "certifications": [
+      "CKA (Certified Kubernetes Administrator)"
+    ],
+    "education": "MSc Computer Science and Engineering, Linkoping University, 2021",
+    "engagements": [
+      {
+        "role": "DevOps Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2024-present",
+        "stack": [
+          "Python",
+          "Docker",
+          "Artifactory",
+          "Azure DevOps",
+          "Jenkins"
+        ]
+      },
+      {
+        "role": "DevOps Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2023-2024",
+        "stack": [
+          "Jenkins",
+          "Yocto",
+          "Kubernetes",
+          "Vector CANoe",
+          "Python"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv27",
+    "name": "Hanna Dahl",
+    "title": "DevOps Engineer",
+    "archetype": "devops_embedded",
+    "years": 7,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "Python",
+      "Jenkins",
+      "Docker",
+      "Bash",
+      "GitLab CI",
+      "Yocto",
+      "Kubernetes"
+    ],
+    "certifications": [
+      "CKA (Certified Kubernetes Administrator)"
+    ],
+    "education": "MSc Computer Science and Engineering, Uppsala University, 2017",
+    "engagements": [
+      {
+        "role": "DevOps Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2024-present",
+        "stack": [
+          "Python",
+          "Bash",
+          "Kubernetes",
+          "Jenkins"
+        ]
+      },
+      {
+        "role": "DevOps Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2022-2024",
+        "stack": [
+          "Jenkins",
+          "GitLab CI",
+          "Python"
+        ]
+      },
+      {
+        "role": "DevOps Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2019-2022",
+        "stack": [
+          "Docker",
+          "Yocto",
+          "Python",
+          "Jenkins"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv28",
+    "name": "Oskar Sandberg",
+    "title": "Junior DevOps Engineer",
+    "archetype": "devops_embedded",
+    "years": 2,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Python",
+      "Jenkins",
+      "Docker",
+      "GitLab CI",
+      "Ansible",
+      "Azure DevOps"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Chalmers University of Technology, 2024",
+    "engagements": [
+      {
+        "role": "Junior DevOps Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2025-present",
+        "stack": [
+          "Python",
+          "Docker",
+          "Ansible",
+          "Jenkins"
+        ]
+      },
+      {
+        "role": "Junior DevOps Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2024-2025",
+        "stack": [
+          "Jenkins",
+          "GitLab CI",
+          "Azure DevOps",
+          "Python"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv29",
+    "name": "Camille Solberg",
+    "title": "Senior DevOps Engineer",
+    "archetype": "devops_embedded",
+    "years": 10,
+    "location": "Stockholm, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "Python",
+      "Jenkins",
+      "Docker",
+      "Bash",
+      "Artifactory",
+      "Ansible",
+      "dSPACE HIL"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, KTH Royal Institute of Technology, 2014",
+    "engagements": [
+      {
+        "role": "Senior DevOps Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2023-present",
+        "stack": [
+          "Python",
+          "Artifactory",
+          "Jenkins"
+        ]
+      },
+      {
+        "role": "Senior DevOps Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2020-2023",
+        "stack": [
+          "Jenkins",
+          "Ansible",
+          "Python"
+        ]
+      },
+      {
+        "role": "Senior DevOps Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2018-2020",
+        "stack": [
+          "Docker",
+          "dSPACE HIL",
+          "Python",
+          "Jenkins"
+        ]
+      },
+      {
+        "role": "Senior DevOps Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2016-2018",
+        "stack": [
+          "Bash",
+          "Python",
+          "Jenkins"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv30",
+    "name": "Katarina Johansson",
+    "title": "Senior Cloud Platform Engineer",
+    "archetype": "cloud_platform",
+    "years": 11,
+    "location": "Stockholm, Sweden",
+    "domains": [
+      "telecom"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "German",
+        "level": "basic"
+      }
+    ],
+    "skills": [
+      "Terraform",
+      "Kubernetes",
+      "Docker",
+      "Helm",
+      "Prometheus",
+      "Grafana",
+      "Kafka",
+      "Golang",
+      "Ansible"
+    ],
+    "certifications": [],
+    "education": "MSc Computer Science and Engineering, Lund University, 2014",
+    "engagements": [
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Nordic telecom equipment vendor",
+        "period": "2022-present",
+        "stack": [
+          "Terraform",
+          "Prometheus",
+          "Ansible",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a European 5G infrastructure vendor",
+        "period": "2020-2022",
+        "stack": [
+          "Kubernetes",
+          "Grafana",
+          "Terraform"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Finnish network operator",
+        "period": "2018-2020",
+        "stack": [
+          "Docker",
+          "Kafka",
+          "Terraform",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Swedish telecom operator",
+        "period": "2015-2018",
+        "stack": [
+          "Helm",
+          "Golang",
+          "Terraform",
+          "Kubernetes"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv31",
+    "name": "Elin Lindholm",
+    "title": "Senior Cloud Platform Engineer",
+    "archetype": "cloud_platform",
+    "years": 8,
+    "location": "Oslo, Norway",
+    "domains": [],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Norwegian",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Terraform",
+      "Kubernetes",
+      "Docker",
+      "AWS",
+      "Python",
+      "Helm",
+      "Ansible"
+    ],
+    "certifications": [
+      "AWS Certified Solutions Architect - Associate"
+    ],
+    "education": "MSc Computer Science and Engineering, University of Oslo, 2017",
+    "engagements": [
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Swedish medtech company",
+        "period": "2023-present",
+        "stack": [
+          "Terraform",
+          "AWS",
+          "Ansible",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Norwegian energy company",
+        "period": "2020-2023",
+        "stack": [
+          "Kubernetes",
+          "Python",
+          "Terraform"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Finnish industrial-IoT company",
+        "period": "2018-2020",
+        "stack": [
+          "Docker",
+          "Helm",
+          "Terraform",
+          "Kubernetes"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv32",
+    "name": "Noor Petrov",
+    "title": "Senior Cloud Platform Engineer",
+    "archetype": "cloud_platform",
+    "years": 11,
+    "location": "Stockholm, Sweden",
+    "domains": [],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      },
+      {
+        "language": "German",
+        "level": "basic"
+      }
+    ],
+    "skills": [
+      "Terraform",
+      "Kubernetes",
+      "Docker",
+      "AWS",
+      "Python",
+      "Azure",
+      "Prometheus",
+      "Grafana"
+    ],
+    "certifications": [
+      "Microsoft Certified: Azure Administrator Associate",
+      "CKA (Certified Kubernetes Administrator)",
+      "HashiCorp Certified: Terraform Associate"
+    ],
+    "education": "MSc Computer Science and Engineering, Linkoping University, 2014",
+    "engagements": [
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Norwegian energy company",
+        "period": "2023-present",
+        "stack": [
+          "Terraform",
+          "Python",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Finnish industrial-IoT company",
+        "period": "2020-2023",
+        "stack": [
+          "Kubernetes",
+          "Azure",
+          "Terraform"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Norwegian energy company",
+        "period": "2018-2020",
+        "stack": [
+          "Docker",
+          "Prometheus",
+          "Terraform",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Danish logistics company",
+        "period": "2015-2018",
+        "stack": [
+          "AWS",
+          "Grafana",
+          "Terraform",
+          "Kubernetes"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv33",
+    "name": "Amira Nystrom",
+    "title": "Senior Cloud Platform Engineer",
+    "archetype": "cloud_platform",
+    "years": 10,
+    "location": "Copenhagen, Denmark",
+    "domains": [],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Danish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Terraform",
+      "Kubernetes",
+      "Docker",
+      "Python",
+      "Azure",
+      "Helm",
+      "Prometheus",
+      "Grafana"
+    ],
+    "certifications": [
+      "Microsoft Certified: Azure Administrator Associate",
+      "HashiCorp Certified: Terraform Associate"
+    ],
+    "education": "MSc Computer Science and Engineering, Technical University of Denmark (DTU), 2015",
+    "engagements": [
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Nordic bank",
+        "period": "2024-present",
+        "stack": [
+          "Terraform",
+          "Azure",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Swedish medtech company",
+        "period": "2020-2024",
+        "stack": [
+          "Kubernetes",
+          "Helm",
+          "Terraform"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Finnish industrial-IoT company",
+        "period": "2017-2020",
+        "stack": [
+          "Docker",
+          "Prometheus",
+          "Terraform",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Nordic bank",
+        "period": "2016-2017",
+        "stack": [
+          "Python",
+          "Grafana",
+          "Terraform",
+          "Kubernetes"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv34",
+    "name": "Wei Korhonen",
+    "title": "Senior Cloud Platform Engineer",
+    "archetype": "cloud_platform",
+    "years": 12,
+    "location": "Copenhagen, Denmark",
+    "domains": [],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Danish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Terraform",
+      "Kubernetes",
+      "Docker",
+      "AWS",
+      "Python",
+      "Azure",
+      "Helm",
+      "Prometheus",
+      "Kafka",
+      "Golang",
+      "ArgoCD",
+      "MQTT",
+      "Ansible"
+    ],
+    "certifications": [
+      "Microsoft Certified: Azure Administrator Associate",
+      "CKA (Certified Kubernetes Administrator)"
+    ],
+    "education": "MSc Computer Science and Engineering, Technical University of Denmark (DTU), 2012",
+    "engagements": [
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Finnish industrial-IoT company",
+        "period": "2023-present",
+        "stack": [
+          "Terraform",
+          "Azure",
+          "ArgoCD",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Danish logistics company",
+        "period": "2020-2023",
+        "stack": [
+          "Kubernetes",
+          "Helm",
+          "MQTT",
+          "Terraform"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Finnish industrial-IoT company",
+        "period": "2017-2020",
+        "stack": [
+          "Docker",
+          "Prometheus",
+          "Ansible",
+          "Terraform",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Nordic bank",
+        "period": "2015-2017",
+        "stack": [
+          "AWS",
+          "Kafka",
+          "Terraform",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Norwegian energy company",
+        "period": "2014-2015",
+        "stack": [
+          "Python",
+          "Golang",
+          "Terraform",
+          "Kubernetes"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv35",
+    "name": "Linnea Virtanen",
+    "title": "Senior Cloud Platform Engineer",
+    "archetype": "cloud_platform",
+    "years": 9,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "Terraform",
+      "Kubernetes",
+      "Docker",
+      "AWS",
+      "Python",
+      "Azure",
+      "Helm",
+      "Prometheus",
+      "Grafana",
+      "GitLab CI",
+      "Ansible"
+    ],
+    "certifications": [
+      "AWS Certified Solutions Architect - Associate",
+      "CKA (Certified Kubernetes Administrator)",
+      "HashiCorp Certified: Terraform Associate"
+    ],
+    "education": "MSc Computer Science and Engineering, KTH Royal Institute of Technology, 2016",
+    "engagements": [
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2023-present",
+        "stack": [
+          "Terraform",
+          "Python",
+          "Grafana",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2021-2023",
+        "stack": [
+          "Kubernetes",
+          "Azure",
+          "GitLab CI",
+          "Terraform"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2018-2021",
+        "stack": [
+          "Docker",
+          "Helm",
+          "Ansible",
+          "Terraform",
+          "Kubernetes"
+        ]
+      },
+      {
+        "role": "Senior Cloud Platform Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2017-2018",
+        "stack": [
+          "AWS",
+          "Prometheus",
+          "Terraform",
+          "Kubernetes"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv36",
+    "name": "Maja Sjoberg",
+    "title": "Senior Functional Safety Engineer",
+    "archetype": "functional_safety",
+    "years": 12,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "ISO 26262",
+      "Embedded C",
+      "MISRA C",
+      "ASPICE",
+      "CAN bus",
+      "Simulink",
+      "Vector CANoe"
+    ],
+    "certifications": [
+      "ISO 26262 functional-safety training (TUV)"
+    ],
+    "education": "MSc Computer Science and Engineering, Linkoping University, 2014",
+    "engagements": [
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2023-present",
+        "stack": [
+          "ISO 26262",
+          "Simulink",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2020-2023",
+        "stack": [
+          "Embedded C",
+          "Vector CANoe",
+          "ISO 26262"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2018-2020",
+        "stack": [
+          "MISRA C",
+          "ISO 26262",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "an ADAS software company",
+        "period": "2015-2018",
+        "stack": [
+          "ASPICE",
+          "ISO 26262",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2014-2015",
+        "stack": [
+          "CAN bus",
+          "ISO 26262",
+          "Embedded C"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv37",
+    "name": "Erik Sorensen",
+    "title": "Senior Functional Safety Engineer",
+    "archetype": "functional_safety",
+    "years": 13,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "ISO 26262",
+      "Embedded C",
+      "MISRA C",
+      "ASPICE",
+      "AUTOSAR Classic"
+    ],
+    "certifications": [],
+    "education": "BSc Computer Science and Engineering, Linkoping University, 2012",
+    "engagements": [
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a tier-1 automotive supplier",
+        "period": "2022-present",
+        "stack": [
+          "ISO 26262",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2019-2022",
+        "stack": [
+          "Embedded C",
+          "ISO 26262"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a German premium car manufacturer",
+        "period": "2016-2019",
+        "stack": [
+          "MISRA C",
+          "ISO 26262",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "an ADAS software company",
+        "period": "2014-2016",
+        "stack": [
+          "ASPICE",
+          "ISO 26262",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a tier-1 automotive supplier",
+        "period": "2013-2014",
+        "stack": [
+          "AUTOSAR Classic",
+          "ISO 26262",
+          "Embedded C"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv38",
+    "name": "Mikael Bakke",
+    "title": "Senior Functional Safety Engineer",
+    "archetype": "functional_safety",
+    "years": 18,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "ISO 26262",
+      "Embedded C",
+      "MISRA C",
+      "AUTOSAR Classic",
+      "Simulink",
+      "Vector CANoe"
+    ],
+    "certifications": [
+      "ISO 26262 functional-safety training (TUV)"
+    ],
+    "education": "BSc Computer Science and Engineering, Chalmers University of Technology, 2008",
+    "engagements": [
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a tier-1 automotive supplier",
+        "period": "2022-present",
+        "stack": [
+          "ISO 26262",
+          "Vector CANoe",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a major Swedish truck OEM",
+        "period": "2018-2022",
+        "stack": [
+          "Embedded C",
+          "ISO 26262"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "an ADAS software company",
+        "period": "2014-2018",
+        "stack": [
+          "MISRA C",
+          "ISO 26262",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2011-2014",
+        "stack": [
+          "AUTOSAR Classic",
+          "ISO 26262",
+          "Embedded C"
+        ]
+      },
+      {
+        "role": "Senior Functional Safety Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2008-2011",
+        "stack": [
+          "Simulink",
+          "ISO 26262",
+          "Embedded C"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv39",
+    "name": "Jonas Holm",
+    "title": "Senior Test Automation Engineer",
+    "archetype": "qa_automation",
+    "years": 8,
+    "location": "Gothenburg, Sweden",
+    "domains": [
+      "automotive"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      }
+    ],
+    "skills": [
+      "Python",
+      "Robot Framework",
+      "Jenkins",
+      "Docker",
+      "Bash"
+    ],
+    "certifications": [
+      "ISTQB Foundation Level"
+    ],
+    "education": "MSc Computer Science and Engineering, Linkoping University, 2016",
+    "engagements": [
+      {
+        "role": "Senior Test Automation Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2023-present",
+        "stack": [
+          "Python",
+          "Docker",
+          "Robot Framework"
+        ]
+      },
+      {
+        "role": "Senior Test Automation Engineer",
+        "client": "a Swedish electric-vehicle startup",
+        "period": "2021-2023",
+        "stack": [
+          "Robot Framework",
+          "Bash",
+          "Python"
+        ]
+      },
+      {
+        "role": "Senior Test Automation Engineer",
+        "client": "a Nordic passenger-car OEM",
+        "period": "2018-2021",
+        "stack": [
+          "Jenkins",
+          "Python",
+          "Robot Framework"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cv40",
+    "name": "Freja Blomqvist",
+    "title": "Fullstack Developer",
+    "archetype": "fullstack",
+    "years": 4,
+    "location": "Stockholm, Sweden",
+    "domains": [],
+    "languages": [
+      {
+        "language": "English",
+        "level": "fluent"
+      },
+      {
+        "language": "Swedish",
+        "level": "native"
+      }
+    ],
+    "skills": [
+      "TypeScript",
+      "React",
+      "Node.js",
+      "PostgreSQL",
+      "Docker",
+      "Azure"
+    ],
+    "certifications": [
+      "Microsoft Certified: Azure Administrator Associate"
+    ],
+    "education": "MSc Computer Science and Engineering, Chalmers University of Technology, 2020",
+    "engagements": [
+      {
+        "role": "Fullstack Developer",
+        "client": "a Danish logistics company",
+        "period": "2023-present",
+        "stack": [
+          "TypeScript",
+          "Node.js",
+          "Docker",
+          "React"
+        ]
+      },
+      {
+        "role": "Fullstack Developer",
+        "client": "a Swedish medtech company",
+        "period": "2022-2023",
+        "stack": [
+          "React",
+          "PostgreSQL",
+          "Azure",
+          "TypeScript"
+        ]
+      }
+    ]
+  }
+]
