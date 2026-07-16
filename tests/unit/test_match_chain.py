@@ -161,6 +161,28 @@ class TestPersonTagging:
         assert people["cv01"]["chunks"] == ["first", "second"]
         assert people["cv02"]["name"] == "B"
 
+    def test_lenient_mode_tags_arbitrary_uploaded_filenames(self):
+        docs = [
+            Document(page_content="a", metadata={"file_name": "John_Smith_CV.pdf"}),
+            Document(
+                page_content="b",
+                metadata={"file_name": "resume-anna-berg-2026.docx"},
+            ),
+            Document(page_content="c", metadata={"file_name": "cv07_ola_vik.md"}),
+        ]
+        assert stamp_person_metadata(docs, lenient=True) == 3
+        assert docs[0].metadata["person_name"] == "John Smith"
+        assert docs[1].metadata["person_name"] == "Anna Berg"
+        # Bench convention still wins for bench-shaped names.
+        assert docs[2].metadata["person_id"] == "cv07"
+        # Distinct files stay distinct people.
+        ids = {doc.metadata["person_id"] for doc in docs}
+        assert len(ids) == 3
+
+    def test_strict_mode_still_ignores_arbitrary_names(self):
+        docs = [Document(page_content="a", metadata={"file_name": "John_Smith_CV.pdf"})]
+        assert stamp_person_metadata(docs) == 0
+
 
 def _matcher(llm_responses, retriever_mapping, people, **kwargs):
     return Matcher(

@@ -32,6 +32,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 from langchain_core.documents import Document
@@ -199,6 +200,11 @@ class MatchResult:
 # --------------------------------------------------------------------------
 
 _CV_FILE_RE = re.compile(r"^(cv\d+)_(.+)\.md$")
+# Words that are filename furniture, not part of a person's name.
+_CV_NOISE_WORDS = re.compile(
+    r"\b(?:cv|resume|curriculum|vitae|final|latest|copy|v\d+|\d{4})\b",
+    re.IGNORECASE,
+)
 
 
 def _person_from_file_name(file_name: str) -> Optional[Tuple[str, str]]:
@@ -209,17 +215,44 @@ def _person_from_file_name(file_name: str) -> Optional[Tuple[str, str]]:
     return person_id, slug.replace("_", " ").title()
 
 
-def stamp_person_metadata(texts: List[Document]) -> int:
+def _person_from_any_file_name(file_name: str) -> Optional[Tuple[str, str]]:
+    """One uploaded file = one person: derive identity from the stem.
+
+    Real CV files are named things like "John_Smith_CV.pdf" or
+    "resume-anna-berg-2026.docx" — strip the furniture words and
+    whatever remains is the display name; the full slug stays the id
+    (collision-safe even when two people share a name with different
+    furniture).
+    """
+    stem = Path(file_name or "").stem
+    if not stem:
+        return None
+    person_id = re.sub(r"[^a-z0-9]+", "_", stem.lower()).strip("_")
+    if not person_id:
+        return None
+    name = _CV_NOISE_WORDS.sub(" ", stem.replace("_", " ").replace("-", " "))
+    name = " ".join(name.split()).title()
+    return person_id, name or person_id
+
+
+def stamp_person_metadata(texts: List[Document], lenient: bool = False) -> int:
     """Tag every CV chunk with person_id/person_name from its filename.
 
     Runs after load_and_split() and before the retriever is built, so
     both BM25 and the vector store carry the tags on every retrieved
     Document. Returns the number of chunks stamped.
+
+    Default (strict): only the bench convention `cvNN_name.md` counts —
+    the eval must never accidentally tag a stray file as a candidate.
+    lenient=True treats EVERY file as one person (uploaded real CVs:
+    PDF/DOCX/MD with arbitrary names).
     """
     stamped = 0
     for doc in texts:
         file_name = doc.metadata.get("file_name") or ""
         person = _person_from_file_name(file_name)
+        if person is None and lenient:
+            person = _person_from_any_file_name(file_name)
         if person is None:
             continue
         doc.metadata["person_id"], doc.metadata["person_name"] = person

@@ -79,8 +79,33 @@ def highlight_evidence(cv_text: str, quotes: List[str]) -> str:
     return highlight_spans(cv_text, merged, MARK_OPEN, MARK_CLOSE, escape=html.escape)
 
 
+def persist_uploads(files) -> str:
+    """Write uploaded CVs into a content-addressed temp directory.
+
+    The directory name carries a hash of every (filename, bytes) pair,
+    so the cached matcher rebuilds exactly when the upload set changes
+    — and two sessions uploading identical files share one ingest.
+    """
+    import hashlib
+    import tempfile
+
+    digest = hashlib.sha256()
+    for uploaded in files:
+        digest.update(uploaded.name.encode("utf-8"))
+        digest.update(uploaded.getvalue())
+    target = (
+        Path(tempfile.gettempdir()) / f"ragstone_cv_uploads_{digest.hexdigest()[:12]}"
+    )
+    target.mkdir(exist_ok=True)
+    for uploaded in files:
+        (target / Path(uploaded.name).name).write_bytes(uploaded.getvalue())
+    return str(target)
+
+
 @st.cache_resource(show_spinner=False)
-def build_matcher(provider: str, model: str, cv_dir: str, k: int):
+def build_matcher(
+    provider: str, model: str, cv_dir: str, k: int, lenient: bool = False
+):
     """Ingest the CV directory and build the match chain (once per key)."""
     from ragstone.match import MatchPipeline, stamp_person_metadata
     from ragstone.rag.pipeline import OllamaPipeline, OpenAIPipeline
@@ -102,16 +127,16 @@ def build_matcher(provider: str, model: str, cv_dir: str, k: int):
     if not texts:
         raise ValueError(
             f"No documents found in {cv_dir}. Point the sidebar at a "
-            "directory of cvNN_name.md files (the bundled bench lives in "
+            "directory of CV files (the bundled bench lives in "
             "evals/corpus_staffing; generate it with "
-            "`python evals/generate_staffing.py`)."
+            "`python evals/generate_staffing.py`) — or upload CVs."
         )
-    stamped = stamp_person_metadata(texts)
+    stamped = stamp_person_metadata(texts, lenient=lenient)
     if not stamped:
         raise ValueError(
-            f"No CV files recognized in {cv_dir} — filenames must look "
-            "like cv01_firstname_lastname.md so chunks can be tagged "
-            "with a person."
+            f"No CV files recognized in {cv_dir} — bundled-bench files "
+            "must look like cv01_firstname_lastname.md; uploaded files "
+            "count one-per-person automatically."
         )
     if provider == "openai":
         pipeline.set_retriever_openai(use_ensemble=True, use_reranker=False)
@@ -198,6 +223,21 @@ def render() -> None:
         )
         model = st.text_input("Model", value=DEFAULT_MODELS[provider])
         cv_dir = st.text_input("CV directory", value=DEFAULT_CV_DIR)
+        uploads = st.file_uploader(
+            "…or upload real CVs (one file per person)",
+            type=["pdf", "docx", "md", "txt"],
+            accept_multiple_files=True,
+            help=(
+                "Uploaded files replace the directory above. They are "
+                "written only to this machine's temp dir; with the "
+                "Ollama provider nothing leaves the machine at all."
+            ),
+        )
+        lenient = False
+        if uploads:
+            cv_dir = persist_uploads(uploads)
+            lenient = True
+            st.caption(f"Matching against {len(uploads)} uploaded CV(s).")
         k = st.slider(
             "Retrieval depth (k)",
             min_value=4,
@@ -210,7 +250,7 @@ def render() -> None:
 
     try:
         with st.spinner("Ingesting CVs and building the matcher…"):
-            matcher, n_people = build_matcher(provider, model, cv_dir, k)
+            matcher, n_people = build_matcher(provider, model, cv_dir, k, lenient)
     except Exception as exc:  # surface the fix, not a traceback
         st.error(str(exc))
         st.stop()

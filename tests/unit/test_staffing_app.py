@@ -64,6 +64,31 @@ class TestHighlightEvidence:
         assert MARK_OPEN not in out
 
 
+class TestPersistUploads:
+    class _Upload:
+        def __init__(self, name, data):
+            self.name = name
+            self._data = data
+
+        def getvalue(self):
+            return self._data
+
+    def test_content_addressed_and_written(self):
+        from ragstone.ui.staffing_app import persist_uploads
+
+        files = [
+            self._Upload("Maria_Larsson_CV.txt", b"cv text"),
+            self._Upload("john.md", b"other"),
+        ]
+        first = Path(persist_uploads(files))
+        assert (first / "Maria_Larsson_CV.txt").read_bytes() == b"cv text"
+        # Same content -> same directory (cache key stability)...
+        assert Path(persist_uploads(files)) == first
+        # ...different content -> different directory.
+        changed = [self._Upload("Maria_Larsson_CV.txt", b"edited")]
+        assert Path(persist_uploads(changed)) != first
+
+
 class TestEventLines:
     def test_known_events_render(self):
         assert "Requirements" in _event_line({"event": "extract", "must": ["A"]})

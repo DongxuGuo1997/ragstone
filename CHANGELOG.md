@@ -32,6 +32,12 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Real-CV upload in the staffing UI**: drop PDF/DOCX/MD/TXT files
+  into the sidebar and the match runs against them instead of the
+  bundled bench — one file per person, names derived from filenames
+  ("John_Smith_CV.pdf" → John Smith), content-addressed ingest caching.
+  Uploads stay on the machine; with the Ollama provider the entire
+  match is local. The eval's strict `cvNN_` tagging is unchanged.
 - **Paired significance testing** (`evals/compare_runs.py`): exact
   McNemar test between two `--dump-answers` runs over the same golden
   set — reports concordant/discordant counts, the exact two-sided
