@@ -269,5 +269,13 @@
       "mrr": 0.939
     },
     "date": "2026-07-12"
+  },
+  "openai:gpt-4o-mini|k=12|chain=match|set=staffing": {
+    "metrics": {
+      "strong_recall_at_5": 1.0,
+      "full_match_accuracy": 1.0,
+      "ordering_clean_rate": 1.0
+    },
+    "date": "2026-07-16"
   }
 }
