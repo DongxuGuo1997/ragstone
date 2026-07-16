@@ -7,6 +7,18 @@ Notable changes to Ragstone. The format follows
 ## [Unreleased]
 
 ### Changed
+- **Eval integrity hardening**: baselines now record a `data_sha`
+  fingerprint of their golden set + corpus and every gate compares it —
+  editing measured data fails loudly instead of silently invalidating
+  old numbers (pre-fingerprint entries keep gating on metrics alone).
+  The LLM judge is pinned to a dated snapshot
+  (`gpt-4o-mini-2024-07-18`, verified live) so provider-side alias
+  moves can't masquerade as regressions; baseline keys keep the alias
+  and answerer models stay deliberately unpinned.
+- **Entry-point coverage**: all five console scripts are import-tested
+  against pyproject, and both Streamlit UIs boot headless in the suite
+  (server up, health endpoint answering) — a broken first command now
+  fails CI.
 - **Local embedding default: embeddinggemma** (Experiment 25 / ROADMAP
   8.2): a 622 MB model that matches the cloud embedder on real legal
   text (hit 0.80/MRR 0.65 vs nomic's 0.56/0.47) and improves the smoke

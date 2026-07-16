@@ -1362,6 +1362,118 @@ convention empirically, because one of four was measurably wrong.**
 
 ---
 
+## Experiment 26 — Two guarded changes: an exact calculator for the agent, temperature parity for Ollama
+
+**Question.** Two quality-affecting changes landed in one week: the
+agent chain gained a `calculate` tool (a strict AST arithmetic
+evaluator — LLMs retrieve numbers well and multiply them badly, and
+regulatory fine-tier questions have exactly that shape), and
+`OllamaProxy` stopped inheriting model sampling defaults (temperature
+now 0.0, matching the OpenAI proxy — "the same pipeline, locally" had
+been answering with more randomness than the cloud path it was measured
+against). Every quality-affecting change is eval-gated; neither of
+these had a committed baseline for its exact arm (`chain=agent` has no
+baseline key; the local smoke baseline predated the embeddinggemma
+promotion), so both ran **paired before/after gates** with only the
+change varying and the working tree stash-controlled.
+
+**Calculator gate** (cloud smoke pair, `chain=agent`): single-turn
+identical across arms — correct **0.951 / faithful 1.0** before and
+after. One multi-turn flip (mt05, n=8), read against the corpus: the
+arithmetic was *right*, a naming slip flipped the judge — noise, not a
+tool regression. PASS; the tool also computes the deltas it was added
+for (fine-tier arithmetic in answers).
+
+**Temperature gate** (local pair: qwen3.5:9b + embeddinggemma,
+reasoning off):
+
+| arm | correct | faithful | multi-turn c/f |
+|---|---:|---:|---|
+| temperature = model default (~0.6) | **1.000** | 1.000 | 0.875 / 1.0 |
+| temperature = 0.0 | 0.951 | 1.000 | **1.0 / 1.0** |
+
+Both temp-0 "fails" were corpus-verified as judge strictness on
+*additional true detail* (an answer adding "published March 2024" —
+which matches the corpus header and another case's gold — scored
+fail). Multi-turn improved. Decision: **temperature 0.0 ships** for
+both providers (determinism for factual RAG; the UI slider still wins
+via `setdefault`), and the committed local smoke baseline was
+re-recorded (hit 1.0 / MRR 0.939 / correct 0.951 / faithful 1.0 /
+multi-turn 1.0 / 1.0).
+
+**The headline hiding in the before-arm:** the local default stack —
+qwen3.5:9b, embeddinggemma, no thinking — scored **correct 1.0 /
+faithful 1.0** on the smoke set, at (and within noise, above) the
+cloud reference (gpt-4o-mini: 0.951 / 1.0). The transferable lesson is
+about the instrument: **the judge fails answers for extra correct
+detail, so a paired gate is not two numbers but two numbers plus a
+dissection of every flipped case against the corpus.**
+
+---
+
+## Experiment 27 — Staffing match: ground truth by construction turns matcher bugs into failing numbers
+
+**Question.** Management asked for a concrete case: match consultant
+CVs against a client assignment request, shortlist the best fits, and
+analyze strengths and weaknesses. Can the engine's retrieval + agent
+machinery do this with defensible evidence — and can matching quality
+be *measured* rather than demoed?
+
+**Method — the bench (ROADMAP 9.0).** Real CVs are GDPR personal data,
+so the bench is synthetic and **spec-first**: 40 personas (embedded
+automotive / telecom / cloud / DevOps mix) are structured specs derived
+deterministically from archetype tables; CVs are rendered *from* the
+specs; a mechanical oracle over the specs computes expected match tiers
+(strong = every must-have met, partial = exactly one missing); rendered
+prose is regex-verified to mention exactly its spec skills (traps
+handled: "Embedded C" inside "Embedded C++", bare "CAN" vs "CANoe"),
+so labels cannot drift from what a matcher can read. Assignment a08 is
+deliberately unsatisfiable — zero strong matches exist — making honest
+"no full match" reporting itself measurable. The corpus doubles as
+contamination control: no model has ever seen these documents.
+
+**Method — the matcher (ROADMAP 9.1).** A LangGraph StateGraph:
+extract (brief → structured requirements, OR-alternatives preserved) →
+discover (one retrieval query per requirement over person-tagged
+chunks, aggregated per person by **coverage breadth**, not hit depth) →
+verify (one screening call per shortlisted candidate, per-requirement
+verdicts with verbatim CV quotes, unparseable output fails closed) →
+score (verified coverage → tiers; gaps phrased "not evidenced in the
+CV"). The matcher sees only the brief and the CVs — never the oracle.
+
+**The pilot earned its keep immediately.** First 2-assignment pilot:
+strong_recall@5 **0.60**, one ordering violation. Both misses were
+real matcher bugs, found by numbers before any human read a transcript:
+(1) extraction merged three separate requirement bullets into one
+OR-group, so one-skill candidates scored "strong"; (2) discovery
+crowded out a true strong candidate with few nice-to-haves behind
+flashier partial profiles. One prompt-rule fix and one wider-net fix
+(k=12, verify 10) later:
+
+| metric (gated) | full run 1 | full run 2 |
+|---|---:|---:|
+| strong_recall@5 (n=21) | **1.000** | **1.000** |
+| full_match_accuracy (n=8, incl. a08) | **1.000** | **1.000** |
+| ordering_clean_rate (n=7) | **1.000** | **1.000** |
+| gap_alignment (informational, n≈24) | 0.958 | 0.957 |
+
+gpt-4o-mini, k=12, ~24 s per assignment attended. Known softness, kept
+visible: the verifier stretched "5G RAN or 5G Core" for one
+telecom-adjacent cloud profile (a08's cv30) — the a08 output stays
+honest regardless because "secure boot" is uncoverable. Baseline key:
+`openai:gpt-4o-mini|k=12|chain=match|set=staffing` (fingerprinted).
+
+**Lessons.** (1) **Constructed ground truth converts matcher bugs into
+failing metrics** — the two pilot bugs would have survived any demo
+where someone eyeballs a plausible shortlist. (2) The architecture
+split carries the result: retrieval *discovers*, the verifier
+*decides*, so retrieval tuning cannot silently change what counts as
+evidence. (3) Honesty can be a gated metric: an unsatisfiable case in
+the golden set makes overselling a test failure instead of a demo-day
+embarrassment.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |
@@ -1375,6 +1487,8 @@ convention empirically, because one of four was measurably wrong.**
 | Ensemble weights  | BM25 `0.4` / vector `0.6`    | Experiment 6 | more BM25 costs coverage on paraphrases        |
 | Ingestion         | parallel batches (4 × 500)   | Experiment 7 | 3.1× faster embedding, identical vectors       |
 | Chunk context     | `source` identity line       | Experiment 12 | hit +1.5pp, faithful +2.9pp, +5.7% tokens     |
+| Local embedder    | `embeddinggemma` (probed)    | Experiment 25 | closes the legal-corpus gap nomic left (0.56→0.80 hit) |
+| LLM temperature   | `0.0`, both providers        | Experiment 26 | determinism for factual RAG; local multi-turn steadier |
 
 Every one of these will be re-examined the moment the corpus changes — which
 is the point: the harness makes "should this default change?" a measurable

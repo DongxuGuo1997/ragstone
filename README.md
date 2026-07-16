@@ -45,6 +45,9 @@ opinion:
 | Does the thread model survive real load? | p50 flat to **32 concurrent clients**, instant 429s beyond the cap, **~7× payoff** on parallel generation; the load test also caught two API design bugs (Exp 16) |
 | Can a nano model run the rephrase step? | −40% latency and a green gate — then a live transcript showed it echoing answers on "are you sure?" turns the eval set never covered. **Reverted same day**, prompt hardened, blind spot added to the golden set (Exp 18) |
 | Can RAG answer "who wrote this paper?" | Not from content chunks — the references section decoys every authorship query. One extracted **metadata card** per document: misattribution eliminated on a 79-chunk PDF, MRR +1.6 on the golden set (Exp 19) |
+| Can the local stack match the cloud path? | After a 622 MB embedder swap and temperature parity: smoke correct **0.951–1.0 / faithful 1.0**, multi-turn 1.0 — at the cloud reference; on real regulations, local ≈ cloud (Exp 21/25/26) |
+| Does reasoning mode fix weak retrieval? | No — identical correctness at **33× latency**; a 274→622 MB embedder swap fixed what thinking couldn't (Exp 25) |
+| Can CV↔assignment matching be *measured*? | Ground truth by construction: strong-candidate recall@5 **1.0**, no-full-match honesty **1.0** — and the pilot's imperfect scores caught two real matcher bugs before any human read a transcript (Exp 27) |
 
 Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
 reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md) · What's
@@ -657,7 +660,7 @@ ada-002; `k=4` is the coverage knee (k=2 loses answers, k=6 adds nothing).
 | text-embedding-3-small, ensemble          | 1.000    | 0.895 |
 | text-embedding-3-small, ensemble + rerank | 1.000    | **0.964** |
 
-(Local equivalents — nomic-embed-text ± the local reranker — are in
+(The local equivalents are in
 ["The local stack, measured"](#the-local-stack-measured) below.)
 
 **Generation (Layer 2, LLM-judged).** The headline finding is a *negative*
@@ -676,9 +679,10 @@ where question phrasing is genuinely ambiguous.
 ### The local stack, measured
 
 Everything above also runs fully offline — Ollama models,
-`nomic-embed-text` embeddings, the local cross-encoder reranker — and as
-of July 2026 that path is **measured, not just supported** (Experiment 21;
-current 49-case smoke set, thinking disabled via
+`embeddinggemma` embeddings (the probed local default since
+Experiment 25), optionally the local cross-encoder reranker — and as
+of July 2026 that path is **measured, not just supported**
+(Experiments 21/25/26; current 49-case smoke set, thinking disabled via
 `RAGSTONE_OLLAMA_REASONING=off`, scored by the same cloud judge as the
 cloud baseline, M4 Max / 128 GB).
 
@@ -689,7 +693,9 @@ embedder (hit 0.80 vs 0.78) where the previous default trailed badly
 (0.56). Adding the local reranker on the fictional corpus lands **hit
 1.0 / MRR 1.0**.
 
-**Local generation**, by hardware tier:
+**Local generation**, by hardware tier (Experiment 21 — measured under
+the previous `nomic-embed-text` embedder; the tier *shape* is the
+durable signal):
 
 | Local answerer (tier)         | correct | faithful | multi-turn c/f | s/ask | out tok/s |
 |-------------------------------|--------:|---------:|----------------|------:|----------:|
@@ -707,12 +713,49 @@ answers agreed with the cloud judge within 2.5–4.9 pp with zero format
 failures — a no-egress deployment can run this harness end to end.
 Run it yourself: `make eval-local`.
 
+**The current local default, re-measured (July 2026)** — qwen3.5:9b +
+`embeddinggemma` + temperature 0, thinking off: correct **0.951** /
+faithful **1.0** / multi-turn **1.0 / 1.0** (the committed baseline);
+the temperature-default arm of the same paired gate reached correct
+**1.0 / faithful 1.0**. Either way the local stack sits at the cloud
+reference (gpt-4o-mini: 0.951 / 1.0) on this set — the two arms differ
+by judge strictness on extra correct detail, dissected case by case in
+Experiment 26.
+
 And "no-egress" is an enforced invariant, not a promise:
 `RAGSTONE_PROFILE=local` refuses cloud providers, remote document
 sources, and phone-home tracing, validates every endpoint as loopback
 at boot, and is regression-tested by a socket-intercepting test over
 the full ingest-and-ask path (`tests/integration/test_no_egress.py`).
 Data-flow diagrams per deployment mode: [SECURITY.md](SECURITY.md).
+
+## The staffing-match showcase
+
+A complete vertical use case built on the engine (ROADMAP 9): paste a
+client assignment request, get an evidence-backed candidate shortlist
+from a consultant-CV pool.
+
+```bash
+make run-match-ui                    # dedicated UI (or: ragstone-match)
+python evals/run_staffing_eval.py    # the measured gate
+```
+
+- **Every claim cites the CV.** The brief is parsed into structured
+  requirements (OR-alternatives preserved); candidates are discovered by
+  per-requirement hybrid retrieval over person-tagged chunks, then
+  verified requirement-by-requirement with verbatim CV quotes. Gaps are
+  reported as *"not evidenced in the CV"* — absence of evidence, not
+  evidence of absence.
+- **Honesty is a gated metric.** The bench — 40 synthetic Nordic
+  consultant CVs and 8 assignment briefs with ground truth true by
+  construction — includes one deliberately unsatisfiable assignment.
+  Measured: strong-candidate recall@5 **1.0**, no-full-match honesty
+  **1.0**, ranking cleanliness **1.0** (Experiment 27).
+- **Privacy is structural.** CVs are personal data under the GDPR; with
+  the Ollama provider the entire match runs locally — no CV text leaves
+  the machine. The repo ships only synthetic CVs, and the tool is
+  framed as human-in-the-loop decision support, never automated
+  selection.
 
 ## Logging
 
