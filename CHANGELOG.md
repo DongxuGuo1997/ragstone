@@ -32,6 +32,12 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Paired significance testing** (`evals/compare_runs.py`): exact
+  McNemar test between two `--dump-answers` runs over the same golden
+  set — reports concordant/discordant counts, the exact two-sided
+  p-value, and the flipped case ids (this repo reads its flips). Run
+  live on the temperature pair, it formalizes Experiment 26's
+  judgment: b=2/c=1, p=1.0 — noise. An instrument, never a gate.
 - **Staffing match chain + dedicated UI** (ROADMAP 9.1/9.3): the
   CV↔assignment matcher (`ragstone.match`) — a LangGraph graph that
   extracts structured requirements from a free-text brief, discovers
