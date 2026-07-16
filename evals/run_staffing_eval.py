@@ -51,6 +51,7 @@ from run_eval import (  # noqa: E402  (path bootstrap above)
     BASELINE_PATH,
     TOLERANCE,
     ci95_halfwidth,
+    data_fingerprint,
     with_retries,
 )
 
@@ -223,6 +224,16 @@ def check_baseline(scores: dict, key: str) -> int:
     if base is None:
         print(f"No baseline for key '{key}'; run --update-baseline to record.")
         return 0
+    recorded_sha = base.get("data_sha")
+    fingerprint = data_fingerprint(GOLDEN_PATH, [CORPUS_DIR])
+    if recorded_sha and recorded_sha != fingerprint:
+        print(
+            f"DATA MISMATCH: the staffing golden set or CV corpus changed "
+            f"since this baseline was recorded (data_sha {recorded_sha} -> "
+            f"{fingerprint}). Re-record with --update-baseline if "
+            "intentional."
+        )
+        return 1
     recorded = base.get("metrics", {})
     failures = []
     for metric in GATED_METRICS:
@@ -254,6 +265,7 @@ def update_baseline(scores: dict, key: str) -> None:
     baselines[key] = {
         "metrics": {metric: round(scores[metric], 3) for metric in GATED_METRICS},
         "date": time.strftime("%Y-%m-%d"),
+        "data_sha": data_fingerprint(GOLDEN_PATH, [CORPUS_DIR]),
     }
     BASELINE_PATH.write_text(
         json.dumps(baselines, indent=2, ensure_ascii=False) + "\n",

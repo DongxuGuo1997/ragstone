@@ -208,6 +208,135 @@ class TestConfidenceIntervals:
         assert "outside the 95% CI" in capsys.readouterr().out
 
 
+class TestDataFingerprint:
+    """A baseline is a statement about specific data; edits must be loud."""
+
+    def _bench(self, tmp_path):
+        golden = tmp_path / "golden.jsonl"
+        golden.write_text('{"id": "q01"}\n')
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        (corpus / "doc_a.md").write_text("alpha")
+        return golden, corpus
+
+    def test_stable_across_calls(self, run_eval, tmp_path):
+        golden, corpus = self._bench(tmp_path)
+        first = run_eval.data_fingerprint(golden, [corpus])
+        assert run_eval.data_fingerprint(golden, [corpus]) == first
+        assert len(first) == 12
+
+    def test_golden_edit_changes_it(self, run_eval, tmp_path):
+        golden, corpus = self._bench(tmp_path)
+        before = run_eval.data_fingerprint(golden, [corpus])
+        golden.write_text('{"id": "q01", "edited": true}\n')
+        assert run_eval.data_fingerprint(golden, [corpus]) != before
+
+    def test_corpus_edit_and_rename_change_it(self, run_eval, tmp_path):
+        golden, corpus = self._bench(tmp_path)
+        before = run_eval.data_fingerprint(golden, [corpus])
+        (corpus / "doc_a.md").write_text("alpha edited")
+        edited = run_eval.data_fingerprint(golden, [corpus])
+        assert edited != before
+        (corpus / "doc_a.md").rename(corpus / "doc_b.md")
+        assert run_eval.data_fingerprint(golden, [corpus]) != edited
+
+    def test_gate_fails_loudly_on_mismatch(
+        self, run_eval, tmp_path, monkeypatch, capsys
+    ):
+        import json as _json
+        from types import SimpleNamespace as _NS
+
+        golden, corpus = self._bench(tmp_path)
+        monkeypatch.setitem(run_eval.GOLDEN_SETS, "smoke", golden)
+        monkeypatch.setattr(run_eval, "corpus_dirs_for_set", lambda s: [corpus])
+        args = _NS(
+            provider="openai",
+            model="m",
+            judge_provider="openai",
+            judge_model="m",
+            k=4,
+            chain_type="simple",
+            mode="full",
+            rerank=False,
+            set="smoke",
+            update_baseline=False,
+        )
+        key = run_eval.baseline_key(args)
+        baseline_path = tmp_path / "baseline.json"
+        entry = {
+            "metrics": {"correct_rate": 0.9},
+            "date": "2026-01-01",
+            "data_sha": "000000000000",  # anything but the real one
+        }
+        baseline_path.write_text(_json.dumps({key: entry}))
+        monkeypatch.setattr(run_eval, "BASELINE_PATH", baseline_path)
+
+        rc = run_eval.check_baseline(args, {"correct_rate": 0.95})
+        assert rc == 1
+        assert "DATA MISMATCH" in capsys.readouterr().out
+
+        # With the true fingerprint recorded, the same scores pass.
+        entry["data_sha"] = run_eval.data_fingerprint(golden, [corpus])
+        baseline_path.write_text(_json.dumps({key: entry}))
+        assert run_eval.check_baseline(args, {"correct_rate": 0.95}) == 0
+
+    def test_entries_without_sha_still_gate_on_metrics(
+        self, run_eval, tmp_path, monkeypatch
+    ):
+        # Every committed pre-fingerprint baseline key must keep working.
+        import json as _json
+        from types import SimpleNamespace as _NS
+
+        golden, corpus = self._bench(tmp_path)
+        monkeypatch.setitem(run_eval.GOLDEN_SETS, "smoke", golden)
+        monkeypatch.setattr(run_eval, "corpus_dirs_for_set", lambda s: [corpus])
+        args = _NS(
+            provider="openai",
+            model="m",
+            judge_provider="openai",
+            judge_model="m",
+            k=4,
+            chain_type="simple",
+            mode="full",
+            rerank=False,
+            set="smoke",
+            update_baseline=False,
+        )
+        key = run_eval.baseline_key(args)
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            _json.dumps({key: {"metrics": {"correct_rate": 0.9}, "date": "x"}})
+        )
+        monkeypatch.setattr(run_eval, "BASELINE_PATH", baseline_path)
+        assert run_eval.check_baseline(args, {"correct_rate": 0.95}) == 0
+
+    def test_update_records_the_fingerprint(self, run_eval, tmp_path, monkeypatch):
+        import json as _json
+        from types import SimpleNamespace as _NS
+
+        golden, corpus = self._bench(tmp_path)
+        monkeypatch.setitem(run_eval.GOLDEN_SETS, "smoke", golden)
+        monkeypatch.setattr(run_eval, "corpus_dirs_for_set", lambda s: [corpus])
+        args = _NS(
+            provider="openai",
+            model="m",
+            judge_provider="openai",
+            judge_model="m",
+            k=4,
+            chain_type="simple",
+            mode="full",
+            rerank=False,
+            set="smoke",
+            update_baseline=True,
+        )
+        baseline_path = tmp_path / "baseline.json"
+        monkeypatch.setattr(run_eval, "BASELINE_PATH", baseline_path)
+        assert run_eval.check_baseline(args, {"correct_rate": 0.9}) == 0
+        written = _json.loads(baseline_path.read_text())
+        entry = written[run_eval.baseline_key(args)]
+        assert entry["data_sha"] == run_eval.data_fingerprint(golden, [corpus])
+
+
 def _full_args(**overrides):
     """An args namespace with every field the dump/key paths read."""
     ns = SimpleNamespace(

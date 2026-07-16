@@ -16,6 +16,7 @@ committed baseline in evals/baseline.json.
 """
 
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -62,6 +63,37 @@ GOLDEN_SETS = {
 
 # How far a metric may drop below the baseline before the run fails.
 TOLERANCE = 0.05
+
+
+def corpus_dirs_for_set(set_name: str) -> list:
+    """Which corpus directories a golden set measures against."""
+    if set_name == "single_doc":
+        return [SINGLE_DOC_CORPUS_DIR]
+    if set_name == "regulatory":
+        return [REGULATORY_CORPUS_DIR]
+    if set_name == "large":
+        return [CORPUS_DIR, EXTENDED_CORPUS_DIR]
+    return [CORPUS_DIR]
+
+
+def data_fingerprint(golden_path: Path, corpus_dirs: list) -> str:
+    """sha256[:12] over the golden set and corpus bytes.
+
+    A baseline is a statement about a specific golden set and corpus; a
+    silent edit to either makes old numbers incomparable while every
+    gate keeps passing. The fingerprint is recorded on
+    --update-baseline and compared on every gate, so that class of
+    drift fails loudly instead. Filenames are hashed too — a rename is
+    a change.
+    """
+    digest = hashlib.sha256()
+    digest.update(golden_path.read_bytes())
+    for corpus_dir in corpus_dirs:
+        for path in sorted(Path(corpus_dir).glob("*.md")):
+            digest.update(path.name.encode("utf-8"))
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
 
 # Transient API errors (e.g. OpenAI's edge occasionally returns a spurious
 # HTTP 431 that the SDK treats as non-retryable) shouldn't kill a whole run.
@@ -127,19 +159,17 @@ def build_pipeline(args):
     else:
         pipeline = OllamaPipeline(model=args.model, **store_kwargs)
 
-    corpus_dir = CORPUS_DIR
-    if args.set == "single_doc":
-        corpus_dir = SINGLE_DOC_CORPUS_DIR
-    if args.set == "regulatory":
-        corpus_dir = REGULATORY_CORPUS_DIR
-    if args.set == "large":
-        # The large set spans both corpus dirs; merge into a temp dir since
+    corpus_dirs = corpus_dirs_for_set(args.set)
+    if len(corpus_dirs) == 1:
+        corpus_dir = corpus_dirs[0]
+    else:
+        # The set spans several corpus dirs; merge into a temp dir since
         # the loader takes a single directory.
         import shutil
         import tempfile
 
         merged = Path(tempfile.mkdtemp(prefix="ragstone_eval_corpus_"))
-        for source_dir in (CORPUS_DIR, EXTENDED_CORPUS_DIR):
+        for source_dir in corpus_dirs:
             for doc in source_dir.glob("*.md"):
                 shutil.copy(doc, merged / doc.name)
         corpus_dir = merged
@@ -580,8 +610,14 @@ def check_baseline(args, metrics, sizes: Optional[Dict[str, int]] = None) -> int
     if BASELINE_PATH.exists():
         baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
 
+    fingerprint = data_fingerprint(GOLDEN_SETS[args.set], corpus_dirs_for_set(args.set))
+
     if args.update_baseline:
-        baseline[key] = {"metrics": metrics, "date": date.today().isoformat()}
+        baseline[key] = {
+            "metrics": metrics,
+            "date": date.today().isoformat(),
+            "data_sha": fingerprint,
+        }
         BASELINE_PATH.write_text(
             json.dumps(baseline, indent=2) + "\n", encoding="utf-8"
         )
@@ -592,6 +628,19 @@ def check_baseline(args, metrics, sizes: Optional[Dict[str, int]] = None) -> int
         print(f"No baseline for this configuration ({key}).")
         print("Run with --update-baseline to record one.")
         return 0
+
+    recorded_sha = baseline[key].get("data_sha")
+    if recorded_sha and recorded_sha != fingerprint:
+        # Entries recorded before fingerprinting existed have no
+        # data_sha and are compared on metrics alone, as before.
+        print(
+            f"DATA MISMATCH: the golden set or corpus changed since this "
+            f"baseline was recorded (data_sha {recorded_sha} -> "
+            f"{fingerprint}). Old numbers are not comparable to this "
+            "run. If the change is intentional, re-record with "
+            "--update-baseline."
+        )
+        return 1
 
     sizes = sizes or {}
     failed = False
