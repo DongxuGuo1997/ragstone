@@ -8,4 +8,4 @@
 # CI fails the moment an entry expires, so nothing here is permanent.
 # An entry without an expiry date also fails the build.
 
-PYSEC-2026-311 2026-09-01 chromadb: no fixed release published yet; chroma is legacy-tier (README support table), not the default store — re-check for a fix before expiry
+PYSEC-2026-311 2026-09-01 chromadb (CVE-2026-45829): pre-auth code injection in the chroma HTTP SERVER (/api/v2 collections endpoint) — ragstone never runs that server; it uses the embedded PersistentClient only (src/ragstone/rag/vector_db.py), so the vulnerable surface is never started. No fixed release exists as of 2026-07-17 (OSV: 1.5.9 = last_affected, all 1.x affected); chroma is legacy-tier, not the default store. At expiry: re-check OSV for a fix; if still none, either re-justify with this same exposure analysis or retire the chroma store (maintainer decision).
