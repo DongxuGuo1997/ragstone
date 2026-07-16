@@ -9,6 +9,26 @@ import json
 import re
 from typing import Optional
 
+# The judge is the measuring instrument: if OpenAI silently moves the
+# floating "gpt-4o-mini" alias to a new snapshot, every committed
+# baseline drifts and the shift masquerades as regressions (or quietly
+# absorbs real ones). Aliases are therefore pinned to dated snapshots
+# at call time. Baseline KEYS keep the alias ("judge:openai:gpt-4o-mini")
+# so committed keys stay valid; only the wire-level model is pinned.
+# Snapshot verified live 2026-07-17. Answerer models stay unpinned on
+# purpose — their drift is part of what the harness measures.
+JUDGE_MODEL_PINS = {
+    "gpt-4o-mini": "gpt-4o-mini-2024-07-18",
+}
+
+
+def resolve_judge_model(model: str, provider: str) -> str:
+    """The wire-level model a judge alias resolves to (openai only)."""
+    if provider == "openai":
+        return JUDGE_MODEL_PINS.get(model, model)
+    return model
+
+
 CORRECTNESS_PROMPT = """\
 You are grading the answer of a question-answering system.
 
@@ -66,7 +86,7 @@ def _get_judge_llm(model: str, provider: str, reasoning: Optional[bool] = None):
         return ChatOllama(**kwargs)
     from langchain_openai import ChatOpenAI
 
-    return ChatOpenAI(model=model, temperature=0)
+    return ChatOpenAI(model=resolve_judge_model(model, provider), temperature=0)
 
 
 def _parse_verdict(text: str) -> dict:
