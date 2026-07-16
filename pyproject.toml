@@ -147,6 +147,7 @@ ragstone = "ragstone.ui.streamlit_app:main"
 ragstone-mcp = "ragstone.mcp.mcp_server_fastmcp:main"
 ragstone-chat = "ragstone.ui.chat_interface:main"
 ragstone-api = "ragstone.api.server:main"
+ragstone-match = "ragstone.ui.staffing_app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

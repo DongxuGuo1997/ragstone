@@ -541,6 +541,11 @@ class Matcher:
         state = self._graph.invoke({"brief": brief})
         return state["result"]
 
+    def person_cv(self, person_id: str) -> str:
+        """Full CV text for a person (chunks in file order), or ""."""
+        entry = self._people.get(person_id)
+        return "\n\n".join(entry["chunks"]) if entry else ""
+
     def stream_events(self, brief: str):
         """Yield progress dicts, then {"event": "done", "result": ...}."""
         final: Optional[MatchResult] = None

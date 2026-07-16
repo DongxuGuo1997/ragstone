@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov eval eval-retrieval eval-local lint format clean build dev-setup run-streamlit run-mcp-server run-chat run-api docker-build docker-up docker-down check prepare-release
+.PHONY: help install install-dev test test-cov eval eval-retrieval eval-local lint format clean build dev-setup run-streamlit run-match-ui run-mcp-server run-chat run-api docker-build docker-up docker-down check prepare-release
 
 # Default target
 help:
@@ -15,6 +15,7 @@ help:
 	@echo "  clean         Clean build artifacts"
 	@echo "  build         Build package"
 	@echo "  run-streamlit / run-api / run-mcp-server / run-chat"
+	@echo "  run-match-ui  Dedicated staffing-match UI (CV shortlisting)"
 	@echo "  docker-build  Build the API image"
 	@echo "  docker-up     API + Qdrant + Postgres/pgvector stack"
 	@echo "  docker-down   Stop the compose stack"
@@ -71,6 +72,9 @@ dev-setup: clean install-dev
 
 run-streamlit:
 	streamlit run src/ragstone/ui/streamlit_app.py
+
+run-match-ui:
+	streamlit run src/ragstone/ui/staffing_app.py
 
 run-mcp-server:
 	python -m ragstone.mcp.mcp_server_fastmcp

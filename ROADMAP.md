@@ -550,15 +550,23 @@ what a matcher can read. Assignment a08 is deliberately unsatisfiable
 measurable. The corpus doubles as contamination control — no model has
 ever seen these documents.
 
-### 9.1 Match chain: assignment → ranked shortlist — M
-Parse the brief into structured requirements (must/nice/years/language/
-domain), retrieve per requirement over person-tagged chunks, aggregate
-hits per candidate, score requirement coverage (not raw similarity),
-return a ranked shortlist with per-requirement evidence.
-*Measure:* eval slice against `golden_staffing.jsonl` — every
-expected-strong candidate surfaces in the top-k; no out-of-tier
-candidate outranks a strong one; a08 yields an explicit "no full
-match".
+### 9.1 Match chain: assignment → ranked shortlist — DELIVERED (July 2026)
+`src/ragstone/match/`: a LangGraph StateGraph (extract → discover →
+verify → score). The brief is parsed into structured requirements
+(distinct bullets stay distinct musts; "C++ or Golang" stays one
+OR-group); each requirement becomes a retrieval query over
+person-tagged chunks; hits aggregate per person by coverage breadth;
+one screening LLM call per shortlisted candidate returns
+per-requirement verdicts with verbatim evidence quotes (unparseable →
+fail closed); verified coverage sets strong/partial/weak tiers and an
+honest `full_match_exists`. Measured (evals/run_staffing_eval.py,
+gpt-4o-mini, k=12, two identical full runs): strong_recall@5 1.0
+(21/21), full_match_accuracy 1.0 (8/8 — a08 correctly reports no full
+match), ordering_clean_rate 1.0 (7/7); gap_alignment 0.96
+informational. The first pilot caught two real matcher bugs the
+constructed bench exists to catch (extraction merging separate bullets
+into one OR-group; discovery crowding out a low-nice-hit true strong).
+Baseline key: `openai:gpt-4o-mini|k=12|chain=match|set=staffing`.
 
 ### 9.2 Strengths/weaknesses analyst — M
 Per shortlisted candidate: strengths cited to CV lines (citations v1
@@ -568,10 +576,17 @@ is not evidence of absence, and the phrasing must say so.
 for expected-partial candidates the oracle's missing requirement must
 be surfaced as the gap.
 
-### 9.3 Demo surface — S
-Streamlit flow: paste a brief, get the shortlist, drill into one
-candidate's evidence table — running fully on the local stack.
-*Measure:* end-to-end demo run with the no-egress profile.
+### 9.3 Demo surface — S (UI shipped July 2026; local demo run open)
+The dedicated staffing UI exists (user requirement: separate from the
+chat app, one-command launch): `make run-match-ui` / `ragstone-match` /
+`streamlit run src/ragstone/ui/staffing_app.py`. Bundled example
+briefs, live progress events, per-candidate coverage tables with
+verbatim quotes, CV view with evidence highlighted via the citations
+aligner, honest no-full-match banner, and a local-mode badge. Headless
+boot smoke + an end-to-end run through the app's own build path are
+verified.
+*Measure (remaining):* end-to-end demo run on the local stack with the
+no-egress profile — then this is delivered.
 
 ## Inspiration / references
 

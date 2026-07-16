@@ -20,6 +20,19 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Staffing match chain + dedicated UI** (ROADMAP 9.1/9.3): the
+  CV↔assignment matcher (`ragstone.match`) — a LangGraph graph that
+  extracts structured requirements from a free-text brief, discovers
+  candidates by per-requirement retrieval over person-tagged chunks,
+  verifies coverage per candidate with verbatim evidence quotes, and
+  ranks by verified coverage with an honest `full_match_exists` (gaps
+  read "not evidenced in the CV"). Measured on the constructed bench:
+  strong_recall@5 1.0, full_match_accuracy 1.0 (incl. the deliberately
+  unsatisfiable assignment), ordering_clean_rate 1.0
+  (`evals/run_staffing_eval.py`, gated). Ships with a separate
+  one-command staffing UI (`make run-match-ui` / `ragstone-match`):
+  bundled example briefs, live progress, coverage tables, and CV
+  evidence highlighting via the citations aligner.
 - **Staffing-match bench** (ROADMAP 9.0): 40 synthetic consultant CVs
   (embedded automotive, telecom, cloud, DevOps) plus 8 client
   assignment briefs for the CV↔assignment matching showcase, with
