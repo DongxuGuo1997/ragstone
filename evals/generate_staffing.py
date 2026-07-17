@@ -1068,9 +1068,16 @@ def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
-def render_cvs(llm, personas, limit=None):
+def render_cvs(llm, personas, limit=None, workers=1):
+    """Render missing CVs; existing files are re-verified, never rewritten.
+
+    workers>1 renders concurrently (ChatOpenAI.invoke is thread-safe and
+    the files are independent — same pattern as ingest enrichment). The
+    original bench was rendered sequentially; parallelism exists for the
+    XL population, where 400 sequential renders measured ~5 hours.
+    """
     CORPUS_DIR.mkdir(exist_ok=True)
-    rendered = 0
+    pending = []
     for persona in personas:
         path = CORPUS_DIR / f"{persona['id']}_{_slug(persona['name'])}.md"
         skills = set(persona["skills"])
@@ -1085,17 +1092,31 @@ def render_cvs(llm, personas, limit=None):
             )
             print(f"  cv: {path.name} exists ({status})")
             continue
-        if limit is not None and rendered >= limit:
-            continue
+        pending.append((persona, path, skills))
+    if limit is not None:
+        pending = pending[:limit]
+
+    def _render_one(job):
+        persona, path, skills = job
         prompt = CV_PROMPT.format(
             spec=json.dumps(persona, ensure_ascii=False, indent=2),
             years=persona["years"],
         )
         text = render_checked(llm, prompt, skills, skills, persona["id"])
         path.write_text(text, encoding="utf-8")
-        rendered += 1
         print(f"  cv: wrote {path.name} ({len(text.split())} words)")
-    return rendered
+
+    if workers <= 1:
+        for job in pending:
+            _render_one(job)
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            # list() surfaces the first worker exception instead of
+            # swallowing it in a lazy iterator.
+            list(pool.map(_render_one, pending))
+    return len(pending)
 
 
 def render_briefs(llm, existing_briefs):
@@ -1242,7 +1263,7 @@ def main() -> int:
 
     llm = _llm(args.model)
     print("Rendering CVs...")
-    render_cvs(llm, personas, limit=args.limit)
+    render_cvs(llm, personas, limit=args.limit, workers=6 if args.scale > 1 else 1)
     print("Rendering briefs...")
     briefs = render_briefs(llm, _load_existing_briefs())
     write_golden(personas, briefs)

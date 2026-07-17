@@ -44,6 +44,18 @@ EVALS_DIR = Path(__file__).parent
 CORPUS_DIR = EVALS_DIR / "corpus_staffing"
 GOLDEN_PATH = EVALS_DIR / "golden_staffing.jsonl"
 
+# The XL population (generate_staffing.py --scale N): same assignments,
+# ~10x the people. It measures a different property — discovery at
+# scale with the verification budget held constant — so it lives under
+# its own --set, corpus, golden, and baseline keys.
+SETS = {
+    "staffing": (CORPUS_DIR, GOLDEN_PATH),
+    "staffing_xl": (
+        EVALS_DIR / "corpus_staffing_xl",
+        EVALS_DIR / "golden_staffing_xl.jsonl",
+    ),
+}
+
 sys.path.insert(0, str(EVALS_DIR.parent / "src"))
 sys.path.insert(0, str(EVALS_DIR))
 
@@ -159,7 +171,11 @@ def evaluate(matcher, assignments, verbose=False):
         ranked_ids = [c.person_id for c in result.candidates]
         top = ranked_ids[:SHORTLIST_N]
 
-        counters["strong_total"] += len(strong_ids)
+        # Denominator caps at the shortlist size: with a 25-strong XL
+        # pool, "all 5 of the top 5 are oracle-strong" is a perfect
+        # score, not 5/25. For pools <= 5 this is provably the old
+        # recall (same intersection numerator, same denominator).
+        counters["strong_total"] += min(SHORTLIST_N, len(strong_ids))
         counters["strong_found"] += sum(1 for pid in strong_ids if pid in top)
 
         oracle_has_strong = bool(strong_ids)
@@ -218,7 +234,8 @@ def evaluate(matcher, assignments, verbose=False):
 
 def baseline_key(args) -> str:
     model = args.model or "gpt-4o-mini"
-    key = f"{args.provider}:{model}|k={args.k}|chain=match|set=staffing"
+    set_name = getattr(args, "set", "staffing")
+    key = f"{args.provider}:{model}|k={args.k}|chain=match|set={set_name}"
     # Suffix only when the flag was passed, like run_eval.py — the
     # committed cloud key stays untouched.
     if getattr(args, "ollama_reasoning", None):
@@ -286,10 +303,18 @@ def update_baseline(scores: dict, key: str) -> None:
 
 
 def main() -> int:
+    global CORPUS_DIR, GOLDEN_PATH
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--provider", choices=["openai", "ollama"], default="openai")
     parser.add_argument("--model", default=None)
     parser.add_argument("--k", type=int, default=12)
+    parser.add_argument(
+        "--set",
+        choices=sorted(SETS),
+        default="staffing",
+        help="staffing = the 40-person bench; staffing_xl = the scale test",
+    )
     parser.add_argument(
         "--ollama-reasoning",
         choices=["on", "off"],
@@ -307,6 +332,7 @@ def main() -> int:
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
+    CORPUS_DIR, GOLDEN_PATH = SETS[args.set]
     if args.limit is not None and args.update_baseline:
         sys.exit("error: --limit runs are partial; refusing --update-baseline")
 

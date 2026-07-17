@@ -47,3 +47,7 @@ class TestStaffingBaselineKey:
         )
         unset = _args(provider="ollama", model="qwen3.5:9b")
         assert "reasoning" not in module.baseline_key(unset)
+
+    def test_xl_set_gets_its_own_key(self):
+        key = _module().baseline_key(_args(set="staffing_xl"))
+        assert key == "openai:gpt-4o-mini|k=12|chain=match|set=staffing_xl"
