@@ -1472,6 +1472,26 @@ evidence. (3) Honesty can be a gated metric: an unsatisfiable case in
 the golden set makes overselling a test failure instead of a demo-day
 embarrassment.
 
+**Postscript — the Swedish brief caught a third bug.** a09 extends the
+bench cross-lingually: the entire brief is Swedish ("Krav" /
+"Meriterande", a Swedish client writing to a Swedish consultancy),
+every CV English, technology names canonical. First 9-assignment run:
+strong_recall **25/26** — cv38, whose CV holds all three musts
+verbatim plus native Swedish, never reached verification. Diagnosis
+(not a language problem at all): discovery counted a requirement as
+"hit" for anyone the retriever returned in top-k, so AUTOSAR
+*Adaptive* profiles — which later verified weak with 3–4 gaps —
+crowded the shortlist while cv38's textually weak mentions (a
+safety-lead CV listing "AUTOSAR Classic" once) lost every top-k race.
+Fix: a **lexical discovery channel** — an exact skill phrase in a CV
+makes that person a discovery candidate for that requirement whatever
+the retriever ranked (boundary-safe regexes: "Embedded C" still never
+matches "Embedded C++"); verification still decides coverage. After:
+**26/26**, all other assignments unchanged, extraction handling the
+Swedish text without special-casing. The repeated lesson: for NAMED
+skills, exact text is a discovery signal retrieval rank cannot
+replace — and the golden set grows teeth every time it grows a case.
+
 ---
 
 ## Defaults, decided by the numbers above

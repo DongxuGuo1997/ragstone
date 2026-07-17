@@ -32,6 +32,17 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Cross-lingual staffing case + lexical discovery channel**: the
+  bench gains a09, an entirely Swedish assignment brief ("Krav" /
+  "Meriterande") against the English CVs. Its first run caught a real
+  matcher bug — retrieval-rank discovery let near-miss profiles crowd
+  out a true match whose skill mentions were textually weak — fixed by
+  a lexical channel: an exact skill phrase in a CV makes the person a
+  discovery candidate regardless of retrieval rank (boundary-safe;
+  verification still decides coverage). The 9-assignment bench measures
+  1.0 on all gated metrics; the golden-set fingerprint gate fired on
+  the bench change exactly as designed and the baseline was
+  consciously re-recorded.
 - **Real-CV upload in the staffing UI**: drop PDF/DOCX/MD/TXT files
   into the sidebar and the match runs against them instead of the
   bundled bench — one file per person, names derived from filenames

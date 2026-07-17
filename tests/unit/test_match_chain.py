@@ -288,6 +288,45 @@ class TestMatchFlow:
         result = matcher.match("brief")
         assert [a.person_id for a in result.candidates][0] == "cv01"
 
+    def test_lexical_channel_rescues_retrieval_crowd_out(self):
+        # The retriever never surfaces cv02 for the skill query, but its
+        # CV literally contains the phrase — the lexical channel must
+        # make it a discovery candidate (measured failure: a09/cv38).
+        extraction = json.dumps(
+            {
+                "must": [{"kind": "skill", "alternatives": ["AUTOSAR Classic"]}],
+                "nice": [],
+            }
+        )
+        people = {
+            "cv01": {"name": "A", "chunks": ["works with AUTOSAR Classic daily"]},
+            "cv02": {"name": "B", "chunks": ["deep AUTOSAR Classic platform work"]},
+        }
+        retriever = {"AUTOSAR Classic": [_doc("cv01", "A")]}  # cv02 never returned
+        result = _matcher(
+            [extraction, _verify_response([True]), _verify_response([True])],
+            retriever,
+            people,
+        ).match("brief")
+        assert {c.person_id for c in result.candidates} == {"cv01", "cv02"}
+
+    def test_lexical_channel_respects_symbol_boundaries(self):
+        # "Embedded C++" must not count as lexical evidence of
+        # "Embedded C" — the substring trap the taxonomy regexes guard.
+        extraction = json.dumps(
+            {"must": [{"kind": "skill", "alternatives": ["Embedded C"]}], "nice": []}
+        )
+        people = {
+            "cv01": {"name": "A", "chunks": ["modern Embedded C++ development"]},
+            "cv02": {"name": "B", "chunks": ["ten years of Embedded C firmware"]},
+        }
+        result = _matcher(
+            [extraction, _verify_response([True])],
+            {},  # retriever returns nothing at all
+            people,
+        ).match("brief")
+        assert [c.person_id for c in result.candidates] == ["cv02"]
+
     def test_stream_events_surface_progress_and_result(self):
         retriever = {"AUTOSAR Classic": [_doc("cv01", "Astrid Okafor")]}
         matcher = _matcher(

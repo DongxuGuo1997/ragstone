@@ -275,6 +275,16 @@ def index_person_chunks(texts: List[Document]) -> Dict[str, Dict[str, Any]]:
     return people
 
 
+def _phrase_pattern(phrase: str) -> "re.Pattern[str]":
+    """Case-insensitive exact-phrase matcher with symbol-safe edges.
+
+    (?<![\\w+]) / (?![\\w+]) instead of plain \\b so that "Embedded C"
+    does not match inside "Embedded C++", and "C++" does not match
+    inside longer symbol runs.
+    """
+    return re.compile(rf"(?i)(?<![\w+]){re.escape(phrase)}(?![\w+])")
+
+
 # --------------------------------------------------------------------------
 # JSON parsing, following evals/judge.py's fail-closed conventions.
 # --------------------------------------------------------------------------
@@ -429,6 +439,34 @@ class Matcher:
                 if skill not in hits:
                     hits.append(skill)
                 rank_credit[person] = rank_credit.get(person, 0.0) + 0.5 / rank
+
+        # Lexical channel. Retrieval rank alone is a bad gatekeeper for
+        # NAMED skills: a true match whose mentions are textually weak
+        # can lose its top-k spots to near-miss profiles (measured:
+        # a09/cv38 — "AUTOSAR Adaptive" CVs crowded out a safety lead
+        # who lists "AUTOSAR Classic" once). If the exact phrase is in
+        # the CV, the person is a discovery candidate for that item,
+        # whatever the retriever ranked; verification still decides
+        # coverage. Word-boundary regexes avoid the substring traps
+        # ("Embedded C" inside "Embedded C++").
+        cv_texts = {
+            person_id: "\n".join(person["chunks"])
+            for person_id, person in self._people.items()
+        }
+        for idx, requirement in enumerate(requirements.must):
+            if requirement.kind != "skill":
+                continue
+            patterns = [_phrase_pattern(alt) for alt in requirement.alternatives]
+            for person_id, cv_text in cv_texts.items():
+                if any(pattern.search(cv_text) for pattern in patterns):
+                    must_hits.setdefault(person_id, set()).add(idx)
+        for skill in requirements.nice:
+            pattern = _phrase_pattern(skill)
+            for person_id, cv_text in cv_texts.items():
+                if pattern.search(cv_text):
+                    hits = nice_hits.setdefault(person_id, [])
+                    if skill not in hits:
+                        hits.append(skill)
 
         candidates = sorted(
             set(must_hits) | set(nice_hits),

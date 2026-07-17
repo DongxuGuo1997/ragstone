@@ -567,6 +567,11 @@ informational. The first pilot caught two real matcher bugs the
 constructed bench exists to catch (extraction merging separate bullets
 into one OR-group; discovery crowding out a low-nice-hit true strong).
 Baseline key: `openai:gpt-4o-mini|k=12|chain=match|set=staffing`.
+Extended July 2026: a09 — a fully Swedish brief against the English
+CVs — caught a third bug (discovery crowding of textually-weak true
+matches; fixed with a lexical discovery channel). The 9-assignment
+cross-lingual bench measures strong_recall@5 1.0 (26/26),
+full_match_accuracy 1.0 (9/9), ordering_clean_rate 1.0 (8/8).
 
 ### 9.2 Strengths/weaknesses analyst — M
 Per shortlisted candidate: strengths cited to CV lines (citations v1

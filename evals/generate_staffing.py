@@ -648,6 +648,27 @@ ASSIGNMENTS = [
         "Kubernetes + secure boot. The correct output is an "
         "honest 'no full match' plus the nearest partials.",
     },
+    {
+        "id": "a09",
+        "title": "Inbyggd mjukvaruutvecklare, hyttelektronik",
+        "client": "a major Swedish truck OEM",
+        "location": "Gothenburg",
+        "duration": "12 months",
+        "domain": "automotive",
+        "min_years": 4,
+        "language": "Swedish",
+        "must": [["AUTOSAR Classic"], ["Embedded C"], ["Vector CANoe"]],
+        "nice": ["LIN", "Simulink", "dSPACE HIL"],
+        "brief_note": None,
+        "brief_language": "Swedish",
+        "notes": "CROSS-LINGUAL: the whole brief is written in Swedish "
+        "(a Swedish client to a Swedish consultancy) while every "
+        "CV is English. Technology names keep their canonical "
+        "English spelling, so the taxonomy checks still hold; no "
+        "OR-groups on purpose (the or-phrasing check is "
+        "English-only). Tests that extraction and matching "
+        "survive the language boundary.",
+    },
 ]
 
 # --------------------------------------------------------------------------
@@ -910,7 +931,17 @@ Bullet list of the nice-to-have skills, named exactly as given.
 
 HARD RULES: requirements read as mandatory ("must", "required");
 meriting items read as optional; do NOT name any technology or standard
-beyond those in the spec. Return ONLY the Markdown."""
+beyond those in the spec. {language_directive}Return ONLY the Markdown."""
+
+SWEDISH_DIRECTIVE = (
+    "Write the ENTIRE request in natural Swedish — a Swedish client "
+    "writing to a Swedish consultancy (translate the client descriptor "
+    "and the section headers too, e.g. 'Krav' and 'Meriterande'). Keep "
+    "every technology and standard name in its canonical English "
+    "spelling exactly as given (AUTOSAR Classic, Embedded C, Vector "
+    "CANoe...). State plainly that Swedish is a requirement for the "
+    "assignment. "
+)
 
 
 def _llm(model: str):
@@ -1061,19 +1092,28 @@ def render_briefs(llm, existing_briefs):
             else ""
         )
         note = f"Also mention: {a['brief_note']}" if a["brief_note"] else ""
+        directive = SWEDISH_DIRECTIVE if a.get("brief_language") == "Swedish" else ""
         prompt = BRIEF_PROMPT.format(
             spec=json.dumps(spec, ensure_ascii=False, indent=2),
             min_years=a["min_years"],
             language_line=language_line,
             brief_note=note,
+            language_directive=directive,
         )
+        # The or-phrasing check is English-only; a brief in another
+        # language must not use OR-groups (a09 doesn't, by design).
+        or_check = None if a.get("brief_language") else _or_group_problems
         briefs[a["id"]] = render_checked(
             llm,
             prompt,
             required,
             required,
             a["id"],
-            extra_check=lambda text, must=a["must"]: _or_group_problems(text, must),
+            extra_check=(
+                (lambda text, must=a["must"]: or_check(text, must))
+                if or_check
+                else None
+            ),
         )
         print(f"  brief: wrote {a['id']} " f"({len(briefs[a['id']].split())} words)")
     return briefs
@@ -1095,6 +1135,7 @@ def write_golden(personas, briefs):
                 "must_have": a["must"],
                 "nice_to_have": a["nice"],
                 "brief": briefs[a["id"]],
+                "brief_language": a.get("brief_language", "English"),
                 "expected_strong": strong,
                 "expected_partial": partial,
                 "notes": a["notes"],

@@ -20,9 +20,11 @@ from ragstone.ui.staffing_app import (
 class TestExampleBriefs:
     def test_bundled_golden_briefs_load(self):
         briefs = load_example_briefs()
-        # The committed bench ships 8 assignments; keys are "aNN: title".
-        assert len(briefs) == 8
+        # The committed bench ships 9 assignments (a09 is the Swedish
+        # cross-lingual one); keys are "aNN: title".
+        assert len(briefs) == 9
         assert any(key.startswith("a01:") for key in briefs)
+        assert any(key.startswith("a09:") for key in briefs)
         assert all(brief.strip() for brief in briefs.values())
 
     def test_missing_file_yields_empty_dict(self):
