@@ -603,6 +603,20 @@ full_match_accuracy 1.0, ordering 1.0. Baseline key:
 No CV text leaves the machine, and that claim is measured, not
 promised.
 
+### 9.4 Scale test — DELIVERED (July 2026, Experiment 29)
+The same nine assignments over a 400-person population
+(`generate_staffing.py --scale 10`; scale=1 proven byte-identical to
+the committed bench, a08 unsatisfiable at any scale). Result: top-5
+precision 0.925 with honesty and ordering perfect — and the two
+imperfections both taught something. The first run's 0.900 exposed the
+one oracle dimension without a prose-alignment check (domain), fixed
+at the bench root; the residual 3/40 slots are quantified verifier
+leniency on single near-miss items — the named next lever
+(second-vote screening), not a hidden failure. Verification now runs
+concurrently (metric-neutral, 5–8× faster), making scale measurement
+routine instead of an event. Baseline key:
+`openai:gpt-4o-mini|k=12|chain=match|set=staffing_xl`.
+
 ## Inspiration / references
 
 Surveyed July 2026 while drafting this document:

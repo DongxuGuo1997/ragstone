@@ -32,6 +32,16 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Staffing scale test** (ROADMAP 9.4 / Experiment 29): the same nine
+  assignments over a 400-consultant population (`--scale 10`
+  generator; the committed 40-person bench proven byte-identical and
+  untouched). Top-5 precision 0.925 with honesty and ordering perfect;
+  the first run's misses exposed and fixed the one unchecked
+  prose-label dimension (domain, now a mechanical Requirements-section
+  check), and the residual three slots are attributed verifier
+  leniency — the named next lever. Matcher verification now runs
+  concurrently (metric-neutral, 5–8× faster: ~10 s/assignment; the
+  demo eval completes in 90 s).
 - **Staffing match, fully local and measured** (ROADMAP 9.3 delivered):
   the 9-assignment staffing eval on qwen3.5:9b + embeddinggemma under
   the enforced no-egress profile scores identically to the cloud stack

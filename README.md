@@ -751,6 +751,11 @@ python evals/run_staffing_eval.py    # the measured gate
   construction — includes one deliberately unsatisfiable assignment.
   Measured: strong-candidate recall@5 **1.0**, no-full-match honesty
   **1.0**, ranking cleanliness **1.0** (Experiment 27).
+- **It scales, measured.** The same assignments over a 400-consultant
+  pool (10× the bench): top-5 precision **0.925** with honesty and
+  ranking discipline intact — and the two imperfections are attributed,
+  not hidden (one bench fix, one named verifier lever). Verification
+  runs concurrently: ~10 s per assignment (Experiment 29).
 - **Privacy is structural — and measured.** CVs are personal data under
   the GDPR; with the Ollama provider the entire match runs locally, and
   the full eval under the enforced no-egress profile

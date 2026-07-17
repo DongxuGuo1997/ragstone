@@ -1563,6 +1563,71 @@ heavy-GPU runs belong lid-open.
 
 ---
 
+## Experiment 29 — Ten times the consultants: what scale surfaced, and what it cost to look
+
+**Question.** The staffing matcher is perfect on its 40-person bench.
+The first question a real deployment gets is whether that survives a
+real consultant pool. Scale test: the SAME nine assignments over a
+400-person population (`generate_staffing.py --scale 10` — archetype
+counts ×10, own seed, name uniqueness proven, a08 still unsatisfiable
+by construction), with a metric that respects scale: at 25–47
+oracle-strong candidates per assignment, "every top-5 slot holds an
+oracle-strong person" is the perfect score. The formula is provably
+identical to the old recall for demo-sized pools (same intersection
+numerator; denominators equal when pools ≤ 5), so the committed 1.0
+baselines stand untouched.
+
+| arm (gpt-4o-mini, k=12) | strong@5 | honesty | ordering |
+|---|---:|---:|---:|
+| XL 400, first run | 0.900 (36/40) | 1.0 (9/9) | 1.0 (8/8) |
+| XL 400, domain-aligned briefs (×2 runs) | **0.925 (37/40)** | 1.0 | 1.0 |
+| demo 40, domain-aligned briefs | **1.000 (26/26)** | 1.0 | 1.0 |
+
+**The first run caught a bench bug, not a matcher bug.** Every miss
+concentrated on assignments where the oracle scored a DOMAIN
+requirement the brief never stated — a04's brief said "German premium
+car manufacturer… embedded build & test" in context while its
+Requirements bullets stayed domain-silent, so extraction (correctly,
+by its own rules) produced no domain requirement and telecom DevOps
+profiles verified "strong". At demo scale this never bit because the
+small pool's top-5 was automotive anyway; at 10× the population the
+one unchecked prose-label dimension surfaced. Fix at the root: briefs
+now state the domain as a Requirements bullet, enforced by a
+mechanical check *inside the Requirements section* — the first
+version of the check accepted the token anywhere and passed briefs
+whose requirement lists stayed silent, caught by running extraction
+live before trusting it.
+
+**What remains is quantified verifier leniency, not lost discovery.**
+The three residual slots (0.925) are oracle-partial candidates —
+each missing exactly ONE must — that the mini verifier credited from
+adjacent evidence (a01's cv351, a04's cv250). The informational
+gap_alignment metric tracks the same softness (0.78 at XL vs 0.90 at
+demo scale). Discovery held everywhere: the lexical channel +
+coverage-breadth ranking never lost a strong pool, honesty stayed
+perfect (a08: zero strong at 400 people, said so all three runs), and
+ordering never put an out-of-tier candidate above a strong one. The
+next quality lever is therefore the verifier (second-vote screening on
+near-misses), and the demo operating point — a 40-person pool with a
+human in the loop — measures 1.0 throughout.
+
+**And the cost of looking collapsed mid-experiment.** The efficiency
+audit flagged the matcher's ten candidate screenings as sequential;
+moving them onto the ingest-enrichment thread-pool pattern (verified
+metric-neutral: identical 1.0/1.0/1.0 on the demo gate) cut match
+latency to **9.6 s/assignment** — the full demo eval now runs in 90
+seconds, and the XL attribution rerun that closed this experiment cost
+minutes instead of the first run's 1.3 hours.
+
+**Lessons.** (1) A 10× population is a bench auditor: it found the one
+oracle dimension without a prose-alignment check. (2) One metric can
+serve both scales if you prove the equivalence instead of forking
+metric names. (3) At scale the residual failure mode lives in the
+verifier, not retrieval — which is exactly where the next measured
+improvement should go.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |
