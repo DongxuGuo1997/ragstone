@@ -1494,6 +1494,60 @@ replace — and the golden set grows teeth every time it grows a case.
 
 ---
 
+## Experiment 28 — The judge crosses providers: a local 31B re-scores the cloud's answers
+
+**Question.** Every gated number in this repository is a gpt-4o-mini
+verdict. Experiment 11 asked whether the judge flatters its own family,
+but regenerating answers made its deltas an upper bound only. With
+dumps carrying exact stored answers and contexts, the clean measurement
+became cheap to define: re-judge IDENTICAL answers with a judge from a
+different provider AND family, running fully local.
+
+**Method.** `evals/rejudge.py` over the regulatory dump (n=68 incl. 12
+multi-turn; gpt-4o-mini answerer, stored gpt-4o-mini verdicts) with
+**gemma4:31b, reasoning on** as judge. Staged per the house rule:
+6-case pilot first (12 m 52 s, 0 parse failures, 0 flips), projected
+schedule, then the full run: **3 h 28 m** caffeinated on AC
+(~129 s/case — a 31B judge thinks slowly).
+
+| metric | cloud judge (stored) | gemma4:31b | Δ |
+|---|---:|---:|---:|
+| correct_rate (n=56) | 0.750 | 0.786 | **+3.6pp** |
+| faithful_rate (n=56) | 0.893 | 0.839 | **−5.4pp** |
+| multi_turn_correct (n=12) | 0.667 | 0.750 | +8.3pp (1 case) |
+| multi_turn_faithful (n=12) | 0.917 | 0.750 | −16.7pp (2 cases) |
+
+**Instrument validity first: 0 parse failures in 136 verdicts.** The
+local judge held the JSON contract perfectly (the planned fallback,
+deepseek-r1:32b, was never needed). Disagreement below is real
+disagreement, not format noise.
+
+**The 16 flips have a shape, not a direction.** On CORRECTNESS the
+local judge is more generous in exactly the pattern Experiment 26
+documented as cloud-judge strictness: r65 passes "the maximum fine
+plus additional accurate context", r16 passes an answer stating both
+fine tiers. On FAITHFULNESS it is stricter about explicit grounding:
+r56 fails an answer for citing GDPR's application date the retrieved
+context never states — a genuine violation the cloud judge missed —
+and r45 fails a cross-attribution between systemic-risk and
+general-purpose-model obligations. It is not infallible either: r37
+reads as the local judge misparsing an exemption clause.
+
+**Verdict.** 88% cross-provider agreement on identical answers, and
+the disagreement direction matters: the cloud-judged baselines are
+NOT flattered — on correctness the cloud judge is the conservative
+one. Practical asymmetry: hours versus cents means the local judge is
+the periodic audit instrument, not the per-commit gate. This closes
+Experiment 11's regeneration caveat and ROADMAP 3.1. Process notes:
+the pilot-first rule priced the run correctly (projected ~2.5 h,
+actual 3.5 h with the machine also doing other work), and the
+post-run thermal check earned its place — three 'Dark Wake Thermal
+Emergency' protective sleeps were logged during the lid-closed
+stretch; `caffeinate -i` carried the run through them, but multi-hour
+heavy-GPU runs belong lid-open.
+
+---
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

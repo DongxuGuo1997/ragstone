@@ -157,14 +157,18 @@ instead of name lists. Remaining, documented: gpt-4o-mini's
 generation-side weakness on document-level answers, and sd05's
 over-specified gold answer (3.3).
 
-### 3.1 Cross-family judge — DELIVERED same-provider (Experiment 11); different-provider judge still open
-The judge and the answering model are both gpt-4o-mini; self-preference
-inflation is a known LLM-as-judge bias, and it is now disclosed in
-EXPERIMENTS.md but not bounded. Run one full large-set pass with a
-different-family judge (e.g. a Claude or Gemini model) and report both
-columns; keep the cross-family judge as an option (`--judge-provider`
-already exists).
-*Measure:* the delta between judges IS the result — publish it.
+### 3.1 Cross-family judge — DELIVERED (Experiments 11 + 28)
+The judge and the answering model were both gpt-4o-mini;
+self-preference inflation is a known LLM-as-judge bias. Experiment 11
+bounded it same-provider (with the regeneration caveat); Experiment 28
+closed the caveat: gemma4:31b — different provider, different family,
+fully local — re-judged the regulatory dump's IDENTICAL stored answers.
+Result: 88% verdict agreement (0 parse failures in 136), correctness
++3.6pp under the local judge (the cloud judge is conservative, not
+flattering), faithfulness −5.4pp (the local judge demands stricter
+grounding, including one genuine catch). The delta IS published — and
+the direction clears the cloud-judged baselines of inflation on
+correctness.
 
 ### 3.2 Confidence intervals in reports — DELIVERED
 Every score in `report.md` should carry its binomial 95% CI

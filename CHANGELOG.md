@@ -32,6 +32,14 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Cross-provider judge audit** (Experiment 28 / ROADMAP 3.1
+  delivered): gemma4:31b — different provider, different family, fully
+  local — re-judged the regulatory dump's identical stored answers.
+  88% verdict agreement, 0 parse failures in 136; correctness +3.6pp
+  under the local judge (the cloud judge is conservative, not
+  self-flattering), faithfulness −5.4pp (stricter grounding, including
+  one genuine catch). Local judging costs hours vs cents: it is the
+  periodic audit, not the per-commit gate.
 - **Cross-lingual staffing case + lexical discovery channel**: the
   bench gains a09, an entirely Swedish assignment brief ("Krav" /
   "Meriterande") against the English CVs. Its first run caught a real
