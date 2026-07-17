@@ -84,6 +84,12 @@ def build_matcher(args):
     # Cards are one LLM call per CV at ingest: nondeterministic corpus
     # text inside a gated measurement. Off.
     config.loader.metadata_cards = False
+    # Thinking control for local models: a reasoning-by-default answerer
+    # spends ~28 min/assignment thinking through 11 extraction and
+    # verification calls (measured, first local pilot) for no gated-
+    # metric gain. Recorded in the baseline key when passed.
+    if getattr(args, "ollama_reasoning", None) is not None:
+        config.llm.ollama_reasoning = args.ollama_reasoning == "on"
 
     if args.provider == "openai":
         pipeline = OpenAIPipeline(model=args.model)
@@ -212,7 +218,12 @@ def evaluate(matcher, assignments, verbose=False):
 
 def baseline_key(args) -> str:
     model = args.model or "gpt-4o-mini"
-    return f"{args.provider}:{model}|k={args.k}|chain=match|set=staffing"
+    key = f"{args.provider}:{model}|k={args.k}|chain=match|set=staffing"
+    # Suffix only when the flag was passed, like run_eval.py — the
+    # committed cloud key stays untouched.
+    if getattr(args, "ollama_reasoning", None):
+        key += f"|ollama-reasoning={args.ollama_reasoning}"
+    return key
 
 
 def check_baseline(scores: dict, key: str) -> int:
@@ -279,6 +290,12 @@ def main() -> int:
     parser.add_argument("--provider", choices=["openai", "ollama"], default="openai")
     parser.add_argument("--model", default=None)
     parser.add_argument("--k", type=int, default=12)
+    parser.add_argument(
+        "--ollama-reasoning",
+        choices=["on", "off"],
+        default=None,
+        help="thinking control for local models (unset = model default)",
+    )
     parser.add_argument(
         "--limit",
         type=int,
