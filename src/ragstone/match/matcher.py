@@ -45,6 +45,10 @@ logger = logging.getLogger(__name__)
 # Sized for a bench of ~40 people; a real multi-thousand-CV pool would
 # scale this with a cheaper pre-rank stage, not by widening the LLM pass.
 MAX_VERIFIED_CANDIDATES = 10
+# Concurrent verification calls (independent per candidate; same bounded
+# pool size the ingest enrichment uses). Sequential verification was the
+# dominant match cost: ten candidates, ten serialized LLM round-trips.
+VERIFY_WORKERS = 8
 # One retry when the model returns unparseable JSON, then fail closed.
 PARSE_RETRIES = 1
 
@@ -364,11 +368,20 @@ class Matcher:
         retriever: Any,
         people: Dict[str, Dict[str, Any]],
         max_candidates: int = MAX_VERIFIED_CANDIDATES,
+        verify_workers: int = VERIFY_WORKERS,
     ) -> None:
         self._llm = llm
         self._retriever = retriever
         self._people = people
         self._max_candidates = max_candidates
+        self._verify_workers = verify_workers
+        # Joined once: the lexical channel scans these per match and the
+        # verifier reads them per candidate — at XL scale re-joining 400
+        # CVs per brief was measurable waste.
+        self._person_cv_text = {
+            person_id: "\n\n".join(person["chunks"])
+            for person_id, person in people.items()
+        }
         self._graph = self._build_graph()
 
     # -- LLM helpers -------------------------------------------------------
@@ -417,8 +430,15 @@ class Matcher:
         nice_hits: Dict[str, List[str]] = {}
         rank_credit: Dict[str, float] = {}
 
+        searched: Dict[str, List[Document]] = {}
+
         def _search(query: str) -> List[Document]:
+            # Memoized per match: the same phrase can appear as a must
+            # alternative AND a nice-to-have; one retrieval is enough.
+            if query in searched:
+                return searched[query]
             docs = self._retriever.invoke(query)
+            searched[query] = docs
             writer({"event": "discover", "query": query, "hits": len(docs)})
             return docs
 
@@ -449,20 +469,16 @@ class Matcher:
         # whatever the retriever ranked; verification still decides
         # coverage. Word-boundary regexes avoid the substring traps
         # ("Embedded C" inside "Embedded C++").
-        cv_texts = {
-            person_id: "\n".join(person["chunks"])
-            for person_id, person in self._people.items()
-        }
         for idx, requirement in enumerate(requirements.must):
             if requirement.kind != "skill":
                 continue
             patterns = [_phrase_pattern(alt) for alt in requirement.alternatives]
-            for person_id, cv_text in cv_texts.items():
+            for person_id, cv_text in self._person_cv_text.items():
                 if any(pattern.search(cv_text) for pattern in patterns):
                     must_hits.setdefault(person_id, set()).add(idx)
         for skill in requirements.nice:
             pattern = _phrase_pattern(skill)
-            for person_id, cv_text in cv_texts.items():
+            for person_id, cv_text in self._person_cv_text.items():
                 if pattern.search(cv_text):
                     hits = nice_hits.setdefault(person_id, [])
                     if skill not in hits:
@@ -483,20 +499,28 @@ class Matcher:
         return {"shortlist_ids": shortlist, "nice_hits": nice_hits}
 
     def _verify(self, state: _MatchState) -> _MatchState:
-        """One screening call per candidate: every must item, full CV."""
+        """One screening call per candidate: every must item, full CV.
+
+        Candidates verify CONCURRENTLY (same bounded-pool pattern as
+        ingest enrichment): the calls are independent, the chat clients
+        are thread-safe, and verification dominates match latency —
+        sequential, ten candidates cost ten round-trips. The stream
+        writer is captured on the node thread (it is ContextVar-bound;
+        worker threads must not call get_stream_writer() themselves),
+        and events fire from the node thread as futures land. Results
+        keep shortlist order regardless of completion order.
+        """
         writer = get_stream_writer()
         requirements = state["requirements"]
         items = [
             {"requirement": r.label, "check": r.verify_instruction()}
             for r in requirements.must
         ]
-        assessments: List[CandidateAssessment] = []
-        for person_id in state["shortlist_ids"]:
-            person = self._people[person_id]
-            writer({"event": "verify", "candidate": person["name"]})
-            cv_text = "\n\n".join(person["chunks"])
+
+        def _screen(person_id: str) -> List[Dict[str, Any]]:
+            cv_text = self._person_cv_text[person_id]
             try:
-                verdicts = self._invoke_json(
+                return self._invoke_json(
                     VERIFY_PROMPT.format(
                         cv=cv_text, items=json.dumps(items, ensure_ascii=False)
                     ),
@@ -506,7 +530,23 @@ class Matcher:
                 # Fail closed, visibly: an unverifiable candidate must not
                 # silently rank as covered.
                 logger.warning("match: verification unparseable for %s", person_id)
-                verdicts = [{"covered": False, "evidence": ""} for _ in items]
+                return [{"covered": False, "evidence": ""} for _ in items]
+
+        shortlist = state["shortlist_ids"]
+        for person_id in shortlist:
+            writer({"event": "verify", "candidate": self._people[person_id]["name"]})
+        if self._verify_workers > 1 and len(shortlist) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(
+                max_workers=min(self._verify_workers, len(shortlist))
+            ) as pool:
+                all_verdicts = list(pool.map(_screen, shortlist))
+        else:
+            all_verdicts = [_screen(person_id) for person_id in shortlist]
+
+        assessments: List[CandidateAssessment] = []
+        for person_id, verdicts in zip(shortlist, all_verdicts):
             coverage = [
                 RequirementFinding(
                     requirement=req.label,
@@ -518,7 +558,7 @@ class Matcher:
             assessments.append(
                 CandidateAssessment(
                     person_id=person_id,
-                    name=person["name"],
+                    name=self._people[person_id]["name"],
                     coverage=coverage,
                     nice_hits=state.get("nice_hits", {}).get(person_id, []),
                 )
@@ -614,8 +654,7 @@ class Matcher:
 
     def person_cv(self, person_id: str) -> str:
         """Full CV text for a person (chunks in file order), or ""."""
-        entry = self._people.get(person_id)
-        return "\n\n".join(entry["chunks"]) if entry else ""
+        return self._person_cv_text.get(person_id, "")
 
     def stream_events(self, brief: str):
         """Yield progress dicts, then {"event": "done", "result": ...}."""

@@ -185,6 +185,9 @@ class TestPersonTagging:
 
 
 def _matcher(llm_responses, retriever_mapping, people, **kwargs):
+    # verify_workers=1 keeps scripted response order deterministic; the
+    # parallel path gets its own order-insensitive test below.
+    kwargs.setdefault("verify_workers", 1)
     return Matcher(
         llm=_FakeLLM(llm_responses),
         retriever=_FakeRetriever(retriever_mapping),
@@ -326,6 +329,40 @@ class TestMatchFlow:
             people,
         ).match("brief")
         assert [c.person_id for c in result.candidates] == ["cv02"]
+
+    def test_parallel_verification_preserves_shortlist_order(self):
+        # Four candidates verified concurrently; responses are identical
+        # (order-insensitive by construction), and the assessments must
+        # come back in shortlist order regardless of completion order.
+        extraction = json.dumps(
+            {
+                "must": [{"kind": "skill", "alternatives": ["AUTOSAR Classic"]}],
+                "nice": [],
+            }
+        )
+        people = {
+            f"cv{i:02d}": {"name": f"P{i}", "chunks": ["AUTOSAR Classic work"]}
+            for i in range(1, 5)
+        }
+        retriever = {
+            "AUTOSAR Classic": [_doc(f"cv{i:02d}", f"P{i}") for i in range(1, 5)]
+        }
+        matcher = _matcher(
+            [extraction] + [_verify_response([True])] * 4,
+            retriever,
+            people,
+            verify_workers=4,
+        )
+        result = matcher.match("brief")
+        assert len(result.candidates) == 4
+        assert all(c.tier == "strong" for c in result.candidates)
+        # Deterministic final ranking (ties broken by person_id).
+        assert [c.person_id for c in result.candidates] == [
+            "cv01",
+            "cv02",
+            "cv03",
+            "cv04",
+        ]
 
     def test_stream_events_surface_progress_and_result(self):
         retriever = {"AUTOSAR Classic": [_doc("cv01", "Astrid Okafor")]}
