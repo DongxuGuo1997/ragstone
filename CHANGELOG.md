@@ -32,6 +32,12 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Staffing match, fully local and measured** (ROADMAP 9.3 delivered):
+  the 9-assignment staffing eval on qwen3.5:9b + embeddinggemma under
+  the enforced no-egress profile scores identically to the cloud stack
+  — strong_recall@5 1.0, honesty 1.0, ordering 1.0. New baseline key
+  `ollama:qwen3.5:9b|k=12|chain=match|set=staffing|ollama-reasoning=off`.
+  "No CV leaves the machine" is now a measured claim.
 - **Cross-provider judge audit** (Experiment 28 / ROADMAP 3.1
   delivered): gemma4:31b — different provider, different family, fully
   local — re-judged the regulatory dump's identical stored answers.

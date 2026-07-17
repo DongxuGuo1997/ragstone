@@ -585,17 +585,23 @@ is not evidence of absence, and the phrasing must say so.
 for expected-partial candidates the oracle's missing requirement must
 be surfaced as the gap.
 
-### 9.3 Demo surface — S (UI shipped July 2026; local demo run open)
-The dedicated staffing UI exists (user requirement: separate from the
-chat app, one-command launch): `make run-match-ui` / `ragstone-match` /
+### 9.3 Demo surface — DELIVERED (July 2026)
+The dedicated staffing UI (user requirement: separate from the chat
+app, one-command launch): `make run-match-ui` / `ragstone-match` /
 `streamlit run src/ragstone/ui/staffing_app.py`. Bundled example
-briefs, live progress events, per-candidate coverage tables with
-verbatim quotes, CV view with evidence highlighted via the citations
-aligner, honest no-full-match banner, and a local-mode badge. Headless
-boot smoke + an end-to-end run through the app's own build path are
-verified.
-*Measure (remaining):* end-to-end demo run on the local stack with the
-no-egress profile — then this is delivered.
+briefs, real-CV upload (PDF/DOCX/MD/TXT, one file per person), live
+progress events, per-candidate coverage tables with verbatim quotes,
+CV view with evidence highlighted via the citations aligner, honest
+no-full-match banner, and a local-mode badge. Verified: headless boot
+smoke in the suite, end-to-end runs through the app's own build path —
+and the measure that closes it: the full 9-assignment eval on the
+LOCAL stack under the enforced no-egress profile
+(`RAGSTONE_PROFILE=local`, qwen3.5:9b + embeddinggemma, reasoning
+off) scores identically to the cloud stack — strong_recall@5 1.0,
+full_match_accuracy 1.0, ordering 1.0. Baseline key:
+`ollama:qwen3.5:9b|k=12|chain=match|set=staffing|ollama-reasoning=off`.
+No CV text leaves the machine, and that claim is measured, not
+promised.
 
 ## Inspiration / references
 

@@ -278,5 +278,14 @@
     },
     "date": "2026-07-17",
     "data_sha": "dfc6d4700b4f"
+  },
+  "ollama:qwen3.5:9b|k=12|chain=match|set=staffing|ollama-reasoning=off": {
+    "metrics": {
+      "strong_recall_at_5": 1.0,
+      "full_match_accuracy": 1.0,
+      "ordering_clean_rate": 1.0
+    },
+    "date": "2026-07-17",
+    "data_sha": "dfc6d4700b4f"
   }
 }

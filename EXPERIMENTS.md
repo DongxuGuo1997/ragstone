@@ -1492,6 +1492,21 @@ Swedish text without special-casing. The repeated lesson: for NAMED
 skills, exact text is a discovery signal retrieval rank cannot
 replace — and the golden set grows teeth every time it grows a case.
 
+**Postscript 2 — the local stack ties the cloud, with zero egress.**
+The same 9-assignment eval on qwen3.5:9b + embeddinggemma under the
+ENFORCED no-egress profile (`RAGSTONE_PROFILE=local`,
+`--ollama-reasoning off`): strong_recall@5 **1.0 (26/26)**,
+full_match_accuracy **1.0 (9/9)** — including the unsatisfiable a08
+and the Swedish a09 — ordering **1.0 (8/8)**. Identical gated metrics
+to gpt-4o-mini; the only visible difference is informational
+gap_alignment (0.85 vs 0.91 — the local verifier over-credits
+slightly more often) and speed (~10–20 min/assignment on the 9B vs
+~0.5–4 min cloud; the first local pilot also replayed Experiment 21's
+lesson — thinking-by-default cost 28 min/assignment for nothing, so
+the harness grew `--ollama-reasoning`). For the staffing case this is
+the strategic result: matching runs entirely on the machine holding
+the CVs, at measured cloud-equal quality.
+
 ---
 
 ## Experiment 28 — The judge crosses providers: a local 31B re-scores the cloud's answers

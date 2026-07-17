@@ -751,11 +751,14 @@ python evals/run_staffing_eval.py    # the measured gate
   construction — includes one deliberately unsatisfiable assignment.
   Measured: strong-candidate recall@5 **1.0**, no-full-match honesty
   **1.0**, ranking cleanliness **1.0** (Experiment 27).
-- **Privacy is structural.** CVs are personal data under the GDPR; with
-  the Ollama provider the entire match runs locally — no CV text leaves
-  the machine. The repo ships only synthetic CVs, and the tool is
-  framed as human-in-the-loop decision support, never automated
-  selection.
+- **Privacy is structural — and measured.** CVs are personal data under
+  the GDPR; with the Ollama provider the entire match runs locally, and
+  the full eval under the enforced no-egress profile
+  (qwen3.5:9b + embeddinggemma) scores **identically to the cloud
+  stack** on every gated metric. You can also upload real CVs
+  (PDF/DOCX) straight into the UI — they never leave the machine. The
+  repo ships only synthetic CVs, and the tool is framed as
+  human-in-the-loop decision support, never automated selection.
 
 ## Logging
 
