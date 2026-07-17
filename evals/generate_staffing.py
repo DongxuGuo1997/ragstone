@@ -722,16 +722,31 @@ def _engagements(rng, persona_skills, title, years, domains):
     return engagements
 
 
-def build_personas():
-    rng = random.Random(SEED)
-    first = FIRST_NAMES[:]
-    last = LAST_NAMES[:]
-    rng.shuffle(first)
-    rng.shuffle(last)
+def build_personas(scale: int = 1):
+    """The bench population; scale multiplies every archetype count.
+
+    scale=1 is THE committed bench (seed and stream untouched — the
+    40 personas are byte-identical to before this parameter existed).
+    scale>1 builds the XL population for the scale test on its own
+    seed, with names drawn from the full first x last grid so 40*scale
+    people stay unique.
+    """
+    rng = random.Random(SEED if scale == 1 else SEED + scale)
+    if scale == 1:
+        first = FIRST_NAMES[:]
+        last = LAST_NAMES[:]
+        rng.shuffle(first)
+        rng.shuffle(last)
+    else:
+        pairs = [(f, ln) for f in FIRST_NAMES for ln in LAST_NAMES]
+        rng.shuffle(pairs)
+        needed = sum(a["count"] for a in ARCHETYPES) * scale
+        first = [f for f, _ in pairs[:needed]]
+        last = [ln for _, ln in pairs[:needed]]
 
     personas, n = [], 0
     for arch in ARCHETYPES:
-        for _ in range(arch["count"]):
+        for _ in range(arch["count"] * scale):
             n += 1
             years = rng.randint(*arch["years"])
             skills = list(arch["core"])
@@ -765,9 +780,12 @@ def build_personas():
             school = rng.choice(SCHOOLS[country])
             grad = CURRENT_YEAR - years - rng.randint(0, 2)
             name = f"{first[n - 1]} {last[n - 1]}"
+            # scale=1 keeps the committed two-digit ids; XL uses three
+            # digits so filenames sort (cv001...cv400).
+            id_width = 2 if scale == 1 else 3
             personas.append(
                 {
-                    "id": f"cv{n:02d}",
+                    "id": f"cv{n:0{id_width}d}",
                     "name": name,
                     "title": title,
                     "archetype": arch["key"],
@@ -832,25 +850,45 @@ def expected_tiers(personas, assignment):
     return sorted(strong, key=key), sorted(partial, key=key)
 
 
-def check_bench(personas):
-    """Print the oracle matrix and enforce the bench-shape constraints."""
+def check_bench(personas, scale: int = 1):
+    """Print the oracle matrix and enforce the bench-shape constraints.
+
+    scale=1 (the committed demo bench) wants shortlist-shaped answers:
+    2-5 strong matches per assignment. The XL population exists to test
+    a different property — discovery at scale — so its constraints are
+    existence-shaped: strong pools exist (and grow with scale), a08
+    stays unsatisfiable at ANY scale.
+    """
     problems = []
     for a in ASSIGNMENTS:
         strong, partial = expected_tiers(personas, a)
-        strong_ids = ", ".join(f"{e['id']}(+{e['nice_hits']})" for e in strong) or "-"
-        partial_ids = (
-            ", ".join(f"{e['id']}(-{e['missing']})" for e in partial[:6]) or "-"
-        )
-        print(f"  {a['id']}: strong={len(strong)} [{strong_ids}]")
-        print(f"       partial={len(partial)} [{partial_ids}]")
+        if scale == 1:
+            strong_ids = (
+                ", ".join(f"{e['id']}(+{e['nice_hits']})" for e in strong) or "-"
+            )
+            partial_ids = (
+                ", ".join(f"{e['id']}(-{e['missing']})" for e in partial[:6]) or "-"
+            )
+            print(f"  {a['id']}: strong={len(strong)} [{strong_ids}]")
+            print(f"       partial={len(partial)} [{partial_ids}]")
+        else:
+            print(f"  {a['id']}: strong={len(strong)} partial={len(partial)}")
         if a["id"] == "a08":
             if strong:
                 problems.append(f"{a['id']}: must have 0 strong matches")
             if len(partial) < 2:
                 problems.append(f"{a['id']}: needs >=2 partial matches")
-        else:
+        elif scale == 1:
             if not 2 <= len(strong) <= 5:
                 problems.append(f"{a['id']}: {len(strong)} strong matches (want 2-5)")
+            if not partial:
+                problems.append(f"{a['id']}: needs >=1 partial match")
+        else:
+            if len(strong) < scale:
+                problems.append(
+                    f"{a['id']}: {len(strong)} strong matches at scale "
+                    f"{scale} — the pool should grow with the population"
+                )
             if not partial:
                 problems.append(f"{a['id']}: needs >=1 partial match")
     if problems:
@@ -1155,6 +1193,8 @@ def _load_existing_briefs():
 
 
 def main() -> int:
+    global CORPUS_DIR, PERSONAS_PATH, GOLDEN_PATH
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="gpt-4o")
     parser.add_argument(
@@ -1168,15 +1208,31 @@ def main() -> int:
         default=None,
         help="render at most N new CVs (sampling runs)",
     )
+    parser.add_argument(
+        "--scale",
+        type=int,
+        default=1,
+        help=(
+            "population multiplier: 1 = THE committed bench (default); "
+            "N>1 builds the XL scale-test population into *_xl artifacts "
+            "(corpus_staffing_xl/, golden_staffing_xl.jsonl) with its own "
+            "seed — the committed bench is never touched"
+        ),
+    )
     args = parser.parse_args()
 
-    personas = build_personas()
+    if args.scale > 1:
+        CORPUS_DIR = EVALS_DIR / "corpus_staffing_xl"
+        PERSONAS_PATH = EVALS_DIR / "staffing_personas_xl.json"
+        GOLDEN_PATH = EVALS_DIR / "golden_staffing_xl.jsonl"
+
+    personas = build_personas(scale=args.scale)
     print(
         f"Personas: {len(personas)} "
-        f"({', '.join(a['key'] + ':' + str(a['count']) for a in ARCHETYPES)})"
+        f"({', '.join(a['key'] + ':' + str(a['count'] * args.scale) for a in ARCHETYPES)})"
     )
     print("Oracle matrix:")
-    check_bench(personas)
+    check_bench(personas, scale=args.scale)
     PERSONAS_PATH.write_text(
         json.dumps(personas, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
