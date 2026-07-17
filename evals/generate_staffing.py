@@ -961,7 +961,7 @@ exactly as given. Where a requirement item lists alternatives, put them
 in ONE bullet phrased with "or" ("X or Y") — they are alternatives, not
 both required. State the experience level ONCE, as its own bullet
 ("at least {min_years} years of relevant experience") — never attach a
-year count to individual skills. {language_line}
+year count to individual skills. {language_line} {domain_line}
 
 ## Meriting
 Bullet list of the nice-to-have skills, named exactly as given.
@@ -1008,6 +1008,41 @@ def check_rendered(text: str, required: set, allowed: set):
     """Return (missing, leaked) taxonomy skills for a rendered document."""
     found = taxonomy_mentions(text)
     return sorted(required - found), sorted(found - allowed)
+
+
+def _domain_problems(text: str, assignment) -> list:
+    """The brief must SAY the domain requirement the oracle scores.
+
+    Measured at XL scale (Experiment 29): a04's oracle demanded
+    automotive-domain experience while the brief only implied it via
+    client context, so domain-blind candidates verified 'strong' and
+    took top-5 slots. Every other oracle dimension (skills, years,
+    language, OR-groups) already has a prose-alignment check; this is
+    the missing one. The Swedish brief is exempt from the mechanical
+    token check (the directive still instructs it) because the domain
+    word is translated.
+    """
+    domain = assignment.get("domain")
+    if not domain or assignment.get("brief_language"):
+        return []
+    # In the Requirements SECTION, not just anywhere: the first version
+    # of this check accepted the word in context prose ("...automotive
+    # solutions...") while the bullet list stayed domain-silent — and
+    # extraction, correctly, only reads requirements.
+    in_requirements = False
+    section_lines = []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            in_requirements = "requirement" in line.lower()
+            continue
+        if in_requirements:
+            section_lines.append(line)
+    if re.search(rf"(?i)\b{re.escape(domain)}\b", "\n".join(section_lines)):
+        return []
+    return [
+        f"the {domain}-domain requirement must appear as a bullet inside "
+        f"the Requirements section (the word '{domain}')"
+    ]
 
 
 def _or_group_problems(text: str, must) -> list:
@@ -1128,6 +1163,7 @@ def render_briefs(llm, existing_briefs):
             cached
             and check_rendered(cached, required, required) == ([], [])
             and not _or_group_problems(cached, a["must"])
+            and not _domain_problems(cached, a)
         ):
             briefs[a["id"]] = cached
             print(f"  brief: {a['id']} cached (ok)")
@@ -1152,27 +1188,37 @@ def render_briefs(llm, existing_briefs):
         )
         note = f"Also mention: {a['brief_note']}" if a["brief_note"] else ""
         directive = SWEDISH_DIRECTIVE if a.get("brief_language") == "Swedish" else ""
+        domain_line = (
+            f"State plainly, as its own bullet, that substantial "
+            f"experience from the {a['domain']} domain is required."
+            if a["domain"]
+            else ""
+        )
         prompt = BRIEF_PROMPT.format(
             spec=json.dumps(spec, ensure_ascii=False, indent=2),
             min_years=a["min_years"],
             language_line=language_line,
+            domain_line=domain_line,
             brief_note=note,
             language_directive=directive,
         )
-        # The or-phrasing check is English-only; a brief in another
-        # language must not use OR-groups (a09 doesn't, by design).
-        or_check = None if a.get("brief_language") else _or_group_problems
+
+        def _brief_problems(text, assignment=a):
+            problems = []
+            # The or-phrasing check is English-only; a brief in another
+            # language must not use OR-groups (a09 doesn't, by design).
+            if not assignment.get("brief_language"):
+                problems.extend(_or_group_problems(text, assignment["must"]))
+            problems.extend(_domain_problems(text, assignment))
+            return problems
+
         briefs[a["id"]] = render_checked(
             llm,
             prompt,
             required,
             required,
             a["id"],
-            extra_check=(
-                (lambda text, must=a["must"]: or_check(text, must))
-                if or_check
-                else None
-            ),
+            extra_check=_brief_problems,
         )
         print(f"  brief: wrote {a['id']} " f"({len(briefs[a['id']].split())} words)")
     return briefs
