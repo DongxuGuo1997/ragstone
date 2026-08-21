@@ -744,6 +744,9 @@ make run-match-ui                    # dedicated UI (or: ragstone-match)
 python evals/run_staffing_eval.py    # the measured gate
 ```
 
+Presenting it live? The rehearsed act-by-act runbook is
+[docs/guides/STAFFING_DEMO_SCRIPT.md](docs/guides/STAFFING_DEMO_SCRIPT.md).
+
 - **Every claim cites the CV.** The brief is parsed into structured
   requirements (OR-alternatives preserved); candidates are discovered by
   per-requirement hybrid retrieval over person-tagged chunks, then
@@ -751,8 +754,9 @@ python evals/run_staffing_eval.py    # the measured gate
   reported as *"not evidenced in the CV"* — absence of evidence, not
   evidence of absence.
 - **Honesty is a gated metric.** The bench — 40 synthetic Nordic
-  consultant CVs and 8 assignment briefs with ground truth true by
-  construction — includes one deliberately unsatisfiable assignment.
+  consultant CVs and 9 assignment briefs (one in Swedish) with ground
+  truth true by construction — includes one deliberately unsatisfiable
+  assignment.
   Measured: strong-candidate recall@5 **1.0**, no-full-match honesty
   **1.0**, ranking cleanliness **1.0** (Experiment 27).
 - **It scales, measured.** The same assignments over a 400-consultant

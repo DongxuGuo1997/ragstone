@@ -32,6 +32,13 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Staffing demo runbook** (`docs/guides/STAFFING_DEMO_SCRIPT.md`):
+  a rehearsed six-act script for presenting the CV↔assignment matcher
+  live — cloud-paced acts, a "bring your own DOCX" upload act, and a
+  pre-started local finale (rehearsal measured the 9B at 25.8
+  min/assignment on battery — quality-identical to cloud — so the
+  local act is staged as a reveal, not a wait). Every timing and
+  claim in the script traces to a measured run.
 - **Open-source front door**: bug-report and feature-request issue
   forms (the latter asks how the change would be measured), a PR
   template carrying the two eval-gating rules from CONTRIBUTING.md,
