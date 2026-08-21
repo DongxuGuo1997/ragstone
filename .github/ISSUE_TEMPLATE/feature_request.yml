@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose an improvement or a new capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: >
+        What can't you do today, or what costs more than it should?
+        A concrete scenario beats an abstract capability.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you imagine it working. Alternatives you considered are welcome.
+
+  - type: textarea
+    id: measurement
+    attributes:
+      label: How would we measure it?
+      description: >
+        Every quality-affecting change here is eval-gated (see
+        CONTRIBUTING.md). If your idea changes what gets retrieved or
+        generated, how would the eval harness show it worked — an
+        existing metric moving, or a new golden case it would need?

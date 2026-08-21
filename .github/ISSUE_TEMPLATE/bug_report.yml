@@ -1,0 +1,53 @@
+name: Bug report
+description: Something behaves incorrectly, crashes, or regresses
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >
+        The smallest command sequence or code snippet that shows the
+        problem. If it only reproduces with your own documents, describe
+        their shape (format, size, count) — never paste confidential text.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Ragstone version
+      placeholder: "2.1.0 (pip show ragstone), or a commit SHA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - OpenAI
+        - Ollama (local)
+        - Both / other
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "Python 3.12, macOS 15, FAISS (or Chroma / pgvector / Qdrant), chain_type=simple"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or traceback
+      description: Redact API keys and document content before pasting.
+      render: text

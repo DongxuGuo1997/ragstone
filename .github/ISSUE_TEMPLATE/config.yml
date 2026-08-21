@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security concerns
+    url: https://github.com/DongxuGuo1997/ragstone/blob/main/SECURITY.md
+    about: >-
+      Read the security model first — it states what Ragstone defends
+      against and what it deliberately does not. Then open a regular
+      issue; this is a demonstration project with no embargo process.

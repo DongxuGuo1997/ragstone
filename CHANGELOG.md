@@ -32,6 +32,11 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Open-source front door**: bug-report and feature-request issue
+  forms (the latter asks how the change would be measured), a PR
+  template carrying the two eval-gating rules from CONTRIBUTING.md,
+  a Contributor Covenant 2.1 code of conduct, and CI/license/Python
+  badges on the README.
 - **Staffing scale test** (ROADMAP 9.4 / Experiment 29): the same nine
   assignments over a 400-consultant population (`--scale 10`
   generator; the committed 40-person bench proven byte-identical and

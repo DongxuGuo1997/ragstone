@@ -1,5 +1,9 @@
 # Ragstone
 
+[![CI](https://github.com/DongxuGuo1997/ragstone/actions/workflows/ci.yml/badge.svg)](https://github.com/DongxuGuo1997/ragstone/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+
 **A foundation stone for grounded Q&A applications.**
 
 Ragstone is an efficient Retrieval-Augmented Generation (RAG) engine for
