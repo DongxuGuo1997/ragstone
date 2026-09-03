@@ -32,6 +32,15 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Engine mechanism doc** (`docs/HOW_IT_WORKS.md`): how ragstone
+  works end to end for users and reviewers — the ingest path (load,
+  split, enrich, metadata cards, embed, index) and the ask path
+  (guards, cache, rephrase, hybrid retrieval, optional rerank, the
+  strict answer prompt, post-hoc evidence highlighting, the
+  per-request receipt), the chain types with their measured verdicts
+  and enable-when conditions, the four front doors, the two-layer
+  eval gate with committed results, privacy posture, and known
+  limits. Linked from the README's measured-at-a-glance footer.
 - **CV-matching mechanism doc** (`docs/CV_MATCHING.md`): how the
   matcher works stage by stage — ingestion and person tagging,
   extract, discover (coverage-breadth ranking, exact-phrase channel,

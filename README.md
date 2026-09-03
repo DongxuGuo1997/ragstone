@@ -53,7 +53,8 @@ opinion:
 | Does reasoning mode fix weak retrieval? | No — identical correctness at **33× latency**; a 274→622 MB embedder swap fixed what thinking couldn't (Exp 25) |
 | Can CV↔assignment matching be *measured*? | Ground truth by construction: strong-candidate recall@5 **1.0**, no-full-match honesty **1.0** — and the pilot's imperfect scores caught two real matcher bugs before any human read a transcript (Exp 27) |
 
-Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
+How it works, stage by stage: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)
+· Full methods and numbers: [EXPERIMENTS.md](EXPERIMENTS.md) · Design
 reasoning and trade-offs: [ARCHITECTURE.md](ARCHITECTURE.md) · What's
 next, with acceptance criteria: [ROADMAP.md](ROADMAP.md)
 
