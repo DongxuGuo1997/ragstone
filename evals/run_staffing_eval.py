@@ -21,6 +21,16 @@ Metrics (gated against baseline.json like run_eval.py):
 - gap_alignment (informational): for surfaced oracle-partial
   candidates, the verifier should find exactly one missing must-have,
   and it should be the oracle's one.
+- extract_must_recall / extract_must_precision: the extracted must-have
+  set against the oracle's (skill OR-groups as sets, years, language,
+  domain, degree). The tier metrics can stay perfect while extraction
+  is wrong — a pool where everyone has the dropped skill hides the
+  drop — so extraction is scored directly. Motivated by a real RFQ
+  (a10/a11 reproduce its traps).
+- extract_nice_recall, extract_location_rate (informational): the
+  nice-to-have list, and whether the brief's location was captured.
+- extract_stability (with --extract-repeats N): share of briefs whose
+  must-have set is identical across N extra extraction samples.
 
 Ingest notes: metadata cards are forced OFF (per-run LLM ingest calls
 would make the measured corpus nondeterministic); retrieval depth
@@ -148,7 +158,80 @@ def gaps_align(system_missing: list, oracle_missing: str) -> bool:
     return bool(_tokens(system_missing[0]) & _tokens(oracle_missing))
 
 
-def evaluate(matcher, assignments, verbose=False):
+# Language names as a Swedish brief states them (a09 says "svenska"); the
+# extractor copies the brief's word and the oracle uses the English one.
+_LANGUAGE_ALIASES = {
+    "svenska": "swedish",
+    "engelska": "english",
+    "finska": "finnish",
+    "norska": "norwegian",
+    "danska": "danish",
+    "tyska": "german",
+}
+
+
+def _norm(label: str) -> str:
+    return " ".join(str(label).lower().split())
+
+
+def _norm_language(label: str) -> str:
+    word = _norm(label)
+    return _LANGUAGE_ALIASES.get(word, word)
+
+
+def oracle_items(record: dict) -> set:
+    """The must-have set the extractor should produce, in canonical form."""
+    items = {
+        ("skill", frozenset(_norm(s) for s in group)) for group in record["must_have"]
+    }
+    if record.get("min_years"):
+        items.add(("years", int(record["min_years"])))
+    if record.get("language"):
+        items.add(("language", _norm_language(record["language"])))
+    if record.get("domain"):
+        items.add(("domain", _norm(record["domain"])))
+    if record.get("degree"):
+        items.add(("education",))
+    return items
+
+
+def extracted_items(requirements, oracle_domain: str = "") -> set:
+    """The extractor's must-have set in the same canonical form.
+
+    A domain label counts as the oracle's when it contains the oracle's
+    domain word ("automotive industry" ~ "automotive"); years must parse.
+    """
+    items = set()
+    for r in requirements.must:
+        if r.kind == "skill":
+            items.add(("skill", frozenset(_norm(a) for a in r.alternatives)))
+        elif r.kind == "years":
+            try:
+                items.add(("years", int(float(r.detail))))
+            except ValueError:
+                items.add(("years", r.detail))
+        elif r.kind == "language":
+            items.add(("language", _norm_language(r.detail)))
+        elif r.kind == "domain":
+            detail = _norm(r.detail)
+            if oracle_domain and _norm(oracle_domain) in detail:
+                detail = _norm(oracle_domain)
+            items.add(("domain", detail))
+        elif r.kind == "education":
+            items.add(("education",))
+        else:
+            items.add((r.kind, _norm(r.detail)))
+    return items
+
+
+def location_captured(requirements, record: dict) -> bool:
+    """True when the extracted location names the brief's city."""
+    want = _norm(record.get("location") or "").split(" ")[0]
+    got = _norm(getattr(requirements, "location", "") or "")
+    return bool(want) and want in got
+
+
+def evaluate(matcher, assignments, verbose=False, extract_repeats=0):
     counters = {
         "strong_total": 0,
         "strong_found": 0,
@@ -157,6 +240,15 @@ def evaluate(matcher, assignments, verbose=False):
         "ordering_clean": 0,
         "partial_surfaced": 0,
         "gap_aligned": 0,
+        "extract_oracle": 0,
+        "extract_hit": 0,
+        "extract_extracted": 0,
+        "nice_oracle": 0,
+        "nice_hit": 0,
+        "location_total": 0,
+        "location_hit": 0,
+        "stability_total": 0,
+        "stability_stable": 0,
     }
     latencies = []
 
@@ -201,12 +293,43 @@ def evaluate(matcher, assignments, verbose=False):
                     gaps_align(candidate.missing, partial[candidate.person_id])
                 )
 
+        oracle = oracle_items(record)
+        extracted = extracted_items(result.requirements, record.get("domain") or "")
+        counters["extract_oracle"] += len(oracle)
+        counters["extract_extracted"] += len(extracted)
+        counters["extract_hit"] += len(oracle & extracted)
+        oracle_nice = {_norm(n) for n in record.get("nice_to_have", [])}
+        got_nice = {_norm(n) for n in result.requirements.nice}
+        counters["nice_oracle"] += len(oracle_nice)
+        counters["nice_hit"] += len(oracle_nice & got_nice)
+        if record.get("location"):
+            counters["location_total"] += 1
+            counters["location_hit"] += int(
+                location_captured(result.requirements, record)
+            )
+        if extract_repeats:
+            samples = [
+                extracted_items(
+                    with_retries(matcher.extract_requirements, record["brief"]),
+                    record.get("domain") or "",
+                )
+                for _ in range(extract_repeats)
+            ]
+            counters["stability_total"] += 1
+            counters["stability_stable"] += int(all(x == samples[0] for x in samples))
+
         if verbose:
             print(f"\n  {record['id']}: {record['title']}")
             print(
                 "    extracted musts: "
                 + "; ".join(r.label for r in result.requirements.must)
             )
+            missed = sorted(str(i) for i in oracle - extracted)
+            extra = sorted(str(i) for i in extracted - oracle)
+            if missed or extra:
+                print(f"    extraction: missed={missed or '-'} extra={extra or '-'}")
+            else:
+                print("    extraction: exact")
             print(
                 f"    expected strong: {strong_ids or '-'} | "
                 f"full_match={result.full_match_exists} "
@@ -327,6 +450,12 @@ def main() -> int:
         default=None,
         help="first N assignments (pilot timing; never gated)",
     )
+    parser.add_argument(
+        "--extract-repeats",
+        type=int,
+        default=0,
+        help="N extra extraction samples per brief for extract_stability (0 = off)",
+    )
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--no-baseline-check", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -342,7 +471,12 @@ def main() -> int:
     matcher = build_matcher(args)
 
     print(f"Matching {len(assignments)} assignments...")
-    counters, latencies = evaluate(matcher, assignments, verbose=args.verbose)
+    counters, latencies = evaluate(
+        matcher,
+        assignments,
+        verbose=args.verbose,
+        extract_repeats=args.extract_repeats,
+    )
 
     n_assign = len(assignments)
     scores = {
@@ -362,7 +496,33 @@ def main() -> int:
             if counters["partial_surfaced"]
             else 0.0
         ),
+        "extract_must_recall": (
+            counters["extract_hit"] / counters["extract_oracle"]
+            if counters["extract_oracle"]
+            else 0.0
+        ),
+        "extract_must_precision": (
+            counters["extract_hit"] / counters["extract_extracted"]
+            if counters["extract_extracted"]
+            else 0.0
+        ),
+        "extract_nice_recall": (
+            counters["nice_hit"] / counters["nice_oracle"]
+            if counters["nice_oracle"]
+            else 0.0
+        ),
+        "extract_location_rate": (
+            counters["location_hit"] / counters["location_total"]
+            if counters["location_total"]
+            else 0.0
+        ),
     }
+    if args.extract_repeats:
+        scores["extract_stability"] = (
+            counters["stability_stable"] / counters["stability_total"]
+            if counters["stability_total"]
+            else 0.0
+        )
 
     print("\nScores (rate metrics show the 95% binomial CI):")
     sizes = {
@@ -370,6 +530,11 @@ def main() -> int:
         "full_match_accuracy": n_assign,
         "ordering_clean_rate": counters["ordering_assignments"],
         "gap_alignment": counters["partial_surfaced"],
+        "extract_must_recall": counters["extract_oracle"],
+        "extract_must_precision": counters["extract_extracted"],
+        "extract_nice_recall": counters["nice_oracle"],
+        "extract_location_rate": counters["location_total"],
+        "extract_stability": counters["stability_total"],
     }
     for name, value in scores.items():
         n = sizes[name]

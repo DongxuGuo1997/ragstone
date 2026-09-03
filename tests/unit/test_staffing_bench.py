@@ -59,3 +59,36 @@ class TestScaleInvariants:
         strong_small, _ = bench.expected_tiers(small, a01)
         strong_big, _ = bench.expected_tiers(big, a01)
         assert len(strong_big) > len(strong_small)
+
+
+class TestRfqTemplates:
+    """a10/a11 are hand-authored RFQ-style briefs; they must pass the same
+    integrity checks the rendered briefs pass, and the section-aware
+    domain check must read their plain-text headings."""
+
+    def test_templates_pass_taxonomy_and_or_checks(self, bench):
+        for a in bench.ASSIGNMENTS:
+            if not a.get("brief_template"):
+                continue
+            required = {s for group in a["must"] for s in group} | set(a["nice"])
+            missing, leaked = bench.check_rendered(
+                a["brief_template"], required, required
+            )
+            assert not missing, (a["id"], missing)
+            assert not leaked, (a["id"], leaked)
+            assert not bench._or_group_problems(a["brief_template"], a["must"])
+            assert not bench._domain_problems(a["brief_template"], a)
+
+    def test_requirements_section_reads_rfq_headings(self, bench):
+        text = (
+            "About the role\nAutomotive context in prose.\n\n"
+            "Mandatory skills:\nExperience in the automotive industry.\n\n"
+            "Preferred\nSomething else.\n"
+        )
+        lines = bench._requirements_section(text)
+        assert lines == ["Experience in the automotive industry.", ""]
+
+    def test_domain_only_in_prose_is_a_problem(self, bench):
+        a11 = next(a for a in bench.ASSIGNMENTS if a["id"] == "a11")
+        text = "About the role\nautomotive prose\n\nMandatory skills:\nDocker\n"
+        assert bench._domain_problems(text, a11)

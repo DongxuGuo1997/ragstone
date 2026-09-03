@@ -520,6 +520,69 @@ ARCHETYPES = [
 # alternatives (any one satisfies it). a08 is deliberately unsatisfiable.
 # --------------------------------------------------------------------------
 
+# Long-form RFQ briefs are hand-authored (deterministic shape; the traps
+# are the point) and still pass every integrity check the rendered
+# briefs pass. Rationale in the a10/a11 notes below.
+A10_TEMPLATE = """Assignment request: Embedded software developer, truck ECU platform
+
+We are looking for an Embedded Software Developer for our client, a major Swedish truck OEM.
+
+About the role
+Our client is modernising the electronic control unit platform used across its truck range and is strengthening the platform team for the next generation. This is a hands-on role for someone who combines deep embedded expertise with a pragmatic mindset and who is comfortable with evolving requirements. Based in the client's Gothenburg office, you will work closely with the platform architects and the test rig team, from early prototypes to series production. The engagement is 12 months with a start in about two months.
+
+Responsibilities
+You will be part of an agile team with a technical hands-on focus, in close collaboration with the Product Owner.
+You will be responsible for feature development on the ECU platform and for refining requirements together with the team.
+You are ready to work according to an agile development methodology.
+
+Mandatory skills:
+University degree in Computer Science or a related field and at least 5 years of professional experience in embedded software development.
+Hands-on experience with embedded software development, including AUTOSAR Classic and CAN bus.
+Safety and coding standards: ISO 26262, MISRA C.
+Programming language: Embedded C.
+
+Preferred
+Expertise in Vector CANoe.
+Experience with ASPICE and Simulink.
+Experience in the automotive industry.
+
+Personal qualities
+Comfortable working with hardware - you enjoy setting up test environments, debugging on target and experimenting with prototypes.
+Pragmatic mindset - you make progress without needing everything to be perfectly defined upfront.
+Self-driven and proactive - you take ownership of problems and push things forward.
+"""
+
+A11_TEMPLATE = """Assignment request: DevOps engineer, embedded build and test infrastructure
+
+We are looking for a DevOps Engineer for our client, a Swedish automotive supplier.
+
+About the role
+The client builds software for electronic control units and is scaling the build and test infrastructure that every embedded team depends on: pipelines, containerised build environments and hardware-in-the-loop test benches. You will own the pipelines end to end, from commit to a flashed unit on a rig, and help the teams adopt them. The role is based in Gothenburg with a hybrid setup of three days on site. The engagement is 12 months with a start in about two months.
+
+Responsibilities
+You will design, run and improve the continuous integration pipelines for several embedded teams.
+You will maintain the containerised build environments and the board support layer builds.
+You will work in an agile team together with a Product Owner and the embedded developers.
+
+Mandatory skills:
+At least 3 years of professional experience in build or infrastructure engineering.
+Continuous integration experience with Jenkins or GitLab CI.
+Container tooling and scripting: Docker, Python.
+Working proficiency in Swedish, the team's working language.
+Experience in the automotive industry.
+
+Preferred
+Yocto build experience.
+Kubernetes, Ansible.
+Artifactory.
+dSPACE HIL.
+
+Personal qualities
+Comfortable working with hardware - you enjoy getting a test rig to green as much as a pipeline.
+Pragmatic mindset - you make progress in an environment where processes and requirements evolve.
+Thrives in ambiguity - you create clarity where needed and move work forward.
+"""
+
 ASSIGNMENTS = [
     {
         "id": "a01",
@@ -668,6 +731,59 @@ ASSIGNMENTS = [
         "OR-groups on purpose (the or-phrasing check is "
         "English-only). Tests that extraction and matching "
         "survive the language boundary.",
+    },
+    {
+        "id": "a10",
+        "title": "Embedded software developer, truck ECU platform (RFQ style)",
+        "client": "a major Swedish truck OEM",
+        "location": "Gothenburg",
+        "duration": "12 months",
+        "domain": None,
+        "min_years": 5,
+        "language": None,
+        "degree": "Computer Science",
+        "must": [
+            ["AUTOSAR Classic"],
+            ["CAN bus"],
+            ["ISO 26262"],
+            ["MISRA C"],
+            ["Embedded C"],
+        ],
+        "nice": ["Vector CANoe", "ASPICE", "Simulink"],
+        "brief_note": None,
+        "brief_style": "rfq",
+        "brief_template": A10_TEMPLATE,
+        "notes": "LONG-FORM RFQ: the a01 skill set rendered the way real "
+        "requests arrive — sectioned prose (About / Responsibilities / "
+        "Mandatory / Preferred / Personal qualities), an 'including X and "
+        "Y' conjunction, a comma-separated standards list, a degree "
+        "sentence sharing a line with the years, the location only in "
+        "prose, and 'automotive industry' under Preferred (the oracle has "
+        "NO domain requirement — promoting it is an extraction error). "
+        "Motivated by a real RFQ where extraction merged the conjunction "
+        "into OR-alternatives, filed programming languages as spoken "
+        "languages and promoted a preferred item to mandatory.",
+    },
+    {
+        "id": "a11",
+        "title": "DevOps engineer, embedded build and test infrastructure (RFQ style)",
+        "client": "a Swedish automotive supplier",
+        "location": "Gothenburg (hybrid)",
+        "duration": "12 months",
+        "domain": "automotive",
+        "min_years": 3,
+        "language": "Swedish",
+        "degree": None,
+        "must": [["Jenkins", "GitLab CI"], ["Docker"], ["Python"]],
+        "nice": ["Yocto", "Kubernetes", "Ansible", "Artifactory", "dSPACE HIL"],
+        "brief_note": None,
+        "brief_style": "rfq",
+        "brief_template": A11_TEMPLATE,
+        "notes": "LONG-FORM RFQ with the traps a10 lacks: a genuine OR-group "
+        "('Jenkins or GitLab CI') inside prose, a comma-separated tooling "
+        "list that is a conjunction (Docker, Python), a spoken-language "
+        "requirement stated in a sentence, and the domain requirement "
+        "genuinely under Mandatory this time (extraction must keep it).",
     },
 ]
 
@@ -1010,6 +1126,36 @@ def check_rendered(text: str, required: set, allowed: set):
     return sorted(required - found), sorted(found - allowed)
 
 
+_HEADING_ANY = re.compile(
+    r"^(?:##\s*)?(?:requirements?|mandatory|required|krav|meriting|preferred|"
+    r"nice[- ]to[- ]have|personal|responsibilities|about)\b[^.]{0,40}:?$",
+    re.IGNORECASE,
+)
+_HEADING_REQUIREMENTS = re.compile(
+    r"^(?:##\s*)?(?:requirements?|mandatory|required)\b", re.IGNORECASE
+)
+
+
+def _requirements_section(text: str) -> list:
+    """Lines under the requirements heading, bullet briefs and RFQs alike.
+
+    A heading is a '## ' line or a short heading-like line ('Mandatory
+    skills:', 'Preferred', 'Personal qualities'); the requirements
+    section runs from a requirements/mandatory heading to the next
+    heading of any kind.
+    """
+    in_requirements = False
+    section_lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if _HEADING_ANY.match(stripped):
+            in_requirements = bool(_HEADING_REQUIREMENTS.match(stripped))
+            continue
+        if in_requirements:
+            section_lines.append(line)
+    return section_lines
+
+
 def _domain_problems(text: str, assignment) -> list:
     """The brief must SAY the domain requirement the oracle scores.
 
@@ -1029,14 +1175,7 @@ def _domain_problems(text: str, assignment) -> list:
     # of this check accepted the word in context prose ("...automotive
     # solutions...") while the bullet list stayed domain-silent — and
     # extraction, correctly, only reads requirements.
-    in_requirements = False
-    section_lines = []
-    for line in text.splitlines():
-        if line.startswith("## "):
-            in_requirements = "requirement" in line.lower()
-            continue
-        if in_requirements:
-            section_lines.append(line)
+    section_lines = _requirements_section(text)
     if re.search(rf"(?i)\b{re.escape(domain)}\b", "\n".join(section_lines)):
         return []
     return [
@@ -1158,6 +1297,18 @@ def render_briefs(llm, existing_briefs):
     briefs = {}
     for a in ASSIGNMENTS:
         required = {s for group in a["must"] for s in group} | set(a["nice"])
+        if a.get("brief_template"):
+            text = a["brief_template"].strip() + "\n"
+            missing, leaked = check_rendered(text, required, required)
+            extra = _or_group_problems(text, a["must"]) + _domain_problems(text, a)
+            if missing or leaked or extra:
+                raise SystemExit(
+                    f"{a['id']}: template fails integrity checks "
+                    f"(missing={missing}, leaked={leaked}, extra={extra})"
+                )
+            briefs[a["id"]] = text
+            print(f"  brief: {a['id']} templated (ok)")
+            continue
         cached = existing_briefs.get(a["id"])
         if (
             cached
@@ -1241,6 +1392,8 @@ def write_golden(personas, briefs):
                 "nice_to_have": a["nice"],
                 "brief": briefs[a["id"]],
                 "brief_language": a.get("brief_language", "English"),
+                "brief_style": a.get("brief_style", "bullet"),
+                "degree": a.get("degree"),
                 "expected_strong": strong,
                 "expected_partial": partial,
                 "notes": a["notes"],

@@ -1628,6 +1628,93 @@ improvement should go.
 
 ---
 
+## Experiment 30 — A real RFQ breaks the extractor: long-form briefs, measured
+
+**Trigger.** The first real request run through the matcher (2026-08-28:
+a client RFQ for an Android/QNX embedded developer, matched against the
+author's own CV) came back with a requirement list that was both too
+short and wrong in shape — and the eval had never noticed, because the
+bench's nine briefs are short bullet lists under "Requirements" and
+"Meriting". Running only the extraction step on that RFQ three times
+(gpt-4o-mini, temperature 0) gave three different must-have sets. The
+failure classes, all reproduced below:
+
+- *"including A, B and C"* read as alternatives (any one suffices) or
+  dropped to the head noun alone;
+- a comma-separated list of programming languages read as an OR-group,
+  once filed under the `language` kind (spoken languages), so the
+  verifier would have asked for "working proficiency in C++";
+- a degree requirement and a location silently dropped — no kind
+  exists for either;
+- "Experience in the automotive industry" promoted from *Preferred* to
+  a must-have on one of three runs;
+- the years check, on a real CV, credited from a quote with no dates.
+
+**Hypothesis.** Extraction is corpus-conditional: the prompt was tuned
+on rendered bullet briefs and one unconstrained model call does not
+generalise to sectioned prose. The tier metrics cannot see this — in a
+pool where everyone has the dropped skill, dropping it costs nothing —
+so extraction needs scoring of its own before the fix, and a bench that
+carries the traps.
+
+**Method, part 1 (bench and harness only; extractor untouched).**
+Two hand-authored long-form briefs join the committed bench, with the
+same ground-truth-by-construction oracle (personas byte-identical,
+a01–a09 records unchanged apart from two new descriptive fields):
+
+- **a10** — the a01 skill set as a real RFQ: About / Responsibilities /
+  Mandatory skills / Preferred / Personal qualities; "Hands-on
+  experience with embedded software development, including AUTOSAR
+  Classic and CAN bus"; "Safety and coding standards: ISO 26262,
+  MISRA C"; a degree sentence sharing a line with the years; the
+  location only in prose; "automotive industry" under Preferred with
+  NO domain requirement in the oracle. Strong: cv08, cv01; partial: 7.
+- **a11** — DevOps profile with the traps a10 lacks: a genuine OR-group
+  in prose ("Jenkins or GitLab CI"), a comma-list conjunction ("Docker,
+  Python"), a spoken-language sentence (Swedish), and the domain
+  genuinely under Mandatory. Strong: cv26, cv35, cv25; partial: 4.
+
+Templated briefs pass the same integrity checks as rendered ones (every
+skill named, no taxonomy leaks, OR-groups phrased with "or"); the
+domain-in-requirements check (Experiment 29) now reads plain-text
+headings ("Mandatory skills:") as well as `## Requirements`.
+
+New harness metrics, informational until baselined:
+`extract_must_recall` / `extract_must_precision` (the extracted
+must-have set against the oracle's — skill OR-groups as sets, years,
+language, domain, degree), `extract_nice_recall`,
+`extract_location_rate`, and `extract_stability` under
+`--extract-repeats N` (share of briefs whose must-have set is identical
+across N extra samples).
+
+**Result, part 1 — the current extractor on the 11-brief bench**
+(gpt-4o-mini, k=12, `--extract-repeats 3`):
+
+| metric | value | n | note |
+|---|---:|---:|---|
+| strong_recall_at_5 (gated) | **0.903** | 31 | was 1.0 on nine briefs; both a10 strong candidates pushed out of the top 5 |
+| full_match_accuracy (gated) | 1.000 | 11 | |
+| ordering_clean_rate (gated) | 1.000 | 10 | |
+| gap_alignment | 0.737 | 38 | was ~0.90 |
+| extract_must_recall | 0.855 | 62 | a01–a08 exact; a09 misses the domain (stated in Swedish); a10 misses 5 of 7; a11 misses 3 of 6 |
+| extract_must_precision | 0.898 | 59 | a10 adds the domain and two merged groups; a11's OR-groups carry prose ("Continuous integration experience with Jenkins or …") |
+| extract_nice_recall | 0.976 | 42 | nice-to-haves were never the problem |
+| extract_location_rate | 0.000 | 11 | no location kind exists |
+| extract_stability (3 samples) | 0.909 | 11 | one brief flips between samples |
+
+The mechanism of the gated drop is exactly the real-RFQ failure: on a10
+"including AUTOSAR Classic and CAN bus" became an any-of group, so
+five oracle-partial candidates — each missing one of the two — verified
+as *strong*, outranked the two true strong candidates on nice-to-have
+hits, and took the whole top 5. The tool did not lie about the CVs; it
+lied about the brief.
+
+**Decision, part 1.** Bench and metrics committed with the failure on
+record; the baseline is deliberately NOT re-recorded on this data (a
+gate that starts at 0.903 would pass the fix trivially). Part 2 changes
+the extractor and is measured against the same eleven briefs; part 3
+takes the years check out of the model's hands.
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

@@ -403,11 +403,13 @@ class Matcher:
 
     # -- graph nodes -------------------------------------------------------
 
+    def extract_requirements(self, brief: str) -> AssignmentRequirements:
+        """The extraction step alone (the eval's stability probe calls it)."""
+        return self._invoke_json(EXTRACT_PROMPT.format(brief=brief), parse_requirements)
+
     def _extract(self, state: _MatchState) -> _MatchState:
         writer = get_stream_writer()
-        requirements = self._invoke_json(
-            EXTRACT_PROMPT.format(brief=state["brief"]), parse_requirements
-        )
+        requirements = self.extract_requirements(state["brief"])
         writer(
             {
                 "event": "extract",

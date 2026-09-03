@@ -32,6 +32,18 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Long-form RFQ briefs in the staffing bench** (a10, a11) and
+  extraction-level eval metrics (Experiment 30, part 1). Two
+  hand-authored briefs in the shape real requests arrive in — sectioned
+  prose, "including X and Y" conjunctions, comma-list conjunctions, a
+  degree sentence, the location only in prose, a preferred item that
+  must not be promoted — with the same ground-truth-by-construction
+  oracle. `run_staffing_eval.py` now scores the extracted must-have set
+  directly (`extract_must_recall` / `extract_must_precision`, plus
+  nice-to-have recall, location capture and `--extract-repeats N`
+  stability). Measured before any fix: the current extractor drops
+  strong-candidate recall from 1.0 to 0.903 on the new bench — the
+  real-RFQ failure, reproduced and on record.
 - **Engine mechanism doc** (`docs/HOW_IT_WORKS.md`): how ragstone
   works end to end for users and reviewers — the ingest path (load,
   split, enrich, metadata cards, embed, index) and the ask path

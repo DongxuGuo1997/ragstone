@@ -10,6 +10,7 @@ escaping, span merging), and the progress-event formatter.
 from pathlib import Path
 
 from ragstone.ui.staffing_app import (
+    EXAMPLES_PATH,
     MARK_OPEN,
     _event_line,
     highlight_evidence,
@@ -20,11 +21,14 @@ from ragstone.ui.staffing_app import (
 class TestExampleBriefs:
     def test_bundled_golden_briefs_load(self):
         briefs = load_example_briefs()
-        # The committed bench ships 9 assignments (a09 is the Swedish
-        # cross-lingual one); keys are "aNN: title".
-        assert len(briefs) == 9
+        # One entry per committed golden record; keys are "aNN: title".
+        # a09 is the Swedish cross-lingual brief, a10/a11 the long-form
+        # RFQ-style ones.
+        golden = EXAMPLES_PATH.read_text(encoding="utf-8").splitlines()
+        assert len(briefs) == sum(1 for line in golden if line.strip())
         assert any(key.startswith("a01:") for key in briefs)
         assert any(key.startswith("a09:") for key in briefs)
+        assert any(key.startswith("a10:") for key in briefs)
         assert all(brief.strip() for brief in briefs.values())
 
     def test_missing_file_yields_empty_dict(self):
