@@ -627,6 +627,12 @@ _ANY_HEADING = re.compile(
     r"skills|core competencies|languages|publications|contact)\b",
     re.IGNORECASE,
 )
+_EXPERIENCE_HEADING = re.compile(
+    r"^(?:experience|work experience|professional experience|employment|"
+    r"engagements|selected engagements|career|assignments|consulting|"
+    r"uppdrag|erfarenhet|anställningar)\b",
+    re.IGNORECASE,
+)
 _EDUCATION_LINE = re.compile(
     r"\b(?:b\.?sc|m\.?sc|b\.?a|m\.?a|bachelor|master|ph\.?d|doctor|university|"
     r"universitet|högskola|college|degree|examen|diploma)\b",
@@ -636,40 +642,57 @@ _EDUCATION_LINE = re.compile(
 
 def years_of_experience(
     cv_text: str, today_year: Optional[int] = None
-) -> Optional[Tuple[float, int, int]]:
+) -> Optional[Tuple[float, int, int, List[Tuple[int, int]]]]:
     """Years covered by the CV's engagement date ranges, as a union.
 
-    Returns (years, first_year, last_year) or None when the CV carries no
-    date range at all — the caller then falls back to the model's
-    reading. Overlapping engagements are not double-counted; an open
-    range ends this year.
+    Returns (years, first_year, last_year, spans) — spans are the merged
+    intervals, so the evidence can list exactly what was counted — or
+    None when the CV carries no usable date range; the caller then falls
+    back to the model's reading. Overlapping engagements are not
+    double-counted; an open range ends this year.
+
+    Which ranges count: when the CV has an Experience-like heading, only
+    ranges under Experience-like headings (education, certifications
+    and summary timelines anywhere else are ignored, whatever their
+    layout). Without such a heading, every range counts except those
+    under an Education-like heading, on a degree line, or on a bare
+    date line right after a degree line.
     """
     year_now = today_year or datetime.date.today().year
+    lines = cv_text.splitlines()
+
+    def _heading(line: str) -> str:
+        text = line.strip().lstrip("#*-•· ").rstrip(":* ").strip()
+        if text and len(text) <= 40 and _ANY_HEADING.match(text):
+            return text
+        return ""
+
+    has_experience = any(
+        _EXPERIENCE_HEADING.match(h) for h in map(_heading, lines) if h
+    )
     intervals: List[Tuple[int, int]] = []
     in_education = False
+    in_experience = False
     previous = ""
-    for line in cv_text.splitlines():
-        heading = line.strip().lstrip("#*-•· ").rstrip(":* ").strip()
-        if heading and len(heading) <= 40 and _ANY_HEADING.match(heading):
-            # A section heading: an education-like one excludes every
-            # range until the next heading (dates often sit on the line
-            # after the degree in converted DOCX/PDF CVs).
+    for line in lines:
+        heading = _heading(line)
+        if heading:
             in_education = bool(_EDUCATION_HEADING.match(heading))
+            in_experience = bool(_EXPERIENCE_HEADING.match(heading))
             previous = line
             continue
-        # A bare date line ("2015 - 2017") right after a degree line
-        # belongs to the degree; a line with its own words ("Engineer
-        # (2015-2017)") is an engagement even after one.
         residue = _YEAR_RANGE.sub("", line)
         bare_dates = not re.search(r"[A-Za-z]{3,}", residue)
-        if (
+        excluded = (
             in_education
             or _EDUCATION_LINE.search(line)
             or (bare_dates and _EDUCATION_LINE.search(previous))
-        ):
-            previous = line
-            continue
+        )
+        if has_experience:
+            excluded = excluded or not in_experience
         previous = line
+        if excluded:
+            continue
         for match in _YEAR_RANGE.finditer(line):
             start = int(match.group(1))
             end_token = match.group(2)
@@ -686,24 +709,26 @@ def years_of_experience(
             merged[-1][1] = max(merged[-1][1], end)
         else:
             merged.append([start, end])
-    total = float(sum(end - start for start, end in merged))
-    return total, merged[0][0], merged[-1][1]
+    spans = [(a, b) for a, b in merged]
+    total = float(sum(b - a for a, b in spans))
+    return total, spans[0][0], spans[-1][1], spans
 
 
 def years_verdict(
-    requirement: Requirement, computed: Tuple[float, int, int]
+    requirement: Requirement, computed: Tuple[float, int, int, List[Tuple[int, int]]]
 ) -> Optional[Dict[str, Any]]:
     """A years verdict from arithmetic, or None when the label won't parse."""
     try:
         minimum = float(requirement.detail)
     except (TypeError, ValueError):
         return None
-    total, first, last = computed
+    total, _first, _last, spans = computed
+    listed = ", ".join(f"{a}–{b}" for a, b in spans)
     return {
         "covered": total + 1e-9 >= minimum,
         "evidence": (
-            f"Engagement dates {first}–{last} add up to about {total:g} years "
-            "(computed from the CV's date ranges, not quoted)"
+            f"Engagement dates {listed} add up to about {total:g} years "
+            "(computed from the CV's work-history date ranges, not quoted)"
         ),
     }
 
@@ -752,6 +777,20 @@ def names_any(text: str, names: List[str]) -> bool:
         if len(squashed) >= 4 and squashed in _squash(text):
             return True
     return False
+
+
+def nice_named_in(cv_text: str, skill: str) -> bool:
+    """Does the CV name a nice-to-have? Looser than a must-have: the
+    phrase itself, its singular ("Hypervisors" ~ "Hypervisor"), or — for
+    a phrase of three or more words — its first two words ("Android
+    Automotive Software Development" ~ "Android Automotive apps")."""
+    candidates = [skill]
+    if len(skill) > 4 and skill.endswith("s") and not skill.endswith("ss"):
+        candidates.append(skill[:-1])
+    words = skill.split()
+    if len(words) >= 3:
+        candidates.append(" ".join(words[:2]))
+    return any(_phrase_pattern(c).search(cv_text) for c in candidates)
 
 
 def is_generic_skill(names: List[str]) -> bool:
@@ -960,9 +999,8 @@ class Matcher:
                 if any(pattern.search(cv_text) for pattern in patterns):
                     must_hits.setdefault(person_id, set()).add(idx)
         for skill in requirements.nice:
-            pattern = _phrase_pattern(skill)
             for person_id, cv_text in self._person_cv_text.items():
-                if pattern.search(cv_text):
+                if nice_named_in(cv_text, skill):
                     hits = nice_hits.setdefault(person_id, [])
                     if skill not in hits:
                         hits.append(skill)

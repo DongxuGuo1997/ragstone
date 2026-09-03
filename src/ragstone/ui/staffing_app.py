@@ -21,7 +21,7 @@ import html
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import streamlit as st
 
@@ -157,7 +157,9 @@ def build_matcher(
 def _event_line(event: dict) -> Optional[str]:
     kind = event.get("event")
     if kind == "extract":
-        line = "📋 Requirements: " + "; ".join(event.get("must", []))
+        line = "📋 Requirements — must have: " + "; ".join(event.get("must", []))
+        if event.get("nice"):
+            line += " · preferred: " + "; ".join(event.get("nice", []))
         if event.get("location"):
             line += f" · based in {event['location']}"
         return line
@@ -172,7 +174,25 @@ def _event_line(event: dict) -> Optional[str]:
     return None
 
 
-def _render_candidate(candidate, people_chunks: Dict[str, str]) -> None:
+def _render_requirements(requirements) -> None:
+    """What the brief was read as — the reader should never have to guess
+    why a skill is or is not in the coverage table."""
+    with st.container(border=True):
+        st.markdown("**Must have:** " + "; ".join(r.label for r in requirements.must))
+        if requirements.nice:
+            st.markdown(
+                "**Preferred (not required, shown per candidate):** "
+                + "; ".join(requirements.nice)
+            )
+        if requirements.location:
+            st.caption(
+                f"Based in {requirements.location} — context, not a requirement."
+            )
+
+
+def _render_candidate(
+    candidate, people_chunks: Dict[str, str], nice_all: Sequence[str] = ()
+) -> None:
     badge = TIER_BADGES.get(candidate.tier, candidate.tier)
     with st.container(border=True):
         st.markdown(f"**{candidate.name}** — {badge}")
@@ -188,7 +208,13 @@ def _render_candidate(candidate, people_chunks: Dict[str, str]) -> None:
         st.table(rows)
         if candidate.missing:
             st.warning(candidate.gap_statement(), icon="⚠️")
-        if candidate.nice_hits:
+        if nice_all:
+            marks = [
+                ("✅ " if item in candidate.nice_hits else "❌ ") + item
+                for item in nice_all
+            ]
+            st.caption("Preferred: " + " · ".join(marks))
+        elif candidate.nice_hits:
             st.caption("Meriting: " + ", ".join(candidate.nice_hits))
         if getattr(candidate, "location_note", ""):
             st.caption(candidate.location_note)
@@ -299,6 +325,7 @@ def render() -> None:
         st.error("The match run returned no result — see logs.")
         return
 
+    _render_requirements(result.requirements)
     if result.full_match_exists:
         st.success(result.summary, icon="✅")
     else:
@@ -311,12 +338,12 @@ def render() -> None:
     top = result.shortlist(5)
     st.subheader(f"Shortlist ({len(top)} of {len(result.candidates)} assessed)")
     for candidate in top:
-        _render_candidate(candidate, people_chunks)
+        _render_candidate(candidate, people_chunks, result.requirements.nice)
     rest = result.candidates[5:]
     if rest:
         with st.expander(f"{len(rest)} more assessed candidates"):
             for candidate in rest:
-                _render_candidate(candidate, people_chunks)
+                _render_candidate(candidate, people_chunks, result.requirements.nice)
 
 
 def main() -> None:

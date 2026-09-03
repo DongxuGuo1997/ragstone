@@ -169,12 +169,13 @@ Two safety properties, one arithmetic override, and a second vote:
 
 - **Years are computed, not quoted.** The CV's engagement date ranges
   ("2019-2022", "2021 – present", "Jan 2019 - Mar 2022") are merged as
-  intervals and their union decides the years requirement. Anything
-  under an Education heading is excluded, as is a bare date line right
-  after a degree line, so a Master's does not count as work. The
-  evidence line says the number was computed. A profile blurb claiming
-  "11 years" cannot pass on the blurb; the model's own reading is used
-  only for a CV that carries no dates at all.
+  intervals and their union decides the years requirement. When the CV
+  has an Experience-like heading, only ranges under it count — degrees,
+  certificates and summary timelines elsewhere are ignored whatever
+  their layout; without one, Education blocks and degree lines are
+  excluded. The evidence lists the exact spans counted. A profile
+  blurb claiming "11 years" cannot pass on the blurb; the model's own
+  reading is used only for a CV that carries no dates at all.
 - **A credited skill must be named by the CV.** After the model's
   pass, every credited skill is checked by code: if the quote names the
   skill and occurs verbatim in the CV, it stands; if the quote is weak
@@ -193,7 +194,9 @@ Two safety properties, one arithmetic override, and a second vote:
   retried once; if it still fails, every requirement is recorded as not
   covered. The pipeline never invents coverage to fill a gap.
 - **Nice-to-haves are not verified.** They are discovery signals used
-  for ranking and shown as "seen during discovery", never as claims.
+  for ranking; each candidate shows every preferred item with a tick
+  or a cross for whether the CV names it (leniently: the singular, or
+  the first two words of a long phrase), never as a claim.
 
 Verification calls are independent per candidate and run concurrently
 (up to eight at a time). On the cloud provider this took a match from
@@ -254,13 +257,16 @@ result object — no follow-up queries.
 - A **live event stream** while the graph runs: requirements extracted,
   each discovery query and its hit count, the shortlist, one line per
   candidate being verified, then the result.
+- The **brief as read**: must-haves, preferred items and location,
+  above the shortlist, so nobody has to guess why a skill is or is not
+  in a coverage table.
 - The **shortlist** with tier badges and the honesty summary.
 - Per candidate, a **coverage table**: every requirement, evidenced or
   not, with the verbatim quote.
 - A **CV expander** showing the source with every quoted span
   highlighted — click through and check.
 - A **gap warning** on partial and weak candidates with the "not
-  evidenced" line, and the nice-to-haves seen during discovery.
+  evidenced" line, and every preferred item ticked or crossed.
 - The **location**, when the brief states one, on the requirements
   line and as a one-line note per candidate ("mentioned in the CV" or
   "not mentioned — informational, not a gap").

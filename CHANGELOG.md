@@ -46,6 +46,16 @@ Notable changes to Ragstone. The format follows
   arithmetic now treats an Education heading as a block and a bare
   date line after a degree as the degree's, so a Master's no longer
   counts as work. `--second-vote off` keeps the previous path.
+- **Requirements shown as read, preferred items ticked per candidate.**
+  The staffing UI now shows what the brief was read as — must-haves,
+  preferred items and location — above the shortlist, and each
+  candidate lists every preferred item with a tick or a cross instead
+  of a caption naming only the hits. Preferred items match more
+  leniently than must-haves (singular form, or the first two words of
+  a long phrase: "Hypervisors" ~ "Hypervisor", "Android Automotive
+  Software Development" ~ "Android Automotive apps"). Years of
+  experience count only ranges under an Experience-like heading when
+  the CV has one, and the evidence lists the exact spans counted.
 - **Years of experience by arithmetic** (Experiment 30, part 3). The
   matcher sums the CV's engagement date ranges (union of intervals,
   education lines excluded, open ranges end this year) and lets that

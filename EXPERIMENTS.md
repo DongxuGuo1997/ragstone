@@ -1877,6 +1877,20 @@ and test rigs are not credited from adjacent work, the Master's years
 are excluded, and the degree instruction now lets a neighbouring
 engineering discipline count as related.
 
+A third run of the real CV closed two reading problems rather than
+verdict problems. The years still counted a Bachelor's whose dates sat
+outside the block the heading rule recognised, so the arithmetic now
+counts only ranges under an Experience-like heading when the CV has
+one, whatever else the layout holds, and the evidence lists the spans
+it added ("2017–2018, 2021–2026"). And QNX, Hypervisors and Android
+Automotive looked missing from the requirements when they were in fact
+extracted as *preferred* — the UI showed nice-to-haves only as a
+caption naming exact-phrase hits, and "Hypervisors" did not match
+"Hypervisor". The UI now shows the brief as read (must-haves,
+preferred, location) and ticks every preferred item per candidate;
+preferred items match on the singular or the first two words of a long
+phrase. Gates unchanged.
+
 **Decision, part 4.** Arm C ships, on by default (`--second-vote off`
 keeps the old path, suffixed in the baseline key). 11-brief gate
 unchanged at 1.0 / 1.0 / 1.0 and 0.984 / 0.984; the scale-test

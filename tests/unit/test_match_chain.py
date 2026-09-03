@@ -21,6 +21,7 @@ from ragstone.match import (
     Requirement,
     is_generic_skill,
     location_note,
+    nice_named_in,
     parse_requirements,
     parse_verification,
     quote_in_cv,
@@ -666,27 +667,27 @@ class TestLineShapedExtraction:
 class TestYearsArithmetic:
     def test_union_of_ranges_does_not_double_count(self):
         cv = "Lead (2019-2022)\nSenior (2021 - 2024)\nJunior (2014-2016)"
-        assert years_of_experience(cv, today_year=2026) == (7.0, 2014, 2024)
+        assert years_of_experience(cv, today_year=2026)[:3] == (7.0, 2014, 2024)
 
     def test_open_range_ends_this_year_and_months_are_ignored(self):
         cv = "Engineer, Jan 2020 – present"
-        assert years_of_experience(cv, today_year=2026) == (6.0, 2020, 2026)
+        assert years_of_experience(cv, today_year=2026)[:3] == (6.0, 2020, 2026)
 
     def test_swedish_range_words(self):
         cv = "Utvecklare 2018 till 2021\nKonsult 2021 – nu"
-        assert years_of_experience(cv, today_year=2026) == (8.0, 2018, 2026)
+        assert years_of_experience(cv, today_year=2026)[:3] == (8.0, 2018, 2026)
 
     def test_education_lines_do_not_count(self):
         cv = "MSc Computer Science, Lund University, 2009-2014\nEngineer (2015-2017)"
-        assert years_of_experience(cv, today_year=2026) == (2.0, 2015, 2017)
+        assert years_of_experience(cv, today_year=2026)[:3] == (2.0, 2015, 2017)
 
     def test_no_ranges_means_no_verdict(self):
         assert years_of_experience("11 years of experience", today_year=2026) is None
 
     def test_verdict_compares_against_the_requirement(self):
         req = Requirement(kind="years", detail="5")
-        short = years_verdict(req, (4.0, 2022, 2026))
-        long = years_verdict(req, (7.0, 2019, 2026))
+        short = years_verdict(req, (4.0, 2022, 2026, [(2022, 2026)]))
+        long = years_verdict(req, (7.0, 2019, 2026, [(2019, 2026)]))
         assert short is not None and not short["covered"]
         assert long is not None and long["covered"]
         assert "not quoted" in long["evidence"]
@@ -776,11 +777,31 @@ class TestYearsSectionAwareness:
             "Education\nMaster in Systems, Control and Mechatronics\n"
             "Chalmers University of Technology\n2015 - 2017\n"
         )
-        assert years_of_experience(cv, today_year=2026) == (8.0, 2018, 2026)
+        assert years_of_experience(cv, today_year=2026)[:3] == (8.0, 2018, 2026)
+
+    def test_with_an_experience_heading_only_that_section_counts(self):
+        cv = (
+            "Summary\nBuilding software since 2015 - present.\n\n"
+            "Education\nMaster in Mechatronics\n2019 - 2021\n"
+            "Bachelor of Engineering\n2015 - 2019\n\n"
+            "Work experience\nEngineer, Acme\n2021 - present\n"
+            "Intern, Beta (2017-2018)\n"
+        )
+        years, first, last, spans = years_of_experience(cv, today_year=2026)
+        assert (years, first, last) == (6.0, 2017, 2026)
+        assert spans == [(2017, 2018), (2021, 2026)]
+
+    def test_evidence_lists_the_spans(self):
+        verdict = years_verdict(
+            Requirement(kind="years", detail="5"),
+            (6.0, 2017, 2026, [(2017, 2018), (2021, 2026)]),
+        )
+        assert verdict is not None
+        assert "2017–2018, 2021–2026" in verdict["evidence"]
 
     def test_degree_line_before_the_dates_excludes_them(self):
         cv = "MSc Computer Science, KTH\n2009-2014\nEngineer (2015-2017)"
-        assert years_of_experience(cv, today_year=2026) == (2.0, 2015, 2017)
+        assert years_of_experience(cv, today_year=2026)[:3] == (2.0, 2015, 2017)
 
 
 def _audit_people(chunks):
@@ -1010,3 +1031,16 @@ class TestGenericSkillHeuristic:
         assert [(r.kind, r.label) for r in req.must] == [
             ("skill", "hardware interfacing")
         ]
+
+
+class TestNiceToHaveNaming:
+    CV = "Skills: Hypervisor, QNX. Developed Android Automotive apps for a head unit."
+
+    def test_singular_and_head_phrase_count(self):
+        assert nice_named_in(self.CV, "Hypervisors")
+        assert nice_named_in(self.CV, "QNX")
+        assert nice_named_in(self.CV, "Android Automotive Software Development")
+
+    def test_unrelated_phrase_does_not(self):
+        assert not nice_named_in(self.CV, "Yocto")
+        assert not nice_named_in(self.CV, "Kubernetes Operators")
