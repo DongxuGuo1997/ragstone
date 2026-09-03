@@ -32,6 +32,14 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **CV-matching mechanism doc** (`docs/CV_MATCHING.md`): how the
+  matcher works stage by stage — ingestion and person tagging,
+  extract, discover (coverage-breadth ranking, exact-phrase channel,
+  the ten-candidate cap), verify (the strictness rules, fail-closed
+  parsing), score (tiers, full-match honesty, gap wording) — with a
+  worked example, the metric definitions and results, the privacy
+  posture, and the known limits. Written for users and reviewers,
+  not only developers; linked from the README.
 - **Staffing demo runbook** (`docs/guides/STAFFING_DEMO_SCRIPT.md`):
   a rehearsed six-act script for presenting the CV↔assignment matcher
   live — cloud-paced acts, a "bring your own DOCX" upload act, and a

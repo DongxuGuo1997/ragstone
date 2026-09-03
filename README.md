@@ -744,6 +744,8 @@ make run-match-ui                    # dedicated UI (or: ragstone-match)
 python evals/run_staffing_eval.py    # the measured gate
 ```
 
+How it works, stage by stage — with the rules, the worked example
+and the measurements — is [docs/CV_MATCHING.md](docs/CV_MATCHING.md).
 Presenting it live? The rehearsed act-by-act runbook is
 [docs/guides/STAFFING_DEMO_SCRIPT.md](docs/guides/STAFFING_DEMO_SCRIPT.md).
 
