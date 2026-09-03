@@ -274,10 +274,12 @@
     "metrics": {
       "strong_recall_at_5": 1.0,
       "full_match_accuracy": 1.0,
-      "ordering_clean_rate": 1.0
+      "ordering_clean_rate": 1.0,
+      "extract_must_recall": 0.984,
+      "extract_must_precision": 0.984
     },
-    "date": "2026-07-17",
-    "data_sha": "a67f69482e77"
+    "date": "2026-09-03",
+    "data_sha": "36f677f609ca"
   },
   "ollama:qwen3.5:9b|k=12|chain=match|set=staffing|ollama-reasoning=off": {
     "metrics": {

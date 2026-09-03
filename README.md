@@ -757,9 +757,10 @@ Presenting it live? The rehearsed act-by-act runbook is
   reported as *"not evidenced in the CV"* — absence of evidence, not
   evidence of absence.
 - **Honesty is a gated metric.** The bench — 40 synthetic Nordic
-  consultant CVs and 9 assignment briefs (one in Swedish) with ground
-  truth true by construction — includes one deliberately unsatisfiable
-  assignment.
+  consultant CVs and 11 assignment briefs (one in Swedish, two in the
+  long-form RFQ shape real requests arrive in) with ground truth true
+  by construction — includes one deliberately unsatisfiable assignment,
+  and scores the extracted requirement list directly (Experiment 30).
   Measured: strong-candidate recall@5 **1.0**, no-full-match honesty
   **1.0**, ranking cleanliness **1.0** (Experiment 27).
 - **It scales, measured.** The same assignments over a 400-consultant

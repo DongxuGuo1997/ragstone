@@ -1715,6 +1715,76 @@ gate that starts at 0.903 would pass the fix trivially). Part 2 changes
 the extractor and is measured against the same eleven briefs; part 3
 takes the years check out of the model's hands.
 
+**Method, part 2 — the extractor, measured against the same bench.**
+Two arms, same eleven briefs, gpt-4o-mini, k=12, `--extract-repeats 3`:
+
+*Arm A — rules in prose.* The old one-shot schema kept, with explicit
+rules added: section headings decide must vs nice; comma / "and" /
+"including" lists are conjunctions; alternatives only on "or";
+programming languages are skills, `language` is for spoken languages;
+two new kinds, `education` and `location` (the latter never a must).
+Parsing gained guards (a programming language filed under `language`
+becomes a skill; a `location` item never enters must).
+
+*Arm B — the decision made explicit per line.* Same rules, but the
+output schema changes shape: the model copies EVERY sentence or bullet
+of a must/nice section verbatim into an entry, classifies it `must` or
+`nice`, states its relation — `all` (conjunction) or `any` (a choice
+with "or") — and lists the items it names. The parser turns `any` +
+skills into one OR-group and `all` into one entry per item. A short
+fictional example shows the three cases. Every kind from arm A stays;
+the old shape still parses (tests and fakes).
+
+**Result, part 2.**
+
+| metric | before (part 1) | arm A: rules | **arm B: per line** |
+|---|---:|---:|---:|
+| strong_recall_at_5 (gated) | 0.903 | 0.903 | **1.000** |
+| full_match_accuracy (gated) | 1.000 | 1.000 | 1.000 |
+| ordering_clean_rate (gated) | 1.000 | 1.000 | 1.000 |
+| gap_alignment | 0.737 | 0.757 | 0.868–0.895 |
+| extract_must_recall (gated from now) | 0.855 | 0.887 | **0.984** |
+| extract_must_precision (gated from now) | 0.898 | 0.932 | **0.984** |
+| extract_nice_recall | 0.976 | 0.976 | 1.000 |
+| extract_location_rate | 0.000 | 0.909 | 0.909 |
+| extract_stability (3 samples) | 0.909 | 0.909 | **1.000** |
+| avg match latency (s) | 7.1 | 6.8 | 8.6–9.8 |
+
+Arm A bought location and a little precision and nothing else: a10
+still read "including AUTOSAR Classic and CAN bus" as an OR-group and
+invented an English requirement; a11 still merged "Docker, Python".
+Rules in prose do not move a small model on a decision it makes
+implicitly. Arm B moves it because the decision is no longer implicit:
+each sentence is copied, then labelled `all` or `any`, and the parser
+does the rest. a01–a08 and a11 extract exactly; a09 still misses the
+domain (stated in Swedish — a known cross-lingual soft spot, tiers
+unaffected); a10's one "extra" is *embedded software development*,
+the head noun of the "including" sentence — a requirement a human
+would also list, which the oracle simply does not carry. Latency rises
+by roughly two seconds per match: the response now carries every
+requirement sentence verbatim.
+
+Optional majority voting across N samples (`extract_samples`, per-item
+quorum) is implemented and left at 1: with stability already 1.0 on
+this bench there is nothing for it to buy at three times the extraction
+cost.
+
+**On the real RFQ that started this** (extraction only, three runs):
+before, three different sets; after, three identical sets — the
+degree, the years, *embedded systems development* plus its three
+"including" items, C++ / Python / Java as three skills, Android
+Automotive / QNX / Hypervisors / automotive industry as nice-to-haves,
+Gothenburg as the location, and no invented English requirement.
+
+**Decision, part 2.** Arm B ships. Baseline re-recorded on the
+11-brief data (`data_sha 36f677f609ca`): tier gates 1.0 / 1.0 / 1.0,
+and `extract_must_recall` / `extract_must_precision` join the gated
+set at 0.984. The local-stack baseline key still points at the
+9-brief data and must be re-recorded before the next local claim (a
+multi-hour run; pilot first). The UI shows the location as context on
+the requirements line and per candidate as an informational note,
+never as a gap.
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

@@ -157,7 +157,10 @@ def build_matcher(
 def _event_line(event: dict) -> Optional[str]:
     kind = event.get("event")
     if kind == "extract":
-        return "📋 Requirements: " + "; ".join(event.get("must", []))
+        line = "📋 Requirements: " + "; ".join(event.get("must", []))
+        if event.get("location"):
+            line += f" · based in {event['location']}"
+        return line
     if kind == "discover":
         return f'🔎 Searching: "{event.get("query", "")}"'
     if kind == "shortlist":
@@ -187,6 +190,8 @@ def _render_candidate(candidate, people_chunks: Dict[str, str]) -> None:
             st.warning(candidate.gap_statement(), icon="⚠️")
         if candidate.nice_hits:
             st.caption("Meriting: " + ", ".join(candidate.nice_hits))
+        if getattr(candidate, "location_note", ""):
+            st.caption(candidate.location_note)
         cv_text = people_chunks.get(candidate.person_id, "")
         if cv_text:
             with st.expander(f"CV — {candidate.name} (evidence highlighted)"):

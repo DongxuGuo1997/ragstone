@@ -19,9 +19,11 @@ from langchain_core.documents import Document
 from ragstone.match import (
     Matcher,
     Requirement,
+    location_note,
     parse_requirements,
     parse_verification,
     stamp_person_metadata,
+    vote_requirements,
 )
 from ragstone.match.matcher import index_person_chunks
 
@@ -384,3 +386,271 @@ class TestMatchFlow:
             assert expected in kinds, f"missing event {expected}"
         assert events[-1]["result"] is not None
         assert events[-1]["result"].candidates[0].person_id == "cv01"
+
+
+# --------------------------------------------------------------------------
+# Experiment 30: long-form RFQ extraction — new kinds, guards, voting.
+# --------------------------------------------------------------------------
+
+
+def _extraction(must, nice=(), location=""):
+    return json.dumps({"must": must, "nice": list(nice), "location": location})
+
+
+class TestRfqExtractionParsing:
+    def test_education_kind_and_location_field(self):
+        req = parse_requirements(
+            _extraction(
+                [
+                    {"kind": "skill", "alternatives": ["Docker"]},
+                    {"kind": "education", "field": "Computer Science"},
+                ],
+                location="Gothenburg (hybrid)",
+            )
+        )
+        kinds = [r.kind for r in req.must]
+        assert kinds == ["skill", "education"]
+        assert req.must[1].label == "university degree in Computer Science"
+        assert "education section" in req.must[1].verify_instruction()
+        assert req.must[1].queries() == []
+        assert req.location == "Gothenburg (hybrid)"
+
+    def test_programming_language_filed_as_language_becomes_skill(self):
+        req = parse_requirements(
+            _extraction(
+                [
+                    {"kind": "language", "language": "C++"},
+                    {"kind": "language", "language": "Swedish"},
+                ]
+            )
+        )
+        assert [(r.kind, r.label) for r in req.must] == [
+            ("skill", "C++"),
+            ("language", "Swedish (working proficiency)"),
+        ]
+
+    def test_location_never_becomes_a_must(self):
+        req = parse_requirements(
+            _extraction(
+                [
+                    {"kind": "skill", "alternatives": ["Docker"]},
+                    {"kind": "location", "location": "Stockholm"},
+                ]
+            )
+        )
+        assert [r.kind for r in req.must] == ["skill"]
+        assert req.location == "Stockholm"
+
+
+class TestVoting:
+    def _sample(self, skills, nice=(), location=""):
+        return parse_requirements(
+            _extraction(
+                [{"kind": "skill", "alternatives": list(a)} for a in skills],
+                nice=nice,
+                location=location,
+            )
+        )
+
+    def test_majority_keeps_agreed_items_and_drops_flukes(self):
+        a = self._sample([["Docker"], ["Python"]], nice=["Helm"], location="Lund")
+        b = self._sample([["Docker"], ["Python"], ["Kubernetes"]], location="Lund")
+        c = self._sample([["docker"], ["Python"]], nice=["Helm"], location="Malmo")
+        voted = vote_requirements([a, b, c])
+        assert [r.label for r in voted.must] == ["Docker", "Python"]
+        assert voted.nice == ["Helm"]
+        assert voted.location == "Lund"
+
+    def test_or_group_identity_is_order_insensitive(self):
+        a = self._sample([["Jenkins", "GitLab CI"]])
+        b = self._sample([["GitLab CI", "Jenkins"]])
+        assert len(vote_requirements([a, b]).must) == 1
+
+    def test_single_sample_passes_through(self):
+        a = self._sample([["Docker"]])
+        assert vote_requirements([a]) is a
+
+    def test_no_agreement_fails_closed(self):
+        a = self._sample([["Docker"]])
+        b = self._sample([["Python"]])
+        with pytest.raises(ValueError):
+            vote_requirements([a, b])
+
+
+class TestLocationNote:
+    def test_city_in_cv_is_mentioned(self):
+        note = location_note(
+            "Gothenburg (hybrid)", "Senior engineer - Gothenburg, Sweden"
+        )
+        assert note.startswith("Assignment location Gothenburg (hybrid): mentioned")
+
+    def test_city_absent_is_informational_not_a_gap(self):
+        note = location_note("Stockholm (Kista)", "Senior engineer - Lund, Sweden")
+        assert "not mentioned" in note and "not a gap" in note
+
+    def test_no_location_no_note(self):
+        assert location_note("", "anything") == ""
+
+
+class TestLocationFlowsThroughTheGraph:
+    def test_note_rides_on_the_assessment_and_the_extract_event(self):
+        extraction = _extraction(
+            [{"kind": "skill", "alternatives": ["AUTOSAR Classic"]}],
+            location="Gothenburg",
+        )
+        verification = json.dumps(
+            [{"requirement": "AUTOSAR Classic", "covered": True, "evidence": "q"}]
+        )
+        people = {
+            "cv01": {
+                "name": "Astrid Okafor",
+                "chunks": ["Astrid - Gothenburg, Sweden"],
+            },
+            "cv02": {"name": "Marta Strand", "chunks": ["Marta - Lund, Sweden"]},
+        }
+        retriever = {
+            "AUTOSAR Classic": [
+                _doc("cv01", "Astrid Okafor"),
+                _doc("cv02", "Marta Strand"),
+            ]
+        }
+        result = _matcher(
+            [extraction, verification, verification], retriever, people
+        ).match("brief")
+        notes = {c.person_id: c.location_note for c in result.candidates}
+        assert notes["cv01"].endswith("mentioned in the CV.")
+        assert "not a gap" in notes["cv02"]
+        assert all(c.tier == "strong" for c in result.candidates)
+        assert result.requirements.location == "Gothenburg"
+
+
+def _line_extraction(entries, location=""):
+    return json.dumps({"location": location, "requirements": entries})
+
+
+def _skill(name):
+    return {"kind": "skill", "name": name}
+
+
+class TestLineShapedExtraction:
+    def test_conjunction_yields_one_entry_per_item(self):
+        req = parse_requirements(
+            _line_extraction(
+                [
+                    {
+                        "text": "Hands-on experience, including AUTOSAR Classic and CAN bus.",
+                        "section": "must",
+                        "relation": "all",
+                        "items": [_skill("AUTOSAR Classic"), _skill("CAN bus")],
+                    }
+                ]
+            )
+        )
+        assert [r.label for r in req.must] == ["AUTOSAR Classic", "CAN bus"]
+
+    def test_choice_yields_one_or_group(self):
+        req = parse_requirements(
+            _line_extraction(
+                [
+                    {
+                        "text": "CI experience with Jenkins or GitLab CI.",
+                        "section": "must",
+                        "relation": "any",
+                        "items": [_skill("Jenkins"), _skill("GitLab CI")],
+                    }
+                ]
+            )
+        )
+        assert [r.label for r in req.must] == ["Jenkins or GitLab CI"]
+
+    def test_preferred_domain_stays_out_of_must(self):
+        req = parse_requirements(
+            _line_extraction(
+                [
+                    {
+                        "text": "Programming language: Embedded C.",
+                        "section": "must",
+                        "relation": "all",
+                        "items": [_skill("Embedded C")],
+                    },
+                    {
+                        "text": "Experience in the automotive industry.",
+                        "section": "nice",
+                        "relation": "all",
+                        "items": [{"kind": "domain", "domain": "automotive"}],
+                    },
+                    {
+                        "text": "Expertise in Vector CANoe.",
+                        "section": "nice",
+                        "relation": "all",
+                        "items": [_skill("Vector CANoe")],
+                    },
+                ]
+            )
+        )
+        assert [r.kind for r in req.must] == ["skill"]
+        assert req.nice == ["automotive industry", "Vector CANoe"]
+
+    def test_degree_and_years_on_one_line_are_two_items(self):
+        req = parse_requirements(
+            _line_extraction(
+                [
+                    {
+                        "text": "University degree in Computer Science and at least 5 years.",
+                        "section": "must",
+                        "relation": "all",
+                        "items": [
+                            {"kind": "education", "field": "Computer Science"},
+                            {"kind": "years", "min_years": 5},
+                        ],
+                    }
+                ],
+                location="Gothenburg",
+            )
+        )
+        assert [(r.kind, r.detail) for r in req.must] == [
+            ("education", "Computer Science"),
+            ("years", "5"),
+        ]
+        assert req.location == "Gothenburg"
+
+    def test_programming_language_item_under_language_kind_is_a_skill(self):
+        req = parse_requirements(
+            _line_extraction(
+                [
+                    {
+                        "text": "Programming languages C++, Python, Java",
+                        "section": "must",
+                        "relation": "all",
+                        "items": [
+                            {"kind": "language", "language": "C++"},
+                            _skill("Python"),
+                            _skill("Java"),
+                        ],
+                    }
+                ]
+            )
+        )
+        assert [r.label for r in req.must] == ["Python", "Java", "C++"]
+        assert all(r.kind == "skill" for r in req.must)
+
+    def test_duplicate_skill_lines_collapse(self):
+        req = parse_requirements(
+            _line_extraction(
+                [
+                    {
+                        "text": "Docker.",
+                        "section": "must",
+                        "relation": "all",
+                        "items": [_skill("Docker")],
+                    },
+                    {
+                        "text": "Docker again.",
+                        "section": "must",
+                        "relation": "all",
+                        "items": [_skill("docker")],
+                    },
+                ]
+            )
+        )
+        assert len(req.must) == 1

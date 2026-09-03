@@ -51,29 +51,80 @@ MAX_VERIFIED_CANDIDATES = 10
 VERIFY_WORKERS = 8
 # One retry when the model returns unparseable JSON, then fail closed.
 PARSE_RETRIES = 1
+# Extraction samples per brief; >1 takes a per-item majority vote across
+# samples (Experiment 30 measures whether the extra calls buy stability).
+EXTRACT_SAMPLES = 1
 
+# Programming languages a model may file under the spoken-language kind;
+# they are skills. Lower-cased, matched on the whole label.
+_PROGRAMMING_LANGUAGES = (
+    frozenset("""c c++ c# python java kotlin rust go golang javascript typescript bash
+    swift scala ruby php matlab perl sql embedded c objective-c dart lua r
+    julia haskell erlang elixir groovy powershell shell ada fortran cobol
+    assembly verilog vhdl systemverilog""".split())
+    | frozenset({"embedded c", "objective-c"})
+)
+
+# The prompt carries literal JSON braces, so it is filled with
+# str.replace("{brief}", ...) — never str.format.
 EXTRACT_PROMPT = """You are a staffing assistant. Extract the \
-requirements from this client assignment request.
+requirements from this client assignment request, line by line.
 
-Return ONLY a JSON object of this shape:
-{{"must": [
-    {{"kind": "skill", "alternatives": ["<skill name>", "..."]}},
-    {{"kind": "years", "min_years": <integer>}},
-    {{"kind": "language", "language": "<language>"}},
-    {{"kind": "domain", "domain": "<industry domain>"}}
-  ],
-  "nice": ["<skill name>", "..."]}}
+Work through the request section by section. Sections headed like
+"Requirements", "Mandatory", "Required", "Must have" or "Krav" hold
+must-haves; sections headed like "Preferred", "Nice to have",
+"Meriting", "Plus" or "Meriterande" hold nice-to-haves. Skip "About",
+"Responsibilities" and "Personal qualities" sections entirely — soft
+skills and duties are not requirements.
 
-Rules:
-- Create one "skill" entry PER requirement bullet or sentence, copying
-  names as written. Distinct bullets are distinct requirements — NEVER
-  merge them into one entry.
-- Give an entry more than one alternative ONLY when that same bullet
-  explicitly offers a choice ("X or Y"): those alternatives satisfy the
-  requirement interchangeably.
-- Include "years", "language", or "domain" entries only when the text
-  states them as requirements, not preferences.
-- "nice": the meriting/optional items, one skill string each.
+For EVERY sentence or bullet in a must-have or nice-to-have section,
+output one entry:
+{"text": "<the sentence or bullet, copied verbatim>",
+ "section": "must" | "nice",
+ "relation": "all" | "any",
+ "items": [ ... ]}
+
+- "relation" is "any" ONLY when the sentence offers a choice with "or"
+  or "either" ("Jenkins or GitLab CI"). Everything else — lists joined
+  by commas, "and", "including", "such as" — is "all": every item is
+  required.
+- "items": one per technology, standard, tool or condition the sentence
+  names, of these kinds:
+  {"kind": "skill", "name": "<as written, without surrounding words>"}
+  {"kind": "years", "min_years": <integer>} — the overall experience
+    requirement, once; never attach years to individual skills
+  {"kind": "language", "language": "<spoken language>"} — only when the
+    text requires a spoken language; never infer one from the language
+    the request is written in
+  {"kind": "domain", "domain": "<industry>"} — only when experience from
+    an industry is stated as a requirement, not implied by the client
+  {"kind": "education", "field": "<degree field as stated>"} — when a
+    degree is required ("Computer Science" even if "or a related field"
+    follows)
+  Programming languages (C, C++, Python, Java, Embedded C, ...) are
+  "skill" items, never "language". A sentence stating a degree AND
+  years has two items. An item under a nice-to-have heading stays
+  "nice" however strongly the prose stresses it.
+
+Return ONLY a JSON object:
+{"location": "<city or site the role is based at, if stated; else \"\">",
+ "requirements": [ <entries, in order> ]}
+
+Example (a fictional request):
+  Mandatory: "Hands-on experience with widget firmware, including Alpha
+  SDK and the Beta bus." ->
+  {"text": "Hands-on experience with widget firmware, including Alpha SDK and the Beta bus.",
+   "section": "must", "relation": "all",
+   "items": [{"kind": "skill", "name": "widget firmware"},
+             {"kind": "skill", "name": "Alpha SDK"},
+             {"kind": "skill", "name": "Beta bus"}]}
+  Mandatory: "CI experience with Gamma or Delta." ->
+  {"text": "CI experience with Gamma or Delta.", "section": "must",
+   "relation": "any",
+   "items": [{"kind": "skill", "name": "Gamma"}, {"kind": "skill", "name": "Delta"}]}
+  Preferred: "Experience in the maritime industry." ->
+  {"text": "Experience in the maritime industry.", "section": "nice",
+   "relation": "all", "items": [{"kind": "domain", "domain": "maritime"}]}
 
 Assignment request:
 ---
@@ -128,6 +179,12 @@ class Requirement:
             return f"at least {self.detail} years of experience"
         if self.kind == "language":
             return f"{self.detail} (working proficiency)"
+        if self.kind == "education":
+            return (
+                f"university degree in {self.detail}"
+                if self.detail
+                else "university degree"
+            )
         return f"{self.detail} domain experience"
 
     def queries(self) -> List[str]:
@@ -138,7 +195,7 @@ class Requirement:
             return [self.detail]
         if self.kind == "domain":
             return [f"{self.detail} projects"]
-        return []  # years is not searchable; verification handles it
+        return []  # years / education are not searchable; verification decides
 
     def verify_instruction(self) -> str:
         """What the verifier is asked to check for this item."""
@@ -153,6 +210,12 @@ class Requirement:
             return (
                 f"Working proficiency in {self.detail} " "(check the languages section)"
             )
+        if self.kind == "education":
+            field = self.detail or "a relevant field"
+            return (
+                f"A completed university degree in {field} or a related field "
+                "(check the education section)"
+            )
         return f"Substantial project experience in the {self.detail} domain"
 
 
@@ -160,6 +223,9 @@ class Requirement:
 class AssignmentRequirements:
     must: List[Requirement] = field(default_factory=list)
     nice: List[str] = field(default_factory=list)
+    # Where the role is based, when the brief says. Context for the
+    # reader, never a must-have: people relocate and commute.
+    location: str = ""
 
 
 @dataclass
@@ -176,6 +242,7 @@ class CandidateAssessment:
     coverage: List[RequirementFinding]
     nice_hits: List[str]  # nice-to-haves seen during discovery
     tier: str = "weak"  # "strong" | "partial" | "weak"
+    location_note: str = ""  # informational; never affects the tier
 
     @property
     def missing(self) -> List[str]:
@@ -304,9 +371,91 @@ def _extract_json(text: str, opener: str, closer: str) -> Any:
     return json.loads(cleaned[start : end + 1])
 
 
+def _item_requirement(item: Dict[str, Any]) -> Optional[Requirement]:
+    """One non-skill item -> Requirement (None when malformed)."""
+    kind = str(item.get("kind", ""))
+    if kind == "years" and item.get("min_years") is not None:
+        return Requirement(kind="years", detail=str(item["min_years"]))
+    if kind == "language" and item.get("language"):
+        language = str(item["language"]).strip()
+        if language.lower() in _PROGRAMMING_LANGUAGES:
+            return Requirement(kind="skill", alternatives=[language])
+        return Requirement(kind="language", detail=language)
+    if kind == "domain" and item.get("domain"):
+        return Requirement(kind="domain", detail=str(item["domain"]).strip())
+    if kind == "education":
+        field = item.get("field") or item.get("education") or item.get("degree")
+        return Requirement(kind="education", detail=str(field or "").strip())
+    return None
+
+
+def _parse_line_shape(raw: Dict[str, Any]) -> AssignmentRequirements:
+    """The per-line schema: every requirement sentence copied verbatim,
+    classified must/nice, with an explicit all/any relation. Skills
+    under "any" become one OR-group; under "all" one entry each."""
+    must: List[Requirement] = []
+    nice: List[str] = []
+    seen_must: set = set()
+    seen_nice: set = set()
+
+    def add_must(requirement: Requirement) -> None:
+        key = _requirement_key(requirement)
+        if key in seen_must:
+            return
+        seen_must.add(key)
+        must.append(requirement)
+
+    def add_nice(name: str) -> None:
+        if name and name.lower() not in seen_nice:
+            seen_nice.add(name.lower())
+            nice.append(name)
+
+    for entry in raw.get("requirements", []):
+        if not isinstance(entry, dict):
+            continue
+        section = str(entry.get("section", "must")).lower()
+        relation = str(entry.get("relation", "all")).lower()
+        items = [i for i in entry.get("items", []) if isinstance(i, dict)]
+        skills = [
+            str(i.get("name", "")).strip()
+            for i in items
+            if str(i.get("kind", "skill")) == "skill" and str(i.get("name", "")).strip()
+        ]
+        others = [r for r in (_item_requirement(i) for i in items) if r is not None]
+        if section == "nice":
+            for name in skills:
+                add_nice(name)
+            for requirement in others:
+                if requirement.kind == "skill":
+                    add_nice(requirement.alternatives[0])
+                elif requirement.kind == "domain":
+                    add_nice(f"{requirement.detail} industry")
+                elif requirement.kind == "education":
+                    add_nice(f"degree in {requirement.detail}".strip())
+                elif requirement.kind == "language":
+                    add_nice(f"{requirement.detail} (language)")
+            continue
+        if relation == "any" and len(skills) >= 2:
+            add_must(Requirement(kind="skill", alternatives=skills))
+        else:
+            for name in skills:
+                add_must(Requirement(kind="skill", alternatives=[name]))
+        for requirement in others:
+            if requirement.kind == "years" and any(r.kind == "years" for r in must):
+                continue
+            add_must(requirement)
+    if not must:
+        raise ValueError("extraction produced no must-have requirements")
+    location = str(raw.get("location") or "").strip()
+    return AssignmentRequirements(must=must, nice=nice, location=location)
+
+
 def parse_requirements(text: str) -> AssignmentRequirements:
     raw = _extract_json(text, "{", "}")
+    if "requirements" in raw and "must" not in raw:
+        return _parse_line_shape(raw)
     must: List[Requirement] = []
+    location = str(raw.get("location") or "").strip()
     for item in raw.get("must", []):
         kind = str(item.get("kind", "skill"))
         if kind == "skill":
@@ -316,13 +465,94 @@ def parse_requirements(text: str) -> AssignmentRequirements:
         elif kind == "years" and item.get("min_years") is not None:
             must.append(Requirement(kind="years", detail=str(item["min_years"])))
         elif kind == "language" and item.get("language"):
-            must.append(Requirement(kind="language", detail=str(item["language"])))
+            language = str(item["language"])
+            # A model that files "C++" as a spoken language: it is a skill.
+            if language.strip().lower() in _PROGRAMMING_LANGUAGES:
+                must.append(Requirement(kind="skill", alternatives=[language]))
+            else:
+                must.append(Requirement(kind="language", detail=language))
         elif kind == "domain" and item.get("domain"):
             must.append(Requirement(kind="domain", detail=str(item["domain"])))
+        elif kind == "education":
+            field = item.get("field") or item.get("education") or item.get("degree")
+            must.append(Requirement(kind="education", detail=str(field or "")))
+        elif kind == "location":
+            # Never a must; keep it as context if the top-level field is empty.
+            location = location or str(item.get("location") or item.get("city") or "")
     nice = [str(s) for s in raw.get("nice", []) if s]
     if not must:
         raise ValueError("extraction produced no must-have requirements")
-    return AssignmentRequirements(must=must, nice=nice)
+    return AssignmentRequirements(must=must, nice=nice, location=location)
+
+
+def _requirement_key(requirement: Requirement) -> Tuple[str, Any]:
+    """Canonical identity of a must item, for voting across samples."""
+    if requirement.kind == "skill":
+        return ("skill", frozenset(a.strip().lower() for a in requirement.alternatives))
+    return (requirement.kind, requirement.detail.strip().lower())
+
+
+def vote_requirements(samples: List[AssignmentRequirements]) -> AssignmentRequirements:
+    """Per-item majority across extraction samples.
+
+    A must item, a nice-to-have or a location survives when it appears
+    in more than half the samples; items keep the order and wording of
+    their first appearance. One sample returns as-is.
+    """
+    if len(samples) == 1:
+        return samples[0]
+    quorum = len(samples) / 2.0
+    must_counts: Dict[Tuple[str, Any], int] = {}
+    must_first: Dict[Tuple[str, Any], Requirement] = {}
+    for sample in samples:
+        for requirement in sample.must:
+            key = _requirement_key(requirement)
+            must_counts[key] = must_counts.get(key, 0) + 1
+            must_first.setdefault(key, requirement)
+    must = [must_first[k] for k, c in must_counts.items() if c > quorum]
+    nice_counts: Dict[str, int] = {}
+    nice_first: Dict[str, str] = {}
+    for sample in samples:
+        for name in sample.nice:
+            nice_key = name.strip().lower()
+            nice_counts[nice_key] = nice_counts.get(nice_key, 0) + 1
+            nice_first.setdefault(nice_key, name)
+    nice = [nice_first[k] for k, c in nice_counts.items() if c > quorum]
+    location_counts: Dict[str, int] = {}
+    location_first: Dict[str, str] = {}
+    for sample in samples:
+        if sample.location:
+            loc_key = sample.location.strip().lower()
+            location_counts[loc_key] = location_counts.get(loc_key, 0) + 1
+            location_first.setdefault(loc_key, sample.location)
+    location = ""
+    if location_counts:
+        best = max(location_counts, key=lambda k: location_counts[k])
+        if location_counts[best] > quorum:
+            location = location_first[best]
+    if not must:
+        raise ValueError("extraction samples agree on no must-have requirement")
+    return AssignmentRequirements(must=must, nice=nice, location=location)
+
+
+def location_note(wanted: str, cv_text: str) -> str:
+    """Informational line: does the CV mention the assignment's city?
+
+    Deterministic and deliberately not a gap — a CV that names another
+    city is a conversation about availability, not missing evidence.
+    """
+    if not wanted:
+        return ""
+    city = re.split(r"[(,/]| or | och |\s-\s", wanted, maxsplit=1)[0].strip()
+    if not city:
+        return ""
+    pattern = re.compile(rf"(?<!\w){re.escape(city)}(?!\w)", re.IGNORECASE)
+    if pattern.search(cv_text):
+        return f"Assignment location {wanted}: mentioned in the CV."
+    return (
+        f"Assignment location {wanted}: not mentioned in the CV — "
+        "informational, not a gap."
+    )
 
 
 def parse_verification(text: str, expected: int) -> List[Dict[str, Any]]:
@@ -369,12 +599,14 @@ class Matcher:
         people: Dict[str, Dict[str, Any]],
         max_candidates: int = MAX_VERIFIED_CANDIDATES,
         verify_workers: int = VERIFY_WORKERS,
+        extract_samples: int = EXTRACT_SAMPLES,
     ) -> None:
         self._llm = llm
         self._retriever = retriever
         self._people = people
         self._max_candidates = max_candidates
         self._verify_workers = verify_workers
+        self._extract_samples = max(1, extract_samples)
         # Joined once: the lexical channel scans these per match and the
         # verifier reads them per candidate — at XL scale re-joining 400
         # CVs per brief was measurable waste.
@@ -404,8 +636,17 @@ class Matcher:
     # -- graph nodes -------------------------------------------------------
 
     def extract_requirements(self, brief: str) -> AssignmentRequirements:
-        """The extraction step alone (the eval's stability probe calls it)."""
-        return self._invoke_json(EXTRACT_PROMPT.format(brief=brief), parse_requirements)
+        """The extraction step alone (the eval's stability probe calls it).
+
+        With extract_samples > 1 the brief is extracted that many times
+        and the samples vote per item (see vote_requirements).
+        """
+        prompt = EXTRACT_PROMPT.replace("{brief}", brief)
+        samples = [
+            self._invoke_json(prompt, parse_requirements)
+            for _ in range(self._extract_samples)
+        ]
+        return vote_requirements(samples)
 
     def _extract(self, state: _MatchState) -> _MatchState:
         writer = get_stream_writer()
@@ -415,6 +656,7 @@ class Matcher:
                 "event": "extract",
                 "must": [r.label for r in requirements.must],
                 "nice": requirements.nice,
+                "location": requirements.location,
             }
         )
         return {"requirements": requirements}
@@ -563,6 +805,9 @@ class Matcher:
                     name=self._people[person_id]["name"],
                     coverage=coverage,
                     nice_hits=state.get("nice_hits", {}).get(person_id, []),
+                    location_note=location_note(
+                        requirements.location, self._person_cv_text[person_id]
+                    ),
                 )
             )
         return {"assessments": assessments}

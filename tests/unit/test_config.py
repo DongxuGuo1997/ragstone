@@ -106,6 +106,13 @@ class TestLocalProfileValidation:
     """RAGSTONE_PROFILE=local must fail CLOSED at boot: a no-egress
     deployment with a non-loopback endpoint must refuse to start."""
 
+    @pytest.fixture(autouse=True)
+    def _no_tracing_flag(self, monkeypatch):
+        # A developer .env may switch LangSmith tracing on; the local
+        # profile refuses that FIRST, which would mask every endpoint
+        # check below with the wrong error message.
+        monkeypatch.delenv("LANGSMITH_TRACING", raising=False)
+
     def test_unset_profile_is_default(self, monkeypatch):
         monkeypatch.delenv("RAGSTONE_PROFILE", raising=False)
         assert Config().profile == ""

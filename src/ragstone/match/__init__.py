@@ -13,9 +13,11 @@ from .matcher import (
     MatchResult,
     Requirement,
     RequirementFinding,
+    location_note,
     parse_requirements,
     parse_verification,
     stamp_person_metadata,
+    vote_requirements,
 )
 
 __all__ = [
@@ -26,7 +28,9 @@ __all__ = [
     "MatchResult",
     "Requirement",
     "RequirementFinding",
+    "location_note",
     "parse_requirements",
     "parse_verification",
     "stamp_person_metadata",
+    "vote_requirements",
 ]

@@ -78,7 +78,13 @@ from run_eval import (  # noqa: E402  (path bootstrap above)
 )
 
 SHORTLIST_N = 5
-GATED_METRICS = ("strong_recall_at_5", "full_match_accuracy", "ordering_clean_rate")
+GATED_METRICS = (
+    "strong_recall_at_5",
+    "full_match_accuracy",
+    "ordering_clean_rate",
+    "extract_must_recall",
+    "extract_must_precision",
+)
 
 
 def load_assignments() -> list:

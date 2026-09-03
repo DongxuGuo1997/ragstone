@@ -160,7 +160,8 @@ ordering_clean_rate:  1.000   (~10 s per assignment)
 
 - Talking point: *"The bench's ground truth is true by construction —
   CVs are rendered from persona specs, so we know every right answer.
-  Nine assignments, three gated metrics, all at 1.0. And at 10× the
+  Eleven assignments — two of them long-form RFQs in the shape real
+  requests arrive in — three gated metrics, all at 1.0. And at 10× the
   pool — 400 consultants — top-5 precision holds at 0.925, with both
   imperfections attributed, not hidden. Every claim in this demo is a
   committed measurement in the repo."*

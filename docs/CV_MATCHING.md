@@ -57,28 +57,45 @@ score`, with a conditional edge to `no_candidates`.)
 
 ## Stage 1 — Extract: the brief becomes structured requirements
 
-One model call turns free text into a JSON requirement list. Each
-must-have is one of four kinds:
+One model call turns free text into a requirement list, and it works
+*line by line*: the model copies every sentence or bullet of a
+requirements or preferred section verbatim, labels it must or nice,
+states whether the items it names are **all** required or
+**alternatives**, and lists them. Code does the rest. That shape was
+chosen by measurement (Experiment 30): rules written in prose did not
+stop a small model from reading "including A and B" as "A or B"; making
+it label each sentence did.
+
+Each must-have is one of five kinds; location is captured as context:
 
 | kind | example label | what it means |
 |---|---|---|
-| skill | `AUTOSAR Classic or AUTOSAR Adaptive` | a named technology; alternatives satisfy it interchangeably |
+| skill | `AUTOSAR Classic or AUTOSAR Adaptive` | a named technology, tool or standard; alternatives satisfy it interchangeably |
 | years | `at least 5 years of experience` | total professional experience |
-| language | `Swedish (working proficiency)` | a working language |
+| language | `Swedish (working proficiency)` | a spoken working language |
 | domain | `automotive domain experience` | substantial project experience in an industry |
+| education | `university degree in Computer Science` | a degree, verified against the CV's education section |
+| *location* | `Gothenburg (hybrid)` | where the role is based; context and a per-candidate note, never a gap |
 
 Plus a list of nice-to-haves (meriting skills).
 
 Rules the extractor is held to:
 
-- **One entry per bullet or sentence, never merged.** Two distinct
-  requirements in the brief stay two entries, so a candidate can be
-  credited for one and not the other.
-- **Alternatives only when the brief offers a choice.** "Kubernetes or
-  OpenShift" becomes one requirement with two alternatives; two
-  separate bullets do not.
-- **Years, language and domain only when stated as requirements**, not
-  as preferences.
+- **Section headings decide.** Items under "Requirements", "Mandatory",
+  "Required" or "Krav" are must-haves; items under "Preferred",
+  "Meriting", "Nice to have" or "Meriterande" are nice-to-haves and are
+  never promoted, however strongly the prose stresses them. "About",
+  "Responsibilities" and "Personal qualities" are skipped.
+- **Lists are conjunctions unless the text says "or".** "including
+  AUTOSAR Classic and CAN bus" is two requirements; "ISO 26262, MISRA C"
+  is two; "C++, Python, Java" is three. "Jenkins or GitLab CI" is one
+  requirement with two alternatives.
+- **Programming languages are skills.** The language kind is for spoken
+  languages only, and a language is never inferred from the language
+  the brief is written in.
+- **Years, language, domain and degree only when stated as
+  requirements**, not as preferences; a sentence with a degree and a
+  years count yields two items.
 - **Brief language is irrelevant.** A Swedish brief produces the same
   structure as an English one; requirements are structured, not
   string-matched.
@@ -222,6 +239,9 @@ result object — no follow-up queries.
   highlighted — click through and check.
 - A **gap warning** on partial and weak candidates with the "not
   evidenced" line, and the nice-to-haves seen during discovery.
+- The **location**, when the brief states one, on the requirements
+  line and as a one-line note per candidate ("mentioned in the CV" or
+  "not mentioned — informational, not a gap").
 
 The same pipeline is what the eval harness scores, so what the demo
 shows is what the numbers measure.
@@ -231,10 +251,14 @@ shows is what the numbers measure.
 **Ground truth by construction.** The bundled bench is 40 synthetic
 Nordic consultant CVs *rendered from persona specs*, so for every brief
 we know exactly who is strong, who is partial and what each partial's
-one gap is. That answer key is what testers call an oracle; every metric below compares against it. The matcher never sees it. Nine briefs cover the
-interesting cases, including one deliberately unsatisfiable brief
-(a08: nobody combines 5G, Kubernetes and secure boot) and one in
-Swedish (a09). A second bench scales the same idea to 400 consultants.
+one gap is. That answer key is what testers call an oracle; every metric below compares against it. The matcher never sees it. Eleven briefs cover the
+interesting cases: one deliberately unsatisfiable (a08: nobody combines
+5G, Kubernetes and secure boot), one in Swedish (a09), and two
+long-form RFQs (a10, a11) in the shape real requests arrive in —
+sectioned prose with "including" conjunctions, comma lists, a degree
+sentence, the location only in prose, and a preferred item that must
+not be promoted. A second bench scales the same idea to 400
+consultants.
 
 **Three gated metrics, one informational.**
 
@@ -243,7 +267,9 @@ Swedish (a09). A second bench scales the same idea to 400 consultants.
 | strong_recall_at_5 | a candidate the answer key marks strong missing from the top 5 — a matcher bug, since their CV literally contains the skills | yes |
 | full_match_accuracy | claiming a full match when none exists (or vice versa); a08 is the trap | yes |
 | ordering_clean_rate | an out-of-tier candidate ranked above a strong one | yes |
+| extract_must_recall / extract_must_precision | the extracted must-have list against the answer key's, item by item — a dropped or merged requirement that the pool happens to forgive | yes |
 | gap_alignment | for surfaced partials, whether the verifier finds exactly the one gap the answer key names | informational |
+| extract_stability | with repeated extraction samples, the share of briefs whose requirement list comes back identical | informational |
 
 "Gated" means CI compares the score against the committed baseline with
 a fixed tolerance and fails the build on regression. Two house rules
@@ -255,8 +281,8 @@ in the same measured comparison.
 
 | arm | strong recall@5 | full-match honesty | ordering | per assignment |
 |---|---:|---:|---:|---:|
-| 40 consultants, gpt-4o-mini | 1.000 (26/26) | 1.000 (9/9) | 1.000 (8/8) | ~10 s |
-| 40 consultants, fully local (qwen3.5:9b + embeddinggemma) | 1.000 (26/26) | 1.000 (9/9) | 1.000 (8/8) | 10–20 min on a laptop |
+| 40 consultants, 11 briefs, gpt-4o-mini | 1.000 (31/31) | 1.000 (11/11) | 1.000 (10/10) | ~9 s |
+| 40 consultants, 9 briefs, fully local (qwen3.5:9b + embeddinggemma) | 1.000 (26/26) | 1.000 (9/9) | 1.000 (8/8) | 10–20 min on a laptop |
 | 400 consultants, gpt-4o-mini (two runs) | 0.925 (37/40) | 1.000 (9/9) | 1.000 (8/8) | ~10 s |
 
 **The imperfections are attributed, not hidden.** The three lost
@@ -266,7 +292,11 @@ adjacent evidence. Discovery held everywhere: no strong candidate was
 lost to the cap or to ranking, and honesty was perfect at scale (zero
 strong for a08 at 400 people, said so in every run). The informational
 gap_alignment tracks the same softness: about 0.9 at 40 consultants,
-about 0.8 at 400.
+about 0.8 at 400. Extraction itself scores 0.984 recall and precision
+on the eleven briefs; the two misses are the Swedish brief's domain
+word and one head-noun requirement the answer key does not carry. The
+local row above was measured on the nine-brief bench and is due for
+re-measurement on eleven.
 
 ## Privacy posture
 
@@ -309,6 +339,12 @@ structural requirement rather than a disclaimer.
   tens to hundreds. Thousands would need a cheaper pre-rank stage
   before the model pass.
 - **Nice-to-haves are unverified.** They rank, they do not claim.
+- **Location is informational.** A CV that names another city is a
+  conversation about availability, not missing evidence, so it never
+  changes a tier.
+- **The Swedish brief's domain word is missed.** Skills, years and
+  language cross the language boundary; "fordonsindustrin" as a domain
+  requirement does not yet. Tiers are unaffected on the bench.
 - **Local throughput.** A single Ollama server serializes model calls,
   so the concurrent verifier gains nothing there; a GPU server that
   batches requests (or more workers behind vLLM) would.

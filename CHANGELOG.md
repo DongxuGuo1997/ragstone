@@ -32,6 +32,21 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **The matcher's extractor reads RFQs** (Experiment 30, part 2). The
+  extraction schema is now per line: the model copies every sentence of
+  a must/preferred section verbatim, classifies it, and states whether
+  its items are all required or alternatives; the parser builds the
+  requirement list from that. Two new requirement kinds — `education`
+  (a degree, verified against the CV) and `location` (context on the
+  requirements line and an informational note per candidate, never a
+  gap) — plus guards that keep programming languages out of the
+  spoken-language kind and preferred items out of must. Measured on the
+  11-brief bench: strong-candidate recall back to **1.0**, extraction
+  recall and precision **0.984** (both now gated), stability 1.0 across
+  three samples; the real RFQ that motivated the work extracts
+  identically three times out of three. Optional per-item majority
+  voting across N extraction samples is available (`extract_samples`),
+  default 1.
 - **Long-form RFQ briefs in the staffing bench** (a10, a11) and
   extraction-level eval metrics (Experiment 30, part 1). Two
   hand-authored briefs in the shape real requests arrive in — sectioned
