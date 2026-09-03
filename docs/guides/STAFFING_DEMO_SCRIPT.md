@@ -21,7 +21,8 @@ band). Do Not Disturb on. `ollama list` must show `qwen3.5:9b` and
 
 ```bash
 source venv/bin/activate
-RAGSTONE_OLLAMA_REASONING=off streamlit run src/ragstone/ui/staffing_app.py --server.port 8502
+RAGSTONE_OLLAMA_REASONING=off streamlit run src/ragstone/ui/staffing_app.py \
+  --server.port 8502 --server.fileWatcherType none
 ```
 
 Sidebar → provider **ollama** (model defaults to `qwen3.5:9b`), pick
@@ -34,13 +35,26 @@ out, it finishes before or during the demo — either outcome plays
 **T−10 min — the main stage (terminal B):**
 
 ```bash
-make run-match-ui        # port 8501, the tab the audience watches
+streamlit run src/ragstone/ui/staffing_app.py \
+  --server.port 8501 --server.fileWatcherType none   # the tab the audience watches
 ```
 
-Sidebar: provider **openai**, model `gpt-4o-mini`, default CV
-directory (wait for **"40 consultants indexed"**). Pre-warm: run a01
-once (~15 s cold). This warms every cache and leaves a completed
+Sidebar: provider **openai**, model `gpt-4o-mini`, and leave the **CV
+directory** field untouched — it auto-fills with the repo's
+`evals/corpus_staffing` (wait for **"40 consultants indexed"**).
+Pre-warm: run a01 once (~15 s cold). This warms every cache and leaves a completed
 shortlist on screen — your fallback exhibit if anything breaks later.
+
+**Two launch rules (learned in the 2026-08-27 rehearsal).**
+`--server.fileWatcherType none` is not optional on either terminal:
+without it Streamlit's file watcher introspects every installed module
+at startup and prints a screenful of harmless `ModuleNotFoundError: No
+module named 'torchvision'` tracebacks (transformers probing for image
+processors) — cosmetic, but a projector-killer and easy to mistake for
+a crash. And never type in the sidebar **CV directory** field: an
+accidental edit shows up as `Data directory '…' not found or is not a
+directory` followed by "No documents were loaded" — reload the browser
+tab and the default comes back.
 
 **T−5 min — props and terminals.** Check `~/Desktop/ragstone-demo/`
 has the five DOCX CVs (regeneration command in the appendix). Keep a
@@ -161,6 +175,12 @@ ordering_clean_rate:  1.000   (~10 s per assignment)
   show the enforced no-egress profile in `.env.example`.
 - **No network at all**: the local tab still works, and the rehearsal
   eval printout in the repo history backs every number.
+- **"Data directory … not found" / "No documents were loaded"**: the
+  CV-directory field got edited. Reload the tab; don't retype the path
+  live.
+- **Wall of `torchvision` tracebacks in a terminal**: harmless watcher
+  noise from a launch without `--server.fileWatcherType none`. The app
+  still works — ignore it, or relaunch with the flag.
 
 ## Q&A ammunition
 
@@ -206,3 +226,8 @@ oracle.
 quality-identical (both strong found, every gap correct,
 gap_alignment 1.0) — hence the pre-started staging and the AC
 requirement.
+
+**Rehearsal log (2026-08-27, presenter's own run).** A launch without
+the watcher flag produced the torchvision traceback flood, and an
+accidental edit of the CV-directory field produced `Data directory …
+not found`. Both are now covered by the launch rules in Setup.
