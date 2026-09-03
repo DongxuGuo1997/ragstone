@@ -19,7 +19,7 @@ from langchain_core.documents import Document
 from ragstone.match import (
     Matcher,
     Requirement,
-    is_generic_skill,
+    is_product_name,
     location_note,
     nice_named_in,
     parse_requirements,
@@ -944,12 +944,28 @@ class TestGenericSkillJudge:
             json.dumps(
                 [{"requirement": "hardware interfacing", "evidence": CAP_LINES[2]}]
             ),
+            json.dumps([{"requirement": "hardware interfacing", "supported": True}]),
         ]
         result = _matcher(
             llm, CAP_RETRIEVER, _audit_people(CAP_LINES), second_vote=True
         ).match("b")
         cap = result.candidates[0].coverage[1]
         assert cap.covered and cap.evidence == CAP_LINES[2]
+
+    def test_repaired_line_the_judge_rejects_flips(self):
+        llm = [
+            CAPABILITY_EXTRACTION,
+            _cap_verdicts(CAP_LINES[1]),
+            json.dumps([{"requirement": "hardware interfacing", "supported": False}]),
+            json.dumps(
+                [{"requirement": "hardware interfacing", "evidence": CAP_LINES[1]}]
+            ),
+            json.dumps([{"requirement": "hardware interfacing", "supported": False}]),
+        ]
+        result = _matcher(
+            llm, CAP_RETRIEVER, _audit_people(CAP_LINES), second_vote=True
+        ).match("b")
+        assert not result.candidates[0].coverage[1].covered
 
     def test_empty_or_invented_repair_flips(self):
         for repair in ("", "Designed FPGA interfaces at a lab"):
@@ -989,14 +1005,36 @@ class TestGenericSkillJudge:
         assert result.candidates[0].tier == "strong"
 
 
-class TestGenericSkillHeuristic:
-    def test_lowercase_phrases_are_generic_and_product_names_are_not(self):
-        assert is_generic_skill(["hardware interfacing"])
-        assert is_generic_skill(["device drivers", "secure boot"])
-        assert not is_generic_skill(["AUTOSAR Classic"])
-        assert not is_generic_skill(["ISO 26262"])
-        assert not is_generic_skill(["C++"])
-        assert not is_generic_skill(["gRPC"])
+class TestProductNameHeuristic:
+    def test_product_names(self):
+        for name in (
+            "AUTOSAR Classic",
+            "ISO 26262",
+            "C++",
+            "gRPC",
+            "PyTest",
+            "Vector CANoe",
+            "Docker",
+            "Embedded C",
+            "MISRA C",
+            "5G RAN",
+            "SOME/IP",
+            "GitLab CI",
+        ):
+            assert is_product_name([name]), name
+
+    def test_phrases_of_ordinary_words(self):
+        for name in (
+            "hardware interfacing",
+            "device drivers",
+            "secure boot",
+            "Python-based test automation",
+            "Swedish driving license B",
+            "Android Automotive Software Development",
+            "AI-assisted software development tools",
+            "working with test rigs",
+        ):
+            assert not is_product_name([name]), name
 
     def test_product_name_the_cv_never_names_flips_without_a_call(self):
         extraction = json.dumps(
@@ -1044,3 +1082,36 @@ class TestNiceToHaveNaming:
     def test_unrelated_phrase_does_not(self):
         assert not nice_named_in(self.CV, "Yocto")
         assert not nice_named_in(self.CV, "Kubernetes Operators")
+
+
+class TestTitleCasePhrasesGoToTheJudge:
+    def test_python_based_test_automation_is_kept_on_a_pytest_line(self):
+        extraction = json.dumps(
+            {
+                "must": [
+                    {"kind": "skill", "alternatives": ["Python-based test automation"]}
+                ],
+                "nice": [],
+            }
+        )
+        line = "Wrote GTest (C++) unit tests and PyTest (Python) component tests."
+        verdict = json.dumps(
+            [
+                {
+                    "requirement": "Python-based test automation",
+                    "covered": True,
+                    "evidence": line,
+                }
+            ]
+        )
+        judged = json.dumps(
+            [{"requirement": "Python-based test automation", "supported": True}]
+        )
+        result = _matcher(
+            [extraction, verdict, judged],
+            {"Python-based test automation": [_doc("cv01", "Astrid Okafor")]},
+            _audit_people([line]),
+            second_vote=True,
+        ).match("b")
+        finding = result.candidates[0].coverage[0]
+        assert finding.covered and finding.evidence == line

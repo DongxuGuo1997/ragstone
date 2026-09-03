@@ -46,6 +46,17 @@ Notable changes to Ragstone. The format follows
   arithmetic now treats an Education heading as a block and a bare
   date line after a degree as the degree's, so a Master's no longer
   counts as work. `--second-vote off` keeps the previous path.
+- **Phrases are judged, product names are looked up.** The second
+  vote now decides "product name or phrase" by shape rather than by
+  capital letters: a single token, or a token with a digit, a symbol or
+  internal capitals (PyTest, CANoe, ISO 26262, C++) must be named by
+  the CV; a phrase of ordinary words ("Python-based test automation",
+  "Swedish driving license B", "Android Automotive Software
+  Development") goes to the quote-only judge, and a repaired quote is
+  judged once more before it is accepted. On a real request this
+  turned four false "not evidenced" verdicts — Pytest-based test
+  automation, Android Automotive, AI-assisted tools, a driving licence
+  — into credits with the CV line that shows them. Gates unchanged.
 - **Requirements shown as read, preferred items ticked per candidate.**
   The staffing UI now shows what the brief was read as — must-haves,
   preferred items and location — above the shortlist, and each

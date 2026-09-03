@@ -1891,6 +1891,25 @@ preferred, location) and ticks every preferred item per candidate;
 preferred items match on the singular or the first two words of a long
 phrase. Gates unchanged.
 
+A fourth run, with the request rewritten so that everything is
+mandatory, exposed the seam in arm C's "generic = lower case" rule:
+"Python-based test automation", "Android Automotive Software
+Development", "AI-assisted software development tools" and "Swedish
+driving license B" all carry capitals, were treated as product names,
+and flipped although the CV showed each of them ("PyTest (Python)
+component tests", "Android Automotive apps", "AI-assisted coding
+tools", "Driving licence: B"). The rule now reads the *shape* of the
+name: a single token, or a token with a digit, a symbol or capitals
+after its first letter (PyTest, CANoe, ISO 26262, C++, gRPC), or a
+one-letter token in a two-word name (Embedded C) is a product name
+the CV must spell out; anything else is a phrase of ordinary words and
+goes to the judge. A repaired quote is now judged once more before it
+is accepted, so the judge path cannot be talked into a sibling line
+either. Gates: 11-brief 0.968–1.0 / 1.0 / 1.0 across runs (the one
+lost slot in one run was first-pass variance, not an audit flip),
+scale test 0.950 unchanged; the four items above are credited with
+the CV line that shows them.
+
 **Decision, part 4.** Arm C ships, on by default (`--second-vote off`
 keeps the old path, suffixed in the baseline key). 11-brief gate
 unchanged at 1.0 / 1.0 / 1.0 and 0.984 / 0.984; the scale-test

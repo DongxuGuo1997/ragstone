@@ -793,14 +793,32 @@ def nice_named_in(cv_text: str, skill: str) -> bool:
     return any(_phrase_pattern(c).search(cv_text) for c in candidates)
 
 
-def is_generic_skill(names: List[str]) -> bool:
-    """A skill with no product name to look for: every alternative is a
-    lower-case phrase without digits ("hardware interfacing", "device
-    drivers", "working with test rigs"). Product names carry capitals,
-    digits or symbols (AUTOSAR Classic, ISO 26262, C++, gRPC)."""
-    return bool(names) and all(
-        n == n.lower() and not any(ch.isdigit() for ch in n) for n in names
-    )
+_SYMBOLS = set("+#/.&")
+
+
+def is_product_name(names: List[str]) -> bool:
+    """Is any alternative a product-like name the CV would have to spell
+    out? A single token ("Docker", "Java", "C"), or any token carrying a
+    digit, a symbol, or capitals after its first letter ("PyTest",
+    "CANoe", "ISO 26262", "gRPC", "C++"), or a one-letter token in a
+    two-word name ("Embedded C", "MISRA C"). Everything else is a phrase
+    of ordinary words — "hardware interfacing", "Python-based test
+    automation", "Swedish driving license B" — that a CV can evidence
+    without repeating verbatim."""
+    for name in names:
+        tokens = name.split()
+        if len(tokens) == 1:
+            return True
+        for token in tokens:
+            if any(ch.isdigit() or ch in _SYMBOLS for ch in token):
+                return True
+            for part in token.split("-"):
+                letters = [ch for ch in part if ch.isalpha()]
+                if len(letters) >= 3 and any(ch.isupper() for ch in letters[1:]):
+                    return True
+            if len(token) == 1 and token.isalpha() and len(tokens) <= 2:
+                return True
+    return False
 
 
 def evidence_line(cv_text: str, names: List[str], max_words: int = 25) -> str:
@@ -1126,11 +1144,13 @@ class Matcher:
         literally named the technology and returned empty repairs for
         skills the CV lists, so the model is kept out of this path.
 
-        A generic skill the CV never names ("hardware interfacing",
-        "device drivers": lower case, no digits) has no product name to
-        look for, so a stricter quote-only judge decides, with one repair
-        call for anything it rejects; a repaired quote must occur in the
-        CV. Product names the CV never names flip outright. An
+        A phrase of ordinary words the CV never repeats ("hardware
+        interfacing", "Python-based test automation", "Swedish driving
+        license B") has no product name to look for, so a stricter
+        quote-only judge decides, with one repair call for anything it
+        rejects; a repaired quote must occur in the CV and pass the
+        judge in turn. Product names the CV never names flip outright.
+        An
         unparseable audit reverts to the first pass; an unparseable
         repair flips. Years, degree, language and domain are exempt:
         years is arithmetic, the rest are holistic readings a quote-only
@@ -1156,8 +1176,8 @@ class Matcher:
                     quote,
                     line,
                 )
-            elif is_generic_skill(requirement.alternatives):
-                # No product name to look for: let the judge decide.
+            elif not is_product_name(requirement.alternatives):
+                # A phrase of ordinary words: let the judge decide.
                 capability_idx.append(i)
             else:
                 result[i] = {"covered": False, "evidence": ""}
@@ -1201,14 +1221,33 @@ class Matcher:
         except ValueError:
             logger.warning("match: repair unparseable; suspect items flip")
             repaired = [""] * len(payload)
+        verbatim = [
+            (i, quote)
+            for i, quote in zip(suspect, repaired)
+            if quote and quote_in_cv(quote, cv_text)
+        ]
+        accepted: Dict[int, str] = {}
+        if verbatim:
+            payload = [{**items[i], "quote": quote} for i, quote in verbatim]
+            try:
+                supported = self._invoke_json(
+                    AUDIT_PROMPT.replace(
+                        "{items}", json.dumps(payload, ensure_ascii=False)
+                    ),
+                    lambda text: parse_audit(text, len(payload)),
+                )
+            except ValueError:
+                logger.warning("match: repair audit unparseable; repairs stand")
+                supported = [True] * len(payload)
+            accepted = {i: q for (i, q), ok in zip(verbatim, supported) if ok}
         for i, quote in zip(suspect, repaired):
-            if quote and quote_in_cv(quote, cv_text):
-                result[i] = {"covered": True, "evidence": quote}
+            if i in accepted:
+                result[i] = {"covered": True, "evidence": accepted[i]}
                 logger.info(
                     "match audit: %s re-evidenced | first: %r | repaired: %r",
                     must[i].label,
                     verdicts[i]["evidence"],
-                    quote,
+                    accepted[i],
                 )
             else:
                 result[i] = {"covered": False, "evidence": ""}

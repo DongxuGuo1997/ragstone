@@ -180,12 +180,15 @@ Two safety properties, one arithmetic override, and a second vote:
   pass, every credited skill is checked by code: if the quote names the
   skill and occurs verbatim in the CV, it stands; if the quote is weak
   or invented, the first CV line that names the skill becomes the
-  evidence; if no line names it, a product name (AUTOSAR Classic, ISO
-  26262, C++) flips to "not evidenced" — the model had credited a
-  sibling, such as Android for Java or Vector CANoe for CAN bus. A
-  generic phrase the CV never names ("hardware interfacing") has no
-  name to look for, so a stricter quote-only judge decides, with one
-  repair call whose answer must occur in the CV. Years, degree,
+  evidence; if no line names it, a product name — a single token, or one with
+  a digit, a symbol or internal capitals: AUTOSAR Classic, ISO 26262,
+  C++, PyTest — flips to "not evidenced", because the model had
+  credited a sibling, such as Android for Java or Vector CANoe for CAN
+  bus. A phrase of ordinary words the CV never repeats ("hardware
+  interfacing", "Python-based test automation", "Swedish driving
+  license B") has no name to look for, so a stricter quote-only judge
+  decides, with one repair call whose answer must occur in the CV and
+  pass the judge in turn. Years, degree,
   language and domain are exempt: the first is arithmetic, the rest
   are holistic readings. Measured on the scale test, this caught the
   one lenient credit the earlier experiments had left open and raised
