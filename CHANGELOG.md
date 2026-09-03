@@ -32,6 +32,20 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Second-vote screening of credited evidence** (Experiment 30, part
+  4). A credited skill now stands only if the CV names it: a quote that
+  names the skill and occurs in the CV is kept, a weak or invented quote
+  is replaced by the first CV line naming the skill, and a product name
+  the CV never mentions flips to "not evidenced" — no model call. A
+  generic phrase the CV never names ("hardware interfacing") goes to a
+  stricter quote-only judge with one repair call whose answer must
+  occur in the CV. Years, degree, language and domain are exempt. On
+  the 400-consultant scale test top-5 precision rises 0.925 → 0.950
+  with the Experiment-29 residual (CAN bus credited from a Vector CANoe
+  line) now caught; the 11-brief gates are unchanged. The years
+  arithmetic now treats an Education heading as a block and a bare
+  date line after a degree as the degree's, so a Master's no longer
+  counts as work. `--second-vote off` keeps the previous path.
 - **Years of experience by arithmetic** (Experiment 30, part 3). The
   matcher sums the CV's engagement date ranges (union of intervals,
   education lines excluded, open ranges end this year) and lets that

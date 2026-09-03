@@ -19,9 +19,11 @@ from langchain_core.documents import Document
 from ragstone.match import (
     Matcher,
     Requirement,
+    is_generic_skill,
     location_note,
     parse_requirements,
     parse_verification,
+    quote_in_cv,
     stamp_person_metadata,
     vote_requirements,
     years_of_experience,
@@ -192,6 +194,9 @@ def _matcher(llm_responses, retriever_mapping, people, **kwargs):
     # verify_workers=1 keeps scripted response order deterministic; the
     # parallel path gets its own order-insensitive test below.
     kwargs.setdefault("verify_workers", 1)
+    # The second-vote audit adds scripted calls; tests that exercise it
+    # switch it on explicitly.
+    kwargs.setdefault("second_vote", False)
     return Matcher(
         llm=_FakeLLM(llm_responses),
         retriever=_FakeRetriever(retriever_mapping),
@@ -746,3 +751,262 @@ class TestYearsOverrideTheModel:
         result = _matcher([extraction], {}, people).match("brief")
         assert result.candidates == []
         assert years_of_experience(chunk) is None
+
+
+class TestQuoteInCv:
+    CV = "Profile\n- Skills: C++, Android, QNX\n- Automated testingHypervisor SOME/IP"
+
+    def test_verbatim_and_case_whitespace_drift(self):
+        assert quote_in_cv("Skills: C++, Android, QNX", self.CV)
+        assert quote_in_cv("skills:  c++,\nandroid, qnx", self.CV)
+
+    def test_glued_docx_tokens_still_match(self):
+        assert quote_in_cv("Automated testing Hypervisor SOME/IP", self.CV)
+
+    def test_absent_or_empty_is_false(self):
+        assert not quote_in_cv("Java developer since 2010", self.CV)
+        assert not quote_in_cv('""', self.CV)
+        assert not quote_in_cv("", self.CV)
+
+
+class TestYearsSectionAwareness:
+    def test_education_section_dates_on_next_line_do_not_count(self):
+        cv = (
+            "Experience\nSoftware engineer, Acme\n2018 - present\n\n"
+            "Education\nMaster in Systems, Control and Mechatronics\n"
+            "Chalmers University of Technology\n2015 - 2017\n"
+        )
+        assert years_of_experience(cv, today_year=2026) == (8.0, 2018, 2026)
+
+    def test_degree_line_before_the_dates_excludes_them(self):
+        cv = "MSc Computer Science, KTH\n2009-2014\nEngineer (2015-2017)"
+        assert years_of_experience(cv, today_year=2026) == (2.0, 2015, 2017)
+
+
+def _audit_people(chunks):
+    return {"cv01": {"name": "Astrid Okafor", "chunks": chunks}}
+
+
+AUDIT_EXTRACTION = json.dumps(
+    {
+        "must": [
+            {"kind": "skill", "alternatives": ["C++"]},
+            {"kind": "skill", "alternatives": ["Java"]},
+        ],
+        "nice": [],
+    }
+)
+AUDIT_RETRIEVER = {"C++": [_doc("cv01", "Astrid Okafor")], "Java": []}
+CV_LINES = [
+    "Skills: C++ Android QNX Python",
+    "Migrated perf-critical logic to C++ and optimized the render pipeline.",
+]
+
+
+def _verdicts(cpp_quote, java_quote):
+    return json.dumps(
+        [
+            {"requirement": "C++", "covered": True, "evidence": cpp_quote},
+            {"requirement": "Java", "covered": True, "evidence": java_quote},
+        ]
+    )
+
+
+def _audit(*supported):
+    return json.dumps(
+        [
+            {"requirement": r, "supported": ok}
+            for r, ok in zip(("C++", "Java"), supported)
+        ]
+    )
+
+
+class TestSecondVote:
+    def test_sibling_credit_flips_when_the_cv_never_names_the_skill(self):
+        # Java credited from the skills line, which names Android, not
+        # Java. No model call is needed: the CV never names Java.
+        llm = [AUDIT_EXTRACTION, _verdicts(CV_LINES[1], CV_LINES[0])]
+        result = _matcher(
+            llm, AUDIT_RETRIEVER, _audit_people(CV_LINES), second_vote=True
+        ).match("b")
+        candidate = result.candidates[0]
+        assert [f.covered for f in candidate.coverage] == [True, False]
+        assert candidate.tier == "partial"
+        assert candidate.gap_statement() == "Not evidenced in the CV: Java"
+
+    def test_quote_naming_the_skill_stands_untouched(self):
+        llm = [AUDIT_EXTRACTION, _verdicts(CV_LINES[1], CV_LINES[0])]
+        result = _matcher(
+            llm, AUDIT_RETRIEVER, _audit_people(CV_LINES), second_vote=True
+        ).match("b")
+        cpp = result.candidates[0].coverage[0]
+        assert cpp.covered and cpp.evidence == CV_LINES[1]
+
+    def test_weak_or_hallucinated_quote_is_replaced_by_the_naming_line(self):
+        # C++ credited from a line that does not name it, then from a
+        # quote that is not in the CV at all: both become the CV line.
+        for quote in ("Wrote unit tests with a C-family framework", "Ten years of C++"):
+            llm = [AUDIT_EXTRACTION, _verdicts(quote, CV_LINES[0])]
+            result = _matcher(
+                llm, AUDIT_RETRIEVER, _audit_people(CV_LINES), second_vote=True
+            ).match("b")
+            cpp = result.candidates[0].coverage[0]
+            assert cpp.covered and cpp.evidence == CV_LINES[0]
+
+    def test_glued_docx_token_still_names_the_skill(self):
+        chunks = ["Skills: C++ Android QNX Python Automated testingHypervisor"]
+        extraction = json.dumps(
+            {"must": [{"kind": "skill", "alternatives": ["Hypervisor"]}], "nice": []}
+        )
+        verdict = json.dumps(
+            [
+                {
+                    "requirement": "Hypervisor",
+                    "covered": True,
+                    "evidence": "Automated testingHypervisor",
+                }
+            ]
+        )
+        result = _matcher(
+            [extraction, verdict],
+            {"Hypervisor": [_doc("cv01", "Astrid Okafor")]},
+            _audit_people(chunks),
+            second_vote=True,
+        ).match("b")
+        assert result.candidates[0].coverage[0].covered
+
+    def test_switched_off_makes_no_changes(self):
+        llm = [AUDIT_EXTRACTION, _verdicts(CV_LINES[1], CV_LINES[0])]
+        result = _matcher(llm, AUDIT_RETRIEVER, _audit_people(CV_LINES)).match("b")
+        assert all(f.covered for f in result.candidates[0].coverage)
+
+
+CAPABILITY_EXTRACTION = json.dumps(
+    {
+        "must": [
+            {"kind": "skill", "alternatives": ["C++"]},
+            {"kind": "skill", "alternatives": ["hardware interfacing"]},
+        ],
+        "nice": [],
+    }
+)
+CAP_RETRIEVER = {
+    "C++": [_doc("cv01", "Astrid Okafor")],
+    "hardware interfacing": [_doc("cv01", "Astrid Okafor")],
+}
+CAP_LINES = [
+    "Migrated perf-critical logic to C++.",
+    "Implemented SOME/IP interfaces between cluster OS domains.",
+    "Brought up sensor boards and wrote register-level drivers on the bench rig.",
+]
+
+
+def _cap_verdicts(cap_quote):
+    return json.dumps(
+        [
+            {"requirement": "C++", "covered": True, "evidence": CAP_LINES[0]},
+            {
+                "requirement": "hardware interfacing",
+                "covered": True,
+                "evidence": cap_quote,
+            },
+        ]
+    )
+
+
+class TestGenericSkillJudge:
+    def test_judge_rejects_related_work_and_repair_finds_the_real_line(self):
+        llm = [
+            CAPABILITY_EXTRACTION,
+            _cap_verdicts(CAP_LINES[1]),  # SOME/IP credited as hardware interfacing
+            json.dumps([{"requirement": "hardware interfacing", "supported": False}]),
+            json.dumps(
+                [{"requirement": "hardware interfacing", "evidence": CAP_LINES[2]}]
+            ),
+        ]
+        result = _matcher(
+            llm, CAP_RETRIEVER, _audit_people(CAP_LINES), second_vote=True
+        ).match("b")
+        cap = result.candidates[0].coverage[1]
+        assert cap.covered and cap.evidence == CAP_LINES[2]
+
+    def test_empty_or_invented_repair_flips(self):
+        for repair in ("", "Designed FPGA interfaces at a lab"):
+            llm = [
+                CAPABILITY_EXTRACTION,
+                _cap_verdicts(CAP_LINES[1]),
+                json.dumps(
+                    [{"requirement": "hardware interfacing", "supported": False}]
+                ),
+                json.dumps(
+                    [{"requirement": "hardware interfacing", "evidence": repair}]
+                ),
+            ]
+            result = _matcher(
+                llm, CAP_RETRIEVER, _audit_people(CAP_LINES), second_vote=True
+            ).match("b")
+            candidate = result.candidates[0]
+            assert not candidate.coverage[1].covered
+            assert candidate.tier == "partial"
+
+    def test_supported_quote_needs_no_repair(self):
+        llm = [
+            CAPABILITY_EXTRACTION,
+            _cap_verdicts(CAP_LINES[2]),
+            json.dumps([{"requirement": "hardware interfacing", "supported": True}]),
+        ]
+        result = _matcher(
+            llm, CAP_RETRIEVER, _audit_people(CAP_LINES), second_vote=True
+        ).match("b")
+        assert result.candidates[0].tier == "strong"
+
+    def test_unparseable_audit_keeps_the_first_pass(self):
+        llm = [CAPABILITY_EXTRACTION, _cap_verdicts(CAP_LINES[1]), "no", "still no"]
+        result = _matcher(
+            llm, CAP_RETRIEVER, _audit_people(CAP_LINES), second_vote=True
+        ).match("b")
+        assert result.candidates[0].tier == "strong"
+
+
+class TestGenericSkillHeuristic:
+    def test_lowercase_phrases_are_generic_and_product_names_are_not(self):
+        assert is_generic_skill(["hardware interfacing"])
+        assert is_generic_skill(["device drivers", "secure boot"])
+        assert not is_generic_skill(["AUTOSAR Classic"])
+        assert not is_generic_skill(["ISO 26262"])
+        assert not is_generic_skill(["C++"])
+        assert not is_generic_skill(["gRPC"])
+
+    def test_product_name_the_cv_never_names_flips_without_a_call(self):
+        extraction = json.dumps(
+            {"must": [{"kind": "skill", "alternatives": ["Yocto"]}], "nice": []}
+        )
+        verdict = json.dumps(
+            [{"requirement": "Yocto", "covered": True, "evidence": CAP_LINES[0]}]
+        )
+        result = _matcher(
+            [extraction, verdict],
+            {"Yocto": [_doc("cv01", "Astrid Okafor")]},
+            _audit_people(CAP_LINES),
+            second_vote=True,
+        ).match("b")
+        assert not result.candidates[0].coverage[0].covered
+
+    def test_capability_items_from_an_old_extractor_are_skills(self):
+        req = parse_requirements(
+            _line_extraction(
+                [
+                    {
+                        "text": "Hands-on experience with hardware interfacing.",
+                        "section": "must",
+                        "relation": "all",
+                        "items": [
+                            {"kind": "capability", "name": "hardware interfacing"}
+                        ],
+                    }
+                ]
+            )
+        )
+        assert [(r.kind, r.label) for r in req.must] == [
+            ("skill", "hardware interfacing")
+        ]

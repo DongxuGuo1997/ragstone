@@ -140,7 +140,10 @@ def build_matcher(args):
         pipeline.set_retriever_ollama(use_ensemble=True, use_reranker=False)
     if pipeline.get_retriever() is None:
         sys.exit("error: retriever was not created (check API key / Ollama)")
-    return MatchPipeline.from_pipeline(pipeline)
+    matcher_kwargs = {}
+    if getattr(args, "second_vote", None) == "off":
+        matcher_kwargs["second_vote"] = False
+    return MatchPipeline.from_pipeline(pipeline, **matcher_kwargs)
 
 
 _STOPWORDS = frozenset(
@@ -369,6 +372,8 @@ def baseline_key(args) -> str:
     # committed cloud key stays untouched.
     if getattr(args, "ollama_reasoning", None):
         key += f"|ollama-reasoning={args.ollama_reasoning}"
+    if getattr(args, "second_vote", None) == "off":
+        key += "|second-vote=off"
     return key
 
 
@@ -455,6 +460,12 @@ def main() -> int:
         type=int,
         default=None,
         help="first N assignments (pilot timing; never gated)",
+    )
+    parser.add_argument(
+        "--second-vote",
+        choices=["on", "off"],
+        default="on",
+        help="second-vote screening of credited evidence (Experiment 30 part 4)",
     )
     parser.add_argument(
         "--extract-repeats",

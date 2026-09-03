@@ -52,6 +52,10 @@ MAX_VERIFIED_CANDIDATES = 10
 VERIFY_WORKERS = 8
 # One retry when the model returns unparseable JSON, then fail closed.
 PARSE_RETRIES = 1
+# Second-vote screening (Experiment 30, part 4): every credited quote is
+# audited on its own, quotes must occur verbatim in the CV, and an item
+# that fails is given one chance to be re-evidenced before it flips.
+SECOND_VOTE = True
 # Extraction samples per brief; >1 takes a per-item majority vote across
 # samples (Experiment 30 measures whether the extra calls buy stability).
 EXTRACT_SAMPLES = 1
@@ -89,9 +93,11 @@ output one entry:
   or "either" ("Jenkins or GitLab CI"). Everything else — lists joined
   by commas, "and", "including", "such as" — is "all": every item is
   required.
-- "items": one per technology, standard, tool or condition the sentence
-  names, of these kinds:
+- "items": one per technology, standard, tool, ability or condition the
+  sentence names, of these kinds:
   {"kind": "skill", "name": "<as written, without surrounding words>"}
+    — a technology, standard, tool, protocol, programming language or
+    a named ability ("hardware interfacing", "working with test rigs")
   {"kind": "years", "min_years": <integer>} — the overall experience
     requirement, once; never attach years to individual skills
   {"kind": "language", "language": "<spoken language>"} — only when the
@@ -157,6 +163,43 @@ words); use "" when not covered.
 Return ONLY a JSON array with one object per requirement, same order:
 [{{"requirement": "<label>", "covered": true, "evidence": "<quote>"}}]"""
 
+# Filled with str.replace (literal braces inside). Both prompts serve
+# CAPABILITY items only; named skills are audited deterministically.
+AUDIT_PROMPT = """You are auditing evidence quotes from a consultant CV \
+screening.
+
+Items (JSON list, in order):
+{items}
+
+For EACH item decide, from the QUOTE ALONE, whether it explicitly
+demonstrates the ability described by "check". Be strict: the quote
+must describe the person doing that kind of work; a related activity
+does not count (implementing a network protocol is not hardware
+interfacing; writing application code is not low-level programming).
+Do not assume anything the quote does not say.
+
+Return ONLY a JSON array, same order:
+[{"requirement": "<label>", "supported": true}]"""
+
+REPAIR_PROMPT = """You are screening a consultant CV against assignment \
+requirements. The abilities below were credited on quotes that did not
+demonstrate them.
+
+CV:
+---
+{cv}
+---
+
+Requirements (JSON list, in order):
+{items}
+
+For EACH requirement, find the single CV line that EXPLICITLY shows the
+person doing that kind of work. Copy it verbatim, at most 25 words. If
+no line shows it, use "" — never substitute related work.
+
+Return ONLY a JSON array, same order:
+[{"requirement": "<label>", "evidence": "<quote or empty>"}]"""
+
 
 # --------------------------------------------------------------------------
 # Result types. Everything a UI needs rides in MatchResult — one call,
@@ -168,7 +211,7 @@ Return ONLY a JSON array with one object per requirement, same order:
 class Requirement:
     """One must-have item; alternatives satisfy it interchangeably."""
 
-    kind: str  # "skill" | "years" | "language" | "domain"
+    kind: str  # "skill" | "years" | "language" | "domain" | "education"
     alternatives: List[str] = field(default_factory=list)
     detail: str = ""  # years count / language / domain
 
@@ -215,7 +258,8 @@ class Requirement:
             field = self.detail or "a relevant field"
             return (
                 f"A completed university degree in {field} or a related field "
-                "(check the education section)"
+                "(check the education section; a degree in a neighbouring "
+                "engineering or science discipline counts as related)"
             )
         return f"Substantial project experience in the {self.detail} domain"
 
@@ -420,7 +464,8 @@ def _parse_line_shape(raw: Dict[str, Any]) -> AssignmentRequirements:
         skills = [
             str(i.get("name", "")).strip()
             for i in items
-            if str(i.get("kind", "skill")) == "skill" and str(i.get("name", "")).strip()
+            if str(i.get("kind", "skill")) in ("skill", "capability")
+            and str(i.get("name", "")).strip()
         ]
         others = [r for r in (_item_requirement(i) for i in items) if r is not None]
         if section == "nice":
@@ -459,8 +504,10 @@ def parse_requirements(text: str) -> AssignmentRequirements:
     location = str(raw.get("location") or "").strip()
     for item in raw.get("must", []):
         kind = str(item.get("kind", "skill"))
-        if kind == "skill":
+        if kind in ("skill", "capability"):
             alternatives = [str(a) for a in item.get("alternatives", []) if a]
+            if not alternatives and item.get("name"):
+                alternatives = [str(item["name"])]
             if alternatives:
                 must.append(Requirement(kind="skill", alternatives=alternatives))
         elif kind == "years" and item.get("min_years") is not None:
@@ -567,6 +614,19 @@ _YEAR_RANGE = re.compile(
     r"(?!\d)",
     re.IGNORECASE,
 )
+_EDUCATION_HEADING = re.compile(
+    r"^(?:education|academic|studies|qualifications|utbildning|training|"
+    r"certifications?|courses)\b",
+    re.IGNORECASE,
+)
+_ANY_HEADING = re.compile(
+    r"^(?:education|academic|studies|qualifications|utbildning|training|"
+    r"certifications?|courses|experience|work experience|professional "
+    r"experience|employment|engagements|selected engagements|career|"
+    r"assignments|projects|uppdrag|erfarenhet|anställningar|profile|summary|"
+    r"skills|core competencies|languages|publications|contact)\b",
+    re.IGNORECASE,
+)
 _EDUCATION_LINE = re.compile(
     r"\b(?:b\.?sc|m\.?sc|b\.?a|m\.?a|bachelor|master|ph\.?d|doctor|university|"
     r"universitet|högskola|college|degree|examen|diploma)\b",
@@ -586,9 +646,30 @@ def years_of_experience(
     """
     year_now = today_year or datetime.date.today().year
     intervals: List[Tuple[int, int]] = []
+    in_education = False
+    previous = ""
     for line in cv_text.splitlines():
-        if _EDUCATION_LINE.search(line):
+        heading = line.strip().lstrip("#*-•· ").rstrip(":* ").strip()
+        if heading and len(heading) <= 40 and _ANY_HEADING.match(heading):
+            # A section heading: an education-like one excludes every
+            # range until the next heading (dates often sit on the line
+            # after the degree in converted DOCX/PDF CVs).
+            in_education = bool(_EDUCATION_HEADING.match(heading))
+            previous = line
             continue
+        # A bare date line ("2015 - 2017") right after a degree line
+        # belongs to the degree; a line with its own words ("Engineer
+        # (2015-2017)") is an engagement even after one.
+        residue = _YEAR_RANGE.sub("", line)
+        bare_dates = not re.search(r"[A-Za-z]{3,}", residue)
+        if (
+            in_education
+            or _EDUCATION_LINE.search(line)
+            or (bare_dates and _EDUCATION_LINE.search(previous))
+        ):
+            previous = line
+            continue
+        previous = line
         for match in _YEAR_RANGE.finditer(line):
             start = int(match.group(1))
             end_token = match.group(2)
@@ -625,6 +706,90 @@ def years_verdict(
             "(computed from the CV's date ranges, not quoted)"
         ),
     }
+
+
+def parse_audit(text: str, expected: int) -> List[bool]:
+    raw = _extract_json(text, "[", "]")
+    if not isinstance(raw, list) or len(raw) != expected:
+        raise ValueError(
+            f"audit returned {len(raw) if isinstance(raw, list) else 'non-list'} items"
+        )
+    return [bool(item.get("supported")) for item in raw]
+
+
+def parse_repair(text: str, expected: int) -> List[str]:
+    raw = _extract_json(text, "[", "]")
+    if not isinstance(raw, list) or len(raw) != expected:
+        raise ValueError(
+            f"repair returned {len(raw) if isinstance(raw, list) else 'non-list'} items"
+        )
+    return [str(item.get("evidence", "") or "").strip() for item in raw]
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"[^0-9a-z]+", "", text.lower())
+
+
+def quote_in_cv(quote: str, cv_text: str) -> bool:
+    """Is the quote verbatim in the CV? Tolerant of case, whitespace,
+    punctuation and the glued tokens a DOCX conversion leaves behind —
+    both sides compare on their letters and digits only."""
+    core = quote.strip().strip("\"'“”‘’").strip()
+    core = re.sub(r"^(\.\.\.|…)\s*|\s*(\.\.\.|…)$", "", core).strip()
+    if not core:
+        return False
+    return _squash(core) in _squash(cv_text)
+
+
+def names_any(text: str, names: List[str]) -> bool:
+    """Does the text name one of the skills? Word-bounded for short names
+    (C, Go, C++); letters-and-digits containment as well for names of
+    four or more characters, so DOCX-glued tokens still count."""
+    for name in names:
+        if _phrase_pattern(name).search(text):
+            return True
+        squashed = _squash(name)
+        if len(squashed) >= 4 and squashed in _squash(text):
+            return True
+    return False
+
+
+def is_generic_skill(names: List[str]) -> bool:
+    """A skill with no product name to look for: every alternative is a
+    lower-case phrase without digits ("hardware interfacing", "device
+    drivers", "working with test rigs"). Product names carry capitals,
+    digits or symbols (AUTOSAR Classic, ISO 26262, C++, gRPC)."""
+    return bool(names) and all(
+        n == n.lower() and not any(ch.isdigit() for ch in n) for n in names
+    )
+
+
+def evidence_line(cv_text: str, names: List[str], max_words: int = 25) -> str:
+    """The first CV line naming one of the skills, trimmed to a window of
+    words around the name — verbatim evidence chosen by code."""
+    for line in cv_text.splitlines():
+        stripped = line.strip().lstrip("#*-•· ").strip()
+        if not stripped or not names_any(stripped, names):
+            continue
+        words = stripped.split()
+        if len(words) <= max_words:
+            return stripped
+        hit = next(
+            (k for k, w in enumerate(words) if names_any(w, names)),
+            None,
+        )
+        if hit is None:
+            hit = next(
+                (
+                    k
+                    for k in range(len(words))
+                    if names_any(" ".join(words[k : k + 3]), names)
+                ),
+                0,
+            )
+        lo = max(0, hit - max_words // 2)
+        return " ".join(words[lo : lo + max_words])
+    return ""
 
 
 def parse_verification(text: str, expected: int) -> List[Dict[str, Any]]:
@@ -672,6 +837,7 @@ class Matcher:
         max_candidates: int = MAX_VERIFIED_CANDIDATES,
         verify_workers: int = VERIFY_WORKERS,
         extract_samples: int = EXTRACT_SAMPLES,
+        second_vote: bool = SECOND_VOTE,
     ) -> None:
         self._llm = llm
         self._retriever = retriever
@@ -679,6 +845,7 @@ class Matcher:
         self._max_candidates = max_candidates
         self._verify_workers = verify_workers
         self._extract_samples = max(1, extract_samples)
+        self._second_vote = second_vote
         # Joined once: the lexical channel scans these per match and the
         # verifier reads them per candidate — at XL scale re-joining 400
         # CVs per brief was measurable waste.
@@ -836,7 +1003,7 @@ class Matcher:
         def _screen(person_id: str) -> List[Dict[str, Any]]:
             cv_text = self._person_cv_text[person_id]
             try:
-                return self._invoke_json(
+                verdicts = self._invoke_json(
                     VERIFY_PROMPT.format(
                         cv=cv_text, items=json.dumps(items, ensure_ascii=False)
                     ),
@@ -847,6 +1014,9 @@ class Matcher:
                 # silently rank as covered.
                 logger.warning("match: verification unparseable for %s", person_id)
                 return [{"covered": False, "evidence": ""} for _ in items]
+            if not self._second_vote:
+                return verdicts
+            return self._audit(cv_text, requirements.must, items, verdicts)
 
         shortlist = state["shortlist_ids"]
         for person_id in shortlist:
@@ -898,6 +1068,119 @@ class Matcher:
                 )
             )
         return {"assessments": assessments}
+
+    def _audit(
+        self,
+        cv_text: str,
+        must: List[Requirement],
+        items: List[Dict[str, str]],
+        verdicts: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Second-vote screening of every credited item.
+
+        Named skills are audited deterministically and for free: the
+        credit stands only if the CV NAMES the skill (or an alternative).
+        A quote that names it and occurs in the CV is fine as it is; a
+        quote that does not is replaced by the first CV line that names
+        the skill; no such line means the first pass credited a sibling
+        ("Android" for Java, "Vector CANoe" for CAN bus) and the item
+        flips. Measured: a model judging quotes flagged a quote that
+        literally named the technology and returned empty repairs for
+        skills the CV lists, so the model is kept out of this path.
+
+        A generic skill the CV never names ("hardware interfacing",
+        "device drivers": lower case, no digits) has no product name to
+        look for, so a stricter quote-only judge decides, with one repair
+        call for anything it rejects; a repaired quote must occur in the
+        CV. Product names the CV never names flip outright. An
+        unparseable audit reverts to the first pass; an unparseable
+        repair flips. Years, degree, language and domain are exempt:
+        years is arithmetic, the rest are holistic readings a quote-only
+        judge second-guesses (measured on a degree).
+        """
+        result = [dict(v) for v in verdicts]
+        capability_idx: List[int] = []
+        for i, verdict in enumerate(verdicts):
+            if not verdict["covered"] or must[i].kind != "skill":
+                continue
+            requirement = must[i]
+            quote = verdict["evidence"]
+            if quote_in_cv(quote, cv_text) and names_any(
+                quote, requirement.alternatives
+            ):
+                continue
+            line = evidence_line(cv_text, requirement.alternatives)
+            if line:
+                result[i] = {"covered": True, "evidence": line}
+                logger.info(
+                    "match audit: %s re-evidenced | first: %r | line: %r",
+                    requirement.label,
+                    quote,
+                    line,
+                )
+            elif is_generic_skill(requirement.alternatives):
+                # No product name to look for: let the judge decide.
+                capability_idx.append(i)
+            else:
+                result[i] = {"covered": False, "evidence": ""}
+                logger.info(
+                    "match audit: %s FLIPPED (CV never names it) | first: %r",
+                    requirement.label,
+                    quote,
+                )
+        if not capability_idx:
+            return result
+        suspect = [
+            i
+            for i in capability_idx
+            if not quote_in_cv(verdicts[i]["evidence"], cv_text)
+        ]
+        to_vote = [i for i in capability_idx if i not in suspect]
+        if to_vote:
+            payload = [{**items[i], "quote": verdicts[i]["evidence"]} for i in to_vote]
+            try:
+                supported = self._invoke_json(
+                    AUDIT_PROMPT.replace(
+                        "{items}", json.dumps(payload, ensure_ascii=False)
+                    ),
+                    lambda text: parse_audit(text, len(payload)),
+                )
+            except ValueError:
+                logger.warning("match: audit unparseable; first pass stands")
+                supported = [True] * len(payload)
+            suspect += [i for i, ok in zip(to_vote, supported) if not ok]
+        if not suspect:
+            return result
+        suspect.sort()
+        payload = [items[i] for i in suspect]
+        try:
+            repaired = self._invoke_json(
+                REPAIR_PROMPT.replace("{cv}", cv_text).replace(
+                    "{items}", json.dumps(payload, ensure_ascii=False)
+                ),
+                lambda text: parse_repair(text, len(payload)),
+            )
+        except ValueError:
+            logger.warning("match: repair unparseable; suspect items flip")
+            repaired = [""] * len(payload)
+        for i, quote in zip(suspect, repaired):
+            if quote and quote_in_cv(quote, cv_text):
+                result[i] = {"covered": True, "evidence": quote}
+                logger.info(
+                    "match audit: %s re-evidenced | first: %r | repaired: %r",
+                    must[i].label,
+                    verdicts[i]["evidence"],
+                    quote,
+                )
+            else:
+                result[i] = {"covered": False, "evidence": ""}
+                logger.info(
+                    "match audit: %s FLIPPED | first: %r | repair: %r",
+                    must[i].label,
+                    verdicts[i]["evidence"],
+                    quote,
+                )
+        return result
 
     def _score(self, state: _MatchState) -> _MatchState:
         tiers = {0: "strong", 1: "partial"}
@@ -1008,7 +1291,7 @@ class MatchPipeline:
     a Matcher out."""
 
     @staticmethod
-    def from_pipeline(pipeline: Any) -> Matcher:
+    def from_pipeline(pipeline: Any, **matcher_kwargs: Any) -> Matcher:
         texts = getattr(pipeline, "texts", None) or []
         people = index_person_chunks(texts)
         if not people:
@@ -1021,4 +1304,5 @@ class MatchPipeline:
             llm=pipeline.llm_proxy.get_llm(),
             retriever=pipeline.get_retriever(),
             people=people,
+            **matcher_kwargs,
         )

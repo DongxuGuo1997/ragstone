@@ -292,11 +292,13 @@
   },
   "openai:gpt-4o-mini|k=12|chain=match|set=staffing_xl": {
     "metrics": {
-      "strong_recall_at_5": 0.925,
+      "strong_recall_at_5": 0.95,
       "full_match_accuracy": 1.0,
-      "ordering_clean_rate": 1.0
+      "ordering_clean_rate": 1.0,
+      "extract_must_recall": 0.98,
+      "extract_must_precision": 1.0
     },
-    "date": "2026-07-17",
+    "date": "2026-09-04",
     "data_sha": "faa881b10768"
   }
 }

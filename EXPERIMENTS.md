@@ -1808,11 +1808,82 @@ summary. The runbook's "every claim is a quote" line gains one honest
 exception, stated in the evidence itself.
 
 **Decision, part 3.** Ships with parts 1–2. Gate unchanged, baseline
-unchanged. Follow-ups, in order: re-record the local-stack baseline on
-the 11-brief data (multi-hour; pilot first); the Swedish brief's
-domain word; and the verifier second-vote screen on near-misses, which
-this experiment leaves as the one named quality lever — extraction is
-no longer where the errors are.
+unchanged. Two follow-ups surfaced immediately on the real CV and
+became part 4.
+
+**Method, part 4 — the second vote, three ways.** The real CV's second
+run showed the years arithmetic counting a Master's (dates on the line
+after the degree, which a same-line exclusion cannot see) and the
+verifier crediting Java from a skills line that names Android, hardware
+interfacing from a SOME/IP line, low-level programming from a C++
+migration. The years fix is structural (an Education-like heading
+excludes every range until the next heading; a bare date line after a
+degree line belongs to the degree). The verifier fix was tried three
+ways against the 11-brief bench and the 400-consultant scale test,
+with every flip logged and read:
+
+*Arm A — a model audit of every credited quote.* A stricter prompt
+judges each quote on its own, a verbatim check rejects quotes not in
+the CV, and a repair call asks for a better line. Result: wrong in both
+directions. It flagged a quote that literally read "…integration of
+Embedded Linux…", returned empty repairs for skills the CV lists
+(Python for cv26), and let the domain over-credit through. 11-brief
+strong recall 0.935 (gate failed); XL 0.875, two slots worse than
+Experiment 29.
+
+*Arm B — skills only.* Same audit, restricted to named skills (years is
+arithmetic; a degree, a language or a domain is a holistic reading the
+quote-only judge second-guessed — it flipped "Master in Mechatronics"
+for "Computer Science or a related field"). 11-brief 0.968; XL 0.900.
+Better, still net negative at scale, and the log showed why: every
+correct flip was a named skill credited from a quote that did not name
+it (CAN bus from "Vector CANoe", Kubernetes from "GitLab CI"), and
+every wrong flip was the model failing at a job code can do.
+
+*Arm C — deterministic for names, the judge only where there is no
+name.* A credited skill stands if its quote occurs in the CV and names
+the skill; otherwise the first CV line naming it becomes the evidence;
+if no line names it, a product name (capitals, digits, symbols:
+AUTOSAR Classic, ISO 26262, C++) flips outright, and a generic phrase
+(lower case, no digits: "hardware interfacing", "device drivers") goes
+to the quote-only judge with one repair call whose answer must occur
+in the CV. No model call for named skills at all. An attempt to have
+the *extractor* label generic phrases as a separate kind cost
+extraction precision (it filed "device drivers" and "secure boot"
+there too) and was dropped for the surface heuristic.
+
+**Result, part 4.**
+
+| arm | 11-brief strong@5 | 11-brief gap_alignment | XL strong@5 | XL gap_alignment | model calls per candidate |
+|---|---:|---:|---:|---:|---:|
+| none (part 3) | 1.000 | 0.895 | 0.925 (Exp 29) | 0.78 | 1 |
+| A: model audit, all kinds | 0.935 | 0.821 | 0.875 | 0.783 | 2–3 |
+| B: model audit, skills | 0.968 | 0.821 | 0.900 | 0.783 | 2–3 |
+| **C: deterministic + judge for generic** | **1.000** | **0.900** | **0.950** | **0.826** | 1 (+2 for generic phrases) |
+
+Arm C's flips, read one by one: on the bench, "5G RAN or 5G Core"
+credited from "a new 5G infrastructure platform" (an a08 candidate —
+the unsatisfiable brief, correctly kept unsatisfiable); at scale, CAN
+bus credited from a Vector CANoe line for cv351 — Experiment 29's own
+residual case, now caught. Seventeen bench quotes and ten XL quotes
+were replaced by the CV line that names the skill, so the evidence
+column now always contains the word being claimed. The scale test
+gains one slot (37 → 38 of 40); the two that remain are a domain
+over-credit (cv250, exempt by design) and a ranking case, not
+leniency. On the user-shaped probe — two synthetic CVs in the real
+CV's shape, one listing Java and one not, against the real RFQ — Java
+is credited for the one and flipped for the other, hardware interfacing
+and test rigs are not credited from adjacent work, the Master's years
+are excluded, and the degree instruction now lets a neighbouring
+engineering discipline count as related.
+
+**Decision, part 4.** Arm C ships, on by default (`--second-vote off`
+keeps the old path, suffixed in the baseline key). 11-brief gate
+unchanged at 1.0 / 1.0 / 1.0 and 0.984 / 0.984; the scale-test
+baseline is re-recorded at its new value. The verifier second-vote
+lever is now spent; the remaining soft spots are the domain kind at
+scale, the Swedish brief's domain word, and the local-stack baseline
+(still on the 9-brief data — re-record before the next local claim).
 
 ## Defaults, decided by the numbers above
 

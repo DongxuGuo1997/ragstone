@@ -216,9 +216,10 @@ markdown → HTML → `textutil -convert docx`; the XL sources are
 `cv039_ingrid_eriksson`, `cv007_magnus_chen`, `cv001_sofia_dahl`.
 Name files `Firstname_Lastname_CV.docx` — the lenient tagger derives
 the person from the filename. Marta Rahman (cv377) was deliberately
-dropped: her one gap (CAN bus) sits in the verifier-leniency class
-Experiment 29 attributed, so her live verdict would contradict the
-oracle.
+dropped: her one gap (CAN bus) sat in the verifier-leniency class
+Experiment 29 attributed, so her live verdict contradicted the oracle.
+Since Experiment 30 (part 4) the second vote catches exactly that
+class; she can return to the props after one rehearsal confirms it.
 
 **Rehearsal log (2026-08-21, M4 Max).** Cloud a01 match 10.9 s; full
 9-assignment eval 1:42, gates 1.0/1.0/1.0. Upload act: 5-DOCX ingest

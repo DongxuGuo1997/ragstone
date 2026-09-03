@@ -165,14 +165,30 @@ The verifier is held to strict rules, quoted from the prompt:
 - *Quote the single most convincing CV line as evidence, verbatim, at
   most 25 words; use "" when not covered.*
 
-Two safety properties and one arithmetic override:
+Two safety properties, one arithmetic override, and a second vote:
 
 - **Years are computed, not quoted.** The CV's engagement date ranges
   ("2019-2022", "2021 – present", "Jan 2019 - Mar 2022") are merged as
-  intervals, education lines excluded, and their union decides the
-  years requirement. The evidence line says so explicitly. A profile
-  blurb claiming "11 years" cannot pass on the blurb; the model's own
-  reading is used only for a CV that carries no dates at all.
+  intervals and their union decides the years requirement. Anything
+  under an Education heading is excluded, as is a bare date line right
+  after a degree line, so a Master's does not count as work. The
+  evidence line says the number was computed. A profile blurb claiming
+  "11 years" cannot pass on the blurb; the model's own reading is used
+  only for a CV that carries no dates at all.
+- **A credited skill must be named by the CV.** After the model's
+  pass, every credited skill is checked by code: if the quote names the
+  skill and occurs verbatim in the CV, it stands; if the quote is weak
+  or invented, the first CV line that names the skill becomes the
+  evidence; if no line names it, a product name (AUTOSAR Classic, ISO
+  26262, C++) flips to "not evidenced" — the model had credited a
+  sibling, such as Android for Java or Vector CANoe for CAN bus. A
+  generic phrase the CV never names ("hardware interfacing") has no
+  name to look for, so a stricter quote-only judge decides, with one
+  repair call whose answer must occur in the CV. Years, degree,
+  language and domain are exempt: the first is arithmetic, the rest
+  are holistic readings. Measured on the scale test, this caught the
+  one lenient credit the earlier experiments had left open and raised
+  top-5 precision from 0.925 to 0.950.
 - **Fail closed.** If the model returns unparseable JSON, the call is
   retried once; if it still fails, every requirement is recorded as not
   covered. The pipeline never invents coverage to fill a gap.
@@ -289,14 +305,16 @@ in the same measured comparison.
 |---|---:|---:|---:|---:|
 | 40 consultants, 11 briefs, gpt-4o-mini | 1.000 (31/31) | 1.000 (11/11) | 1.000 (10/10) | ~9 s |
 | 40 consultants, 9 briefs, fully local (qwen3.5:9b + embeddinggemma) | 1.000 (26/26) | 1.000 (9/9) | 1.000 (8/8) | 10–20 min on a laptop |
-| 400 consultants, gpt-4o-mini (two runs) | 0.925 (37/40) | 1.000 (9/9) | 1.000 (8/8) | ~10 s |
+| 400 consultants, gpt-4o-mini | 0.950 (38/40) | 1.000 (9/9) | 1.000 (8/8) | ~9 s |
 
-**The imperfections are attributed, not hidden.** The three lost
-slots at 400 consultants are all candidates the answer key marks partial — each
-missing exactly one must-have — whom the verifier credited from
-adjacent evidence. Discovery held everywhere: no strong candidate was
-lost to the cap or to ranking, and honesty was perfect at scale (zero
-strong for a08 at 400 people, said so in every run). The informational
+**The imperfections are attributed, not hidden.** The two lost slots
+at 400 consultants are one candidate the answer key marks partial whom
+the verifier credited for industry experience on adjacent evidence
+(the domain kind is exempt from the second vote by design) and one
+ranking case; the sibling-technology credit that used to be the third
+was caught by the second vote. Discovery held everywhere: no strong
+candidate was lost to the cap or to ranking, and honesty was perfect at
+scale (zero strong for a08 at 400 people, said so in every run). The informational
 gap_alignment tracks the same softness: about 0.9 at 40 consultants,
 about 0.8 at 400. Extraction itself scores 0.984 recall and precision
 on the eleven briefs; the two misses are the Swedish brief's domain
@@ -330,11 +348,10 @@ structural requirement rather than a disclaimer.
 
 ## Known limits and the next levers
 
-- **Verifier leniency on near-misses.** The one quality gap left: a
-  partial candidate is sometimes credited for their single missing
-  item on adjacent evidence. The named next lever is a second-vote
-  screen on near-misses — a second, stricter verification of any item
-  the first pass credited on weak evidence.
+- **Verifier leniency is now confined to holistic kinds.** Named
+  skills are checked by code and generic phrases by a second judge; a
+  domain or a degree can still be credited on adjacent evidence, and
+  that is where the scale test's remaining miss sits.
 - **Years depend on parseable dates.** The arithmetic reads year
   ranges on engagement lines; a CV that gives durations in prose only
   ("three years at …") falls back to the model's reading, which can be
