@@ -24,6 +24,8 @@ from ragstone.match import (
     parse_verification,
     stamp_person_metadata,
     vote_requirements,
+    years_of_experience,
+    years_verdict,
 )
 from ragstone.match.matcher import index_person_chunks
 
@@ -654,3 +656,93 @@ class TestLineShapedExtraction:
             )
         )
         assert len(req.must) == 1
+
+
+class TestYearsArithmetic:
+    def test_union_of_ranges_does_not_double_count(self):
+        cv = "Lead (2019-2022)\nSenior (2021 - 2024)\nJunior (2014-2016)"
+        assert years_of_experience(cv, today_year=2026) == (7.0, 2014, 2024)
+
+    def test_open_range_ends_this_year_and_months_are_ignored(self):
+        cv = "Engineer, Jan 2020 – present"
+        assert years_of_experience(cv, today_year=2026) == (6.0, 2020, 2026)
+
+    def test_swedish_range_words(self):
+        cv = "Utvecklare 2018 till 2021\nKonsult 2021 – nu"
+        assert years_of_experience(cv, today_year=2026) == (8.0, 2018, 2026)
+
+    def test_education_lines_do_not_count(self):
+        cv = "MSc Computer Science, Lund University, 2009-2014\nEngineer (2015-2017)"
+        assert years_of_experience(cv, today_year=2026) == (2.0, 2015, 2017)
+
+    def test_no_ranges_means_no_verdict(self):
+        assert years_of_experience("11 years of experience", today_year=2026) is None
+
+    def test_verdict_compares_against_the_requirement(self):
+        req = Requirement(kind="years", detail="5")
+        short = years_verdict(req, (4.0, 2022, 2026))
+        long = years_verdict(req, (7.0, 2019, 2026))
+        assert short is not None and not short["covered"]
+        assert long is not None and long["covered"]
+        assert "not quoted" in long["evidence"]
+        assert (
+            years_verdict(Requirement(kind="years", detail="five"), (7.0, 1, 2)) is None
+        )
+
+
+class TestYearsOverrideTheModel:
+    def test_blurb_credit_is_overruled_by_dates(self):
+        extraction = json.dumps(
+            {
+                "must": [
+                    {"kind": "skill", "alternatives": ["Docker"]},
+                    {"kind": "years", "min_years": 5},
+                ],
+                "nice": [],
+            }
+        )
+        # The model credits both; the CV's only date range is two years.
+        verification = json.dumps(
+            [
+                {"requirement": "Docker", "covered": True, "evidence": "Docker"},
+                {
+                    "requirement": "years",
+                    "covered": True,
+                    "evidence": "a seasoned engineer with 11 years of experience",
+                },
+            ]
+        )
+        people = {
+            "cv01": {
+                "name": "Astrid Okafor",
+                "chunks": [
+                    "Seasoned engineer with 11 years of experience. Docker.",
+                    "Engineer - a client (2024-present)",
+                ],
+            }
+        }
+        result = _matcher(
+            [extraction, verification],
+            {"Docker": [_doc("cv01", "Astrid Okafor")]},
+            people,
+        ).match("brief")
+        candidate = result.candidates[0]
+        years = next(
+            f for f in candidate.coverage if f.requirement.startswith("at least")
+        )
+        assert not years.covered
+        assert "computed" in years.evidence
+        assert candidate.tier == "partial"
+
+    def test_without_dates_the_model_reading_stands(self):
+        extraction = json.dumps(
+            {"must": [{"kind": "years", "min_years": 5}], "nice": []}
+        )
+        chunk = "Seasoned engineer with 11 years of experience."
+        people = {"cv01": {"name": "Astrid Okafor", "chunks": [chunk]}}
+        # A years-only brief has nothing to search for, so discovery
+        # surfaces nobody and no verification call is made: the honest
+        # empty result, with no arithmetic to apply.
+        result = _matcher([extraction], {}, people).match("brief")
+        assert result.candidates == []
+        assert years_of_experience(chunk) is None

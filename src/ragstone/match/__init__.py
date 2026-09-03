@@ -18,6 +18,8 @@ from .matcher import (
     parse_verification,
     stamp_person_metadata,
     vote_requirements,
+    years_of_experience,
+    years_verdict,
 )
 
 __all__ = [
@@ -33,4 +35,6 @@ __all__ = [
     "parse_verification",
     "stamp_person_metadata",
     "vote_requirements",
+    "years_of_experience",
+    "years_verdict",
 ]

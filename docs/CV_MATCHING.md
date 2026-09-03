@@ -165,8 +165,14 @@ The verifier is held to strict rules, quoted from the prompt:
 - *Quote the single most convincing CV line as evidence, verbatim, at
   most 25 words; use "" when not covered.*
 
-Two safety properties:
+Two safety properties and one arithmetic override:
 
+- **Years are computed, not quoted.** The CV's engagement date ranges
+  ("2019-2022", "2021 – present", "Jan 2019 - Mar 2022") are merged as
+  intervals, education lines excluded, and their union decides the
+  years requirement. The evidence line says so explicitly. A profile
+  blurb claiming "11 years" cannot pass on the blurb; the model's own
+  reading is used only for a CV that carries no dates at all.
 - **Fail closed.** If the model returns unparseable JSON, the call is
   retried once; if it still fails, every requirement is recorded as not
   covered. The pipeline never invents coverage to fill a gap.
@@ -190,7 +196,7 @@ brief:
 | Yocto | ❌ | — |
 | Embedded C | ❌ | — |
 | Device drivers | ❌ | — |
-| at least 4 years of experience | ✅ | "…with 11 years of experience in the automotive domain." |
+| at least 4 years of experience | ✅ | Engagement dates 2015–2026 add up to about 11 years (computed from the CV's date ranges, not quoted) |
 
 Eleven years of C++ did not earn Embedded C. That is the sibling rule
 doing exactly what a careful staffer would do. Priya lands in the weak
@@ -329,12 +335,10 @@ structural requirement rather than a disclaimer.
   item on adjacent evidence. The named next lever is a second-vote
   screen on near-misses — a second, stricter verification of any item
   the first pass credited on weak evidence.
-- **Years may be read from the summary.** The prompt asks the verifier
-  to add up engagement dates, but a trace showed it quoting the profile
-  blurb ("11 years of experience") instead. Harmless when the summary
-  and the dates agree, as they do on the synthetic bench; a real CV
-  whose blurb overstates would slip through. A prompt tweak (require a
-  date range as evidence) or the second-vote screen would close it.
+- **Years depend on parseable dates.** The arithmetic reads year
+  ranges on engagement lines; a CV that gives durations in prose only
+  ("three years at …") falls back to the model's reading, which can be
+  swayed by a summary blurb.
 - **The cap is a constant.** Ten verified candidates suits pools of
   tens to hundreds. Thousands would need a cheaper pre-rank stage
   before the model pass.

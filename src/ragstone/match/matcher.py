@@ -28,6 +28,7 @@ Kubernetes is not proof the person cannot use it, and the wording must
 not pretend otherwise.
 """
 
+import datetime
 import json
 import logging
 import re
@@ -555,6 +556,77 @@ def location_note(wanted: str, cv_text: str) -> str:
     )
 
 
+# Engagement date ranges: "2019-2022", "2021 – present", "Jan 2019 - Mar
+# 2022", "2020 till 2023" (Swedish). Education entries ("MSc ..., 2014",
+# "2009-2014 BSc") are excluded by line so a degree does not count as
+# work; single years never match.
+_MONTH = r"(?:[A-Za-z]{3,9}\.?\s+)?"
+_YEAR_RANGE = re.compile(
+    rf"(?<!\d){_MONTH}((?:19|20)\d{{2}})\s*(?:[-–—]|to|till)\s*{_MONTH}"
+    r"((?:19|20)\d{2}|present|now|current|today|ongoing|nu|nuvarande|pågående|idag)"
+    r"(?!\d)",
+    re.IGNORECASE,
+)
+_EDUCATION_LINE = re.compile(
+    r"\b(?:b\.?sc|m\.?sc|b\.?a|m\.?a|bachelor|master|ph\.?d|doctor|university|"
+    r"universitet|högskola|college|degree|examen|diploma)\b",
+    re.IGNORECASE,
+)
+
+
+def years_of_experience(
+    cv_text: str, today_year: Optional[int] = None
+) -> Optional[Tuple[float, int, int]]:
+    """Years covered by the CV's engagement date ranges, as a union.
+
+    Returns (years, first_year, last_year) or None when the CV carries no
+    date range at all — the caller then falls back to the model's
+    reading. Overlapping engagements are not double-counted; an open
+    range ends this year.
+    """
+    year_now = today_year or datetime.date.today().year
+    intervals: List[Tuple[int, int]] = []
+    for line in cv_text.splitlines():
+        if _EDUCATION_LINE.search(line):
+            continue
+        for match in _YEAR_RANGE.finditer(line):
+            start = int(match.group(1))
+            end_token = match.group(2)
+            end = int(end_token) if end_token.isdigit() else year_now
+            if end < start:
+                continue
+            intervals.append((start, min(end, year_now)))
+    if not intervals:
+        return None
+    intervals.sort()
+    merged: List[List[int]] = [list(intervals[0])]
+    for start, end in intervals[1:]:
+        if start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    total = float(sum(end - start for start, end in merged))
+    return total, merged[0][0], merged[-1][1]
+
+
+def years_verdict(
+    requirement: Requirement, computed: Tuple[float, int, int]
+) -> Optional[Dict[str, Any]]:
+    """A years verdict from arithmetic, or None when the label won't parse."""
+    try:
+        minimum = float(requirement.detail)
+    except (TypeError, ValueError):
+        return None
+    total, first, last = computed
+    return {
+        "covered": total + 1e-9 >= minimum,
+        "evidence": (
+            f"Engagement dates {first}–{last} add up to about {total:g} years "
+            "(computed from the CV's date ranges, not quoted)"
+        ),
+    }
+
+
 def parse_verification(text: str, expected: int) -> List[Dict[str, Any]]:
     raw = _extract_json(text, "[", "]")
     if not isinstance(raw, list) or len(raw) != expected:
@@ -789,8 +861,23 @@ class Matcher:
         else:
             all_verdicts = [_screen(person_id) for person_id in shortlist]
 
+        # The years requirement is arithmetic, not judgement: a verifier
+        # quoting "11 years of experience" from a profile blurb credits
+        # whatever the blurb claims (seen on a real CV, Experiment 30).
+        # When the CV carries date ranges, the union of those ranges
+        # decides; the model's reading stands only when it carries none.
+        years_index = next(
+            (i for i, r in enumerate(requirements.must) if r.kind == "years"), None
+        )
         assessments: List[CandidateAssessment] = []
         for person_id, verdicts in zip(shortlist, all_verdicts):
+            if years_index is not None:
+                computed = years_of_experience(self._person_cv_text[person_id])
+                if computed is not None:
+                    arithmetic = years_verdict(requirements.must[years_index], computed)
+                    if arithmetic is not None:
+                        verdicts = list(verdicts)
+                        verdicts[years_index] = arithmetic
             coverage = [
                 RequirementFinding(
                     requirement=req.label,

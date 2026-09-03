@@ -1785,6 +1785,35 @@ multi-hour run; pilot first). The UI shows the location as context on
 the requirements line and per candidate as an informational note,
 never as a gap.
 
+**Method, part 3 — years by arithmetic.** The years requirement is not
+a judgement call, and a model quoting "11 years of experience" from a
+profile blurb credits whatever the blurb claims — seen on the real CV
+above, where the verdict's evidence carried no dates at all. The
+matcher now sums the CV's engagement date ranges itself: every
+"2019-2022", "2021 – present", "Jan 2019 - Mar 2022" or "2018 till
+2021" on a non-education line, merged as intervals so overlapping
+engagements are not double-counted, an open range ending this year.
+The union decides the years verdict and its evidence says so
+("Engagement dates 2014–2026 add up to about 12 years — computed from
+the CV's date ranges, not quoted"). The model's reading stands only for
+a CV that carries no date range at all.
+
+**Result, part 3.** Same eleven briefs, same gates: 1.000 / 1.000 /
+1.000, extraction 0.984 / 0.984, gap_alignment 0.895 — unchanged, as
+expected on a synthetic bench whose blurbs and dates agree by
+construction. What changed is what the verdict rests on: on every
+bench CV the years line now cites a date span instead of a sentence,
+and a real CV whose summary overstates can no longer pass on the
+summary. The runbook's "every claim is a quote" line gains one honest
+exception, stated in the evidence itself.
+
+**Decision, part 3.** Ships with parts 1–2. Gate unchanged, baseline
+unchanged. Follow-ups, in order: re-record the local-stack baseline on
+the 11-brief data (multi-hour; pilot first); the Swedish brief's
+domain word; and the verifier second-vote screen on near-misses, which
+this experiment leaves as the one named quality lever — extraction is
+no longer where the errors are.
+
 ## Defaults, decided by the numbers above
 
 | Choice            | Default                      | Decided by   | Why                                            |

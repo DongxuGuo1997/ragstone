@@ -32,6 +32,13 @@ Notable changes to Ragstone. The format follows
   retrieval ambiguity.
 
 ### Added
+- **Years of experience by arithmetic** (Experiment 30, part 3). The
+  matcher sums the CV's engagement date ranges (union of intervals,
+  education lines excluded, open ranges end this year) and lets that
+  decide the years requirement; the evidence says it was computed, not
+  quoted. The model's reading is used only for a CV with no date range.
+  Gates unchanged on the bench; a real CV whose profile blurb overstates
+  its years can no longer pass on the blurb.
 - **The matcher's extractor reads RFQs** (Experiment 30, part 2). The
   extraction schema is now per line: the model copies every sentence of
   a must/preferred section verbatim, classifies it, and states whether
