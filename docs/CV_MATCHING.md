@@ -168,12 +168,14 @@ The verifier is held to strict rules, quoted from the prompt:
 Two safety properties, one arithmetic override, and a second vote:
 
 - **Years are computed, not quoted.** The CV's engagement date ranges
-  ("2019-2022", "2021 – present", "Jan 2019 - Mar 2022") are merged as
-  intervals and their union decides the years requirement. When the CV
-  has an Experience-like heading, only ranges under it count — degrees,
-  certificates and summary timelines elsewhere are ignored whatever
-  their layout; without one, Education blocks and degree lines are
-  excluded. The evidence lists the exact spans counted. A profile
+  ("2019-2022", "Sept 2021 – present", "Jan 2019 - Mar 2022") are
+  merged as intervals, months included, and their union decides the
+  years requirement. When the CV has an Experience-like heading
+  ("Work history", "/Past employments", "Relevant assignments"), only
+  ranges under it count — degrees, certificates and summary timelines
+  elsewhere are ignored whatever their layout; without one, Education
+  blocks and degree lines are excluded. The evidence lists the exact
+  spans counted. A profile
   blurb claiming "11 years" cannot pass on the blurb; the model's own
   reading is used only for a CV that carries no dates at all.
 - **A credited skill must be named by the CV.** After the model's

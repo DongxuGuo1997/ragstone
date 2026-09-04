@@ -607,33 +607,59 @@ def location_note(wanted: str, cv_text: str) -> str:
 # 2022", "2020 till 2023" (Swedish). Education entries ("MSc ..., 2014",
 # "2009-2014 BSc") are excluded by line so a degree does not count as
 # work; single years never match.
-_MONTH = r"(?:[A-Za-z]{3,9}\.?\s+)?"
+_MONTH_NAMES: Dict[str, int] = {}
+for _i, _names in enumerate(
+    [
+        ("jan", "januari"),
+        ("feb", "februari"),
+        ("mar", "mars"),
+        ("apr",),
+        ("may", "maj"),
+        ("jun", "juni"),
+        ("jul", "juli"),
+        ("aug", "augusti"),
+        ("sep", "sept"),
+        ("oct", "okt"),
+        ("nov",),
+        ("dec",),
+    ]
+):
+    for _name in _names:
+        _MONTH_NAMES[_name] = _i + 1
 _YEAR_RANGE = re.compile(
-    rf"(?<!\d){_MONTH}((?:19|20)\d{{2}})\s*(?:[-–—]|to|till)\s*{_MONTH}"
+    r"(?<!\d)(?:([A-Za-z]{3,9})\.?\s+)?((?:19|20)\d{2})\s*(?:[-–—]|to|till)\s*"
+    r"(?:([A-Za-z]{3,9})\.?\s+)?"
     r"((?:19|20)\d{2}|present|now|current|today|ongoing|nu|nuvarande|pågående|idag)"
     r"(?!\d)",
     re.IGNORECASE,
 )
+
+
+def _month_index(token: Optional[str]) -> Optional[int]:
+    if not token:
+        return None
+    key = token.lower().rstrip(".")
+    return _MONTH_NAMES.get(key) or _MONTH_NAMES.get(key[:3])
+
+
 _EDUCATION_HEADING = re.compile(
-    r"^(?:education|academic|studies|qualifications|utbildning|training|"
-    r"certifications?|courses)\b",
+    r"\b(?:education|academic|studies|qualifications|utbildning|training|"
+    r"certifications?|courses|degrees?|school)\b",
     re.IGNORECASE,
 )
 _ANY_HEADING = re.compile(
-    r"^(?:education|academic|studies|qualifications|utbildning|training|"
-    r"certifications?|courses|degrees?|school|experience|work experience|"
-    r"work history|work|professional experience|professional background|"
-    r"employment|engagements|selected engagements|career|positions|roles|"
-    r"assignments|consulting|projects|uppdrag|erfarenhet|anställningar|"
-    r"profile|summary|skills|core competencies|competenc|languages|"
-    r"publications|contact|other|interests|references|awards|volunteer)\b",
+    r"\b(?:education|academic|studies|qualifications|utbildning|training|"
+    r"certifications?|courses|degrees?|school|experience|work history|work|"
+    r"employments?|engagements|career|positions|roles|assignments|"
+    r"consulting|projects|uppdrag|erfarenhet|anställningar|profile|summary|"
+    r"skills|competenc\w*|languages|publications|contact|other|interests|"
+    r"references|awards|volunteer)\b",
     re.IGNORECASE,
 )
 _EXPERIENCE_HEADING = re.compile(
-    r"^(?:experience|work experience|work history|work|professional "
-    r"experience|professional background|employment|engagements|selected "
-    r"engagements|career|positions|roles|assignments|consulting|uppdrag|"
-    r"erfarenhet|anställningar)\b",
+    r"\b(?:experience|work history|work|employments?|engagements|career|"
+    r"positions|roles|assignments|consulting|uppdrag|erfarenhet|"
+    r"anställningar)\b",
     re.IGNORECASE,
 )
 _EDUCATION_LINE = re.compile(
@@ -667,23 +693,38 @@ def years_of_experience(
     lines = cv_text.splitlines()
 
     def _heading(line: str) -> str:
-        text = line.strip().lstrip("#*-•· ").rstrip(":* ").strip()
-        if text and len(text) <= 60 and _ANY_HEADING.match(text):
+        # Headings are short, undated, unpunctuated lines that name a
+        # section — "## Education", "/Past employments", "WORK HISTORY".
+        text = line.strip().lstrip("#*-•·/|>: ").rstrip(":* ").strip()
+        words = text.split()
+        if (
+            text
+            and len(text) <= 60
+            and len(words) <= 6
+            and not any(ch.isdigit() for ch in text)
+            and not text.endswith(".")
+            # The section word opens or closes the heading ("Past
+            # employments", "Work history"); a company name that merely
+            # contains one ("AFRY Experience Studios") is not a heading.
+            and (_ANY_HEADING.search(words[0]) or _ANY_HEADING.search(words[-1]))
+        ):
             return text
         return ""
 
     has_experience = any(
-        _EXPERIENCE_HEADING.match(h) for h in map(_heading, lines) if h
+        _EXPERIENCE_HEADING.search(h) for h in map(_heading, lines) if h
     )
-    intervals: List[Tuple[int, int]] = []
+    intervals: List[Tuple[float, float]] = []
     in_education = False
     in_experience = False
     recent: List[str] = []  # the three lines before this one
     for line in lines:
         heading = _heading(line)
         if heading:
-            in_education = bool(_EDUCATION_HEADING.match(heading))
-            in_experience = bool(_EXPERIENCE_HEADING.match(heading))
+            in_experience = bool(_EXPERIENCE_HEADING.search(heading))
+            in_education = not in_experience and bool(
+                _EDUCATION_HEADING.search(heading)
+            )
             recent = [line]
             continue
         residue = _YEAR_RANGE.sub("", line)
@@ -703,23 +744,35 @@ def years_of_experience(
         if excluded:
             continue
         for match in _YEAR_RANGE.finditer(line):
-            start = int(match.group(1))
-            end_token = match.group(2)
-            end = int(end_token) if end_token.isdigit() else year_now
+            start_month = _month_index(match.group(1))
+            start = int(match.group(2)) + ((start_month or 1) - 1) / 12.0
+            end_token = match.group(4)
+            if end_token.isdigit():
+                end_month = _month_index(match.group(3))
+                # "2019-2022" reads as three years, as people mean it; a
+                # month, when given, is counted to its end.
+                end = int(end_token) + (end_month / 12.0 if end_month else 0.0)
+            elif today_year is None:
+                now = datetime.date.today()
+                end = now.year + now.month / 12.0
+            else:
+                end = float(year_now)
             if end < start:
                 continue
-            intervals.append((start, min(end, year_now)))
+            intervals.append((start, end))
     if not intervals:
         return None
     intervals.sort()
-    merged: List[List[int]] = [list(intervals[0])]
+    merged: List[List[float]] = [list(intervals[0])]
     for start, end in intervals[1:]:
         if start <= merged[-1][1]:
             merged[-1][1] = max(merged[-1][1], end)
         else:
             merged.append([start, end])
-    spans = [(a, b) for a, b in merged]
-    total = float(sum(b - a for a, b in spans))
+    # Spans are shown as years; the total keeps the months, to a tenth
+    # ("Sept 2021 - Ongoing" is about 5.6 years in September 2026, not 5).
+    spans = [(int(a), int(b) if b == int(b) else int(b)) for a, b in merged]
+    total = round(sum(b - a for a, b in merged), 1)
     return total, spans[0][0], spans[-1][1], spans
 
 
@@ -799,6 +852,9 @@ def nice_named_in(cv_text: str, skill: str) -> bool:
     words = skill.split()
     if len(words) >= 3:
         candidates.append(" ".join(words[:2]))
+    # "automotive industry" / "telecom domain": the sector word alone.
+    if len(words) == 2 and words[1].lower() in {"industry", "domain", "sector"}:
+        candidates.append(words[0])
     return any(_phrase_pattern(c).search(cv_text) for c in candidates)
 
 

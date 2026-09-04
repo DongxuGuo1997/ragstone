@@ -1917,6 +1917,16 @@ may never mention. Retrieval now only *surfaces* candidates for a
 preferred item; the tick and the ranking tiebreak come from the CV's
 own words. Gates unchanged (11-brief 1.0 / 1.0 / 1.0, scale 0.950).
 
+The real CV, read through the app's own loader, closed the years
+question for good. Its headings carry a leading slash ("/Past
+employments", "/Education"), which the section reader had not
+stripped, so it saw no sections at all; a company name ("AFRY
+Experience Studios") would then have passed for a heading once the
+slash was handled. Headings are now recognised with the section word
+opening or closing a short undated line, and months in date ranges
+are counted: the CV reads 2021–2026, 5.7 years from February 2021, with
+both degrees excluded — the number a staffer would write.
+
 **Decision, part 4.** Arm C ships, on by default (`--second-vote off`
 keeps the old path, suffixed in the baseline key). 11-brief gate
 unchanged at 1.0 / 1.0 / 1.0 and 0.984 / 0.984; the scale-test

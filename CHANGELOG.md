@@ -46,6 +46,15 @@ Notable changes to Ragstone. The format follows
   arithmetic now treats an Education heading as a block and a bare
   date line after a degree as the degree's, so a Master's no longer
   counts as work. `--second-vote off` keeps the previous path.
+- **Years read real CV layouts, to the month.** Section headings may
+  carry a leading slash or pipe ("/Past employments"), be plural or
+  all-caps, and are recognised by the section word opening or closing
+  the line (a company name containing "Experience" is not a heading);
+  month names in date ranges are counted ("Sept 2021 – Ongoing" is 5.7
+  years in September 2026, not 5), while "2019-2022" still reads as
+  three years. A preferred item like "automotive industry" ticks on
+  the sector word alone. Verified on a real consultant CV exported
+  from the company template.
 - **Preferred ticks mean "the CV names it".** Retrieval still
   surfaces candidates for a preferred item, but the tick per candidate
   and the ranking tiebreak now come only from the CV's own words — in a

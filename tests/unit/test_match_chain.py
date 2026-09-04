@@ -815,6 +815,35 @@ class TestYearsSectionAwareness:
         years, first, last, spans = years_of_experience(cv, today_year=2026)
         assert spans == [(2021, 2026)]
 
+    def test_slash_headings_and_months(self):
+        cv = (
+            "/Relevant projects and assignments\n"
+            "AFRY Experience Studios\n"
+            "Research Engineer Jan 2024 - Oct 2024\n\n"
+            "/Past employments\n"
+            "Volvo Cars Sept 2021 - Mar 2023\n"
+            "Nexer Nov 2024 - Ongoing\n\n"
+            "/Education\n"
+            "Master in Mechatronics\nChalmers\n2019 - 2021\n"
+            "Bachelor of Engineering\nHarbin Institute of Technology\n2015 - 2019\n"
+        )
+        years, first, last, spans = years_of_experience(cv, today_year=2026)
+        assert (first, last) == (2021, 2026)
+        assert spans == [(2021, 2023), (2024, 2026)]
+        # Sept 2021 -> end of Mar 2023 is 1.6 years; Jan 2024 -> 2026 is 2.0.
+        assert years == 3.6
+
+    def test_company_name_containing_experience_is_not_a_heading(self):
+        cv = (
+            "Work history\nEngineer, Acme\n2021 - 2026\n"
+            "AFRY Experience Studios\nEngineer 2015 - 2019\n\n"
+            "Education\nMaster\n2013 - 2015\n"
+        )
+        assert years_of_experience(cv, today_year=2026)[3] == [
+            (2015, 2019),
+            (2021, 2026),
+        ]
+
     def test_degree_line_before_the_dates_excludes_them(self):
         cv = "MSc Computer Science, KTH\n2009-2014\nEngineer (2015-2017)"
         assert years_of_experience(cv, today_year=2026)[:3] == (2.0, 2015, 2017)
@@ -1094,6 +1123,10 @@ class TestNiceToHaveNaming:
         assert nice_named_in(self.CV, "Hypervisors")
         assert nice_named_in(self.CV, "QNX")
         assert nice_named_in(self.CV, "Android Automotive Software Development")
+
+    def test_sector_word_alone_counts_for_an_industry_item(self):
+        assert nice_named_in("Ten years of automotive HMI work.", "automotive industry")
+        assert not nice_named_in("Ten years of telecom work.", "automotive industry")
 
     def test_unrelated_phrase_does_not(self):
         assert not nice_named_in(self.CV, "Yocto")
