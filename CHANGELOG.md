@@ -31,6 +31,15 @@ Notable changes to Ragstone. The format follows
   mode bought zero correctness at 33× latency — reasoning does not fix
   retrieval ambiguity.
 
+### Security
+- pip-audit allowlist renewed for chromadb: the expired PYSEC-2026-311
+  entry and three further server-side CVEs (CVE-2026-45830/-45831/
+  -45833, all in the chroma HTTP server's tenant authorisation and
+  `/api/v2` endpoints, which ragstone never runs) are allowlisted until
+  2026-11-01 with the exposure analysis on record. No fixed chromadb
+  release exists; the next renewal should retire the legacy chroma
+  store instead.
+
 ### Added
 - **Second-vote screening of credited evidence** (Experiment 30, part
   4). A credited skill now stands only if the CV names it: a quote that
