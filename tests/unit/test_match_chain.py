@@ -799,6 +799,22 @@ class TestYearsSectionAwareness:
         assert verdict is not None
         assert "2017–2018, 2021–2026" in verdict["evidence"]
 
+    def test_degree_two_lines_above_bare_dates_excludes_them(self):
+        cv = (
+            "Bachelor of Engineering, Automation\nXJTU\n2015 - 2019\n"
+            "Engineer, Acme (2021-2026)\n"
+        )
+        assert years_of_experience(cv, today_year=2026)[:3] == (5.0, 2021, 2026)
+
+    def test_work_history_heading_counts_as_experience(self):
+        cv = (
+            "WORK HISTORY\nEngineer, Acme\n2021 - 2026\n\n"
+            "EDUCATION\nMaster of Science\nChalmers\n2019 - 2021\n"
+            "Bachelor\nXJTU\n2015 - 2019\n"
+        )
+        years, first, last, spans = years_of_experience(cv, today_year=2026)
+        assert spans == [(2021, 2026)]
+
     def test_degree_line_before_the_dates_excludes_them(self):
         cv = "MSc Computer Science, KTH\n2009-2014\nEngineer (2015-2017)"
         assert years_of_experience(cv, today_year=2026)[:3] == (2.0, 2015, 2017)
@@ -1115,3 +1131,28 @@ class TestTitleCasePhrasesGoToTheJudge:
         ).match("b")
         finding = result.candidates[0].coverage[0]
         assert finding.covered and finding.evidence == line
+
+
+class TestNiceHitsAreLexical:
+    def test_surfacing_for_a_nice_query_is_not_a_tick(self):
+        # One-person pool: retrieval returns cv01 for every query. Only
+        # the nice-to-have the CV actually names is ticked.
+        extraction = json.dumps(
+            {
+                "must": [{"kind": "skill", "alternatives": ["Docker"]}],
+                "nice": ["Helm", "Kubernetes"],
+            }
+        )
+        verdict = json.dumps(
+            [{"requirement": "Docker", "covered": True, "evidence": "Docker"}]
+        )
+        people = {
+            "cv01": {"name": "Astrid Okafor", "chunks": ["Docker and Helm charts."]}
+        }
+        docs = [_doc("cv01", "Astrid Okafor")]
+        result = _matcher(
+            [extraction, verdict],
+            {"Docker": docs, "Helm": docs, "Kubernetes": docs},
+            people,
+        ).match("b")
+        assert result.candidates[0].nice_hits == ["Helm"]

@@ -1910,6 +1910,13 @@ lost slot in one run was first-pass variance, not an audit flip),
 scale test 0.950 unchanged; the four items above are credited with
 the CV line that shows them.
 
+One more reading fix from the same CV: with a single CV in the pool,
+retrieval returned it for every preferred-item query, and the UI
+ticked all four preferred items including a driving licence the CV
+may never mention. Retrieval now only *surfaces* candidates for a
+preferred item; the tick and the ranking tiebreak come from the CV's
+own words. Gates unchanged (11-brief 1.0 / 1.0 / 1.0, scale 0.950).
+
 **Decision, part 4.** Arm C ships, on by default (`--second-vote off`
 keeps the old path, suffixed in the baseline key). 11-brief gate
 unchanged at 1.0 / 1.0 / 1.0 and 0.984 / 0.984; the scale-test

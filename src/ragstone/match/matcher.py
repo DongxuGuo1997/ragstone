@@ -621,21 +621,26 @@ _EDUCATION_HEADING = re.compile(
 )
 _ANY_HEADING = re.compile(
     r"^(?:education|academic|studies|qualifications|utbildning|training|"
-    r"certifications?|courses|experience|work experience|professional "
-    r"experience|employment|engagements|selected engagements|career|"
-    r"assignments|projects|uppdrag|erfarenhet|anställningar|profile|summary|"
-    r"skills|core competencies|languages|publications|contact)\b",
+    r"certifications?|courses|degrees?|school|experience|work experience|"
+    r"work history|work|professional experience|professional background|"
+    r"employment|engagements|selected engagements|career|positions|roles|"
+    r"assignments|consulting|projects|uppdrag|erfarenhet|anställningar|"
+    r"profile|summary|skills|core competencies|competenc|languages|"
+    r"publications|contact|other|interests|references|awards|volunteer)\b",
     re.IGNORECASE,
 )
 _EXPERIENCE_HEADING = re.compile(
-    r"^(?:experience|work experience|professional experience|employment|"
-    r"engagements|selected engagements|career|assignments|consulting|"
-    r"uppdrag|erfarenhet|anställningar)\b",
+    r"^(?:experience|work experience|work history|work|professional "
+    r"experience|professional background|employment|engagements|selected "
+    r"engagements|career|positions|roles|assignments|consulting|uppdrag|"
+    r"erfarenhet|anställningar)\b",
     re.IGNORECASE,
 )
 _EDUCATION_LINE = re.compile(
-    r"\b(?:b\.?sc|m\.?sc|b\.?a|m\.?a|bachelor|master|ph\.?d|doctor|university|"
-    r"universitet|högskola|college|degree|examen|diploma)\b",
+    r"\b(?:b\.?sc|m\.?sc|b\.?a|m\.?a|b\.?eng|m\.?eng|b\.?tech|m\.?tech|"
+    r"bachelor|master|ph\.?d|doctor|university|universitet|högskola|college|"
+    r"school|institute|degree|examen|diploma|thesis|student|studies|graduated|"
+    r"gpa|civilingenjör|högskoleingenjör|kandidat|magister|exchange)\b",
     re.IGNORECASE,
 )
 
@@ -663,7 +668,7 @@ def years_of_experience(
 
     def _heading(line: str) -> str:
         text = line.strip().lstrip("#*-•· ").rstrip(":* ").strip()
-        if text and len(text) <= 40 and _ANY_HEADING.match(text):
+        if text and len(text) <= 60 and _ANY_HEADING.match(text):
             return text
         return ""
 
@@ -673,24 +678,28 @@ def years_of_experience(
     intervals: List[Tuple[int, int]] = []
     in_education = False
     in_experience = False
-    previous = ""
+    recent: List[str] = []  # the three lines before this one
     for line in lines:
         heading = _heading(line)
         if heading:
             in_education = bool(_EDUCATION_HEADING.match(heading))
             in_experience = bool(_EXPERIENCE_HEADING.match(heading))
-            previous = line
+            recent = [line]
             continue
         residue = _YEAR_RANGE.sub("", line)
         bare_dates = not re.search(r"[A-Za-z]{3,}", residue)
+        # A bare date line belongs to whatever the previous three lines
+        # describe: "Master in X / Chalmers / 2019 - 2021" puts the
+        # degree two lines above the dates.
+        degree_above = any(_EDUCATION_LINE.search(r) for r in recent[-3:])
         excluded = (
             in_education
             or _EDUCATION_LINE.search(line)
-            or (bare_dates and _EDUCATION_LINE.search(previous))
+            or (bare_dates and degree_above)
         )
         if has_experience:
             excluded = excluded or not in_experience
-        previous = line
+        recent.append(line)
         if excluded:
             continue
         for match in _YEAR_RANGE.finditer(line):
@@ -968,6 +977,7 @@ class Matcher:
         requirements = state["requirements"]
         must_hits: Dict[str, set] = {}
         nice_hits: Dict[str, List[str]] = {}
+        nice_surfaced: set = set()
         rank_credit: Dict[str, float] = {}
 
         searched: Dict[str, List[Document]] = {}
@@ -990,14 +1000,16 @@ class Matcher:
                         continue
                     must_hits.setdefault(person, set()).add(idx)
                     rank_credit[person] = rank_credit.get(person, 0.0) + 1.0 / rank
+        # Retrieval SURFACES people for a nice-to-have; whether the CV
+        # actually names it is decided lexically below. In a one-person
+        # pool every query returns that person, which must not read as
+        # "has every preferred item".
         for skill in requirements.nice:
             for rank, doc in enumerate(_search(skill), start=1):
                 person = doc.metadata.get("person_id")
                 if not person:
                     continue
-                hits = nice_hits.setdefault(person, [])
-                if skill not in hits:
-                    hits.append(skill)
+                nice_surfaced.add(person)
                 rank_credit[person] = rank_credit.get(person, 0.0) + 0.5 / rank
 
         # Lexical channel. Retrieval rank alone is a bad gatekeeper for
@@ -1024,7 +1036,7 @@ class Matcher:
                         hits.append(skill)
 
         candidates = sorted(
-            set(must_hits) | set(nice_hits),
+            set(must_hits) | nice_surfaced | set(nice_hits),
             key=lambda p: (
                 -len(must_hits.get(p, set())),
                 -len(nice_hits.get(p, [])),

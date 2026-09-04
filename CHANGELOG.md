@@ -46,6 +46,14 @@ Notable changes to Ragstone. The format follows
   arithmetic now treats an Education heading as a block and a bare
   date line after a degree as the degree's, so a Master's no longer
   counts as work. `--second-vote off` keeps the previous path.
+- **Preferred ticks mean "the CV names it".** Retrieval still
+  surfaces candidates for a preferred item, but the tick per candidate
+  and the ranking tiebreak now come only from the CV's own words — in a
+  one-CV pool every query returned that CV, which read as "has every
+  preferred item". Years of experience recognise more section headings
+  ("Work history", "Positions", all-caps variants), more degree cues
+  (B.Eng, M.Tech, thesis, civilingenjör, …) and look three lines above a
+  bare date line for a degree.
 - **Phrases are judged, product names are looked up.** The second
   vote now decides "product name or phrase" by shape rather than by
   capital letters: a single token, or a token with a digit, a symbol or
