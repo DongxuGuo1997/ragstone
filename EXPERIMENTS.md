@@ -1507,6 +1507,22 @@ the harness grew `--ollama-reasoning`). For the staffing case this is
 the strategic result: matching runs entirely on the machine holding
 the CVs, at measured cloud-equal quality.
 
+**Postscript 3 (2026-09-04) — the local match, re-timed on Ollama
+0.33.2.** The runbook's local finale died live with
+`httpx.ReadTimeout` mid-verify. Cause, measured: a stock Ollama
+server serves one chat request at a time and sends a queued request
+nothing until its turn (three concurrent probe requests got their
+first byte at 2 s / 8 s / 14 s), so the verifier's eight concurrent
+screens queued and the later ones waited past the client's 60 s read
+timeout. Fix: Ollama chat models verify one candidate at a time
+(`RAGSTONE_MATCH_VERIFY_WORKERS` overrides it for a multi-slot
+server). Re-timed on the fix, a01 on qwen3.5:9b + embeddinggemma,
+reasoning off, M4 Max on AC: extraction 7.6 s, ten candidates
+screened with the second vote in 76 s, **84 s end to end**, the same
+two strong names as the cloud with all seven must-haves evidenced
+for both. The 10–20 min band above was measured on August's Ollama
+build; what closed the gap has not been isolated.
+
 ---
 
 ## Experiment 28 — The judge crosses providers: a local 31B re-scores the cloud's answers

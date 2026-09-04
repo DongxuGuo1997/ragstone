@@ -30,7 +30,7 @@ from ragstone.match import (
     years_of_experience,
     years_verdict,
 )
-from ragstone.match.matcher import index_person_chunks
+from ragstone.match.matcher import VERIFY_WORKERS, index_person_chunks
 
 
 class _FakeLLM:
@@ -1189,3 +1189,53 @@ class TestNiceHitsAreLexical:
             people,
         ).match("b")
         assert result.candidates[0].nice_hits == ["Helm"]
+
+
+class TestVerifyWorkersDefault:
+    """The verify pool sizes itself to the provider: a stock Ollama server
+    serves one request at a time and holds queued ones past the read
+    timeout, so Ollama models verify sequentially unless told otherwise."""
+
+    @staticmethod
+    def _stub_ollama():
+        # Only the class name is inspected, so a stand-in named like the
+        # real client class stands in for it without importing it.
+        return type("ChatOllama", (), {})()
+
+    def test_ollama_models_verify_one_candidate_at_a_time(self, monkeypatch):
+        monkeypatch.delenv("RAGSTONE_MATCH_VERIFY_WORKERS", raising=False)
+        matcher = Matcher(
+            llm=self._stub_ollama(), retriever=_FakeRetriever({}), people={}
+        )
+        assert matcher._verify_workers == 1
+
+    def test_other_models_keep_the_concurrent_default(self, monkeypatch):
+        monkeypatch.delenv("RAGSTONE_MATCH_VERIFY_WORKERS", raising=False)
+        matcher = Matcher(llm=_FakeLLM([]), retriever=_FakeRetriever({}), people={})
+        assert matcher._verify_workers == VERIFY_WORKERS > 1
+
+    def test_explicit_argument_wins_over_the_provider_default(self, monkeypatch):
+        monkeypatch.delenv("RAGSTONE_MATCH_VERIFY_WORKERS", raising=False)
+        matcher = Matcher(
+            llm=self._stub_ollama(),
+            retriever=_FakeRetriever({}),
+            people={},
+            verify_workers=4,
+        )
+        assert matcher._verify_workers == 4
+
+    def test_env_override_sizes_the_pool_for_a_multi_slot_server(self, monkeypatch):
+        monkeypatch.setenv("RAGSTONE_MATCH_VERIFY_WORKERS", "3")
+        matcher = Matcher(
+            llm=self._stub_ollama(), retriever=_FakeRetriever({}), people={}
+        )
+        assert matcher._verify_workers == 3
+
+    def test_unparseable_env_override_is_ignored_with_a_warning(
+        self, monkeypatch, caplog
+    ):
+        monkeypatch.setenv("RAGSTONE_MATCH_VERIFY_WORKERS", "many")
+        with caplog.at_level("WARNING", logger="ragstone.match.matcher"):
+            matcher = Matcher(llm=_FakeLLM([]), retriever=_FakeRetriever({}), people={})
+        assert matcher._verify_workers == VERIFY_WORKERS
+        assert "RAGSTONE_MATCH_VERIFY_WORKERS" in caplog.text

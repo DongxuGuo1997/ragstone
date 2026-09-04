@@ -282,6 +282,7 @@ RAGSTONE_CHECKPOINT_BACKEND=memory  # or sqlite (needs the sqlite extra)
 RAGSTONE_CHECKPOINT_DB=store/checkpoints.sqlite  # used by the sqlite backend
 RAGSTONE_LLM_MAX_RETRIES=3  # retries on transient LLM/embedding API errors
 RAGSTONE_LLM_TIMEOUT=60  # per-request timeout in seconds
+RAGSTONE_MATCH_VERIFY_WORKERS=8  # concurrent CV screens per match; defaults to 1 on Ollama (one slot)
 RAGSTONE_MAX_QUESTION_CHARS=4000  # questions above this are rejected pre-API
 RAGSTONE_REPHRASE_MODEL=gpt-4.1-nano  # optional; fails challenge turns, see Exp 18
 RAGSTONE_CHUNK_CONTEXT=source  # document identity in chunks (Exp 12); off/llm

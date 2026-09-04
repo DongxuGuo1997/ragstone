@@ -3,9 +3,11 @@
 A ~6-minute live tour of the CV↔assignment matcher: evidence-cited
 shortlists, measured honesty, real files in, and a fully local finale.
 Cloud (gpt-4o-mini) carries the pace; the local run is pre-started and
-revealed at the end — its measured cost on a laptop is 10–20 minutes
-per assignment (Experiment 27), which is stage death live but a strong
-story told right.
+revealed at the end. Its measured cost on a laptop was 10–20 minutes
+per assignment in August (Experiment 27); on 2026-09-04, on Ollama
+0.33.2, the same a01 match measured 84 s (log at the bottom), so a
+live local run is an option once a same-day rehearsal confirms the
+pacing — the pre-start stays the safe default.
 
 All timings below were rehearsed on 2026-08-21 (see the log at the
 bottom). Numbers in talking points are committed measurements.
@@ -145,7 +147,8 @@ before the meeting.
   verification — runs on this machine, under a profile that refuses
   network egress by construction. And we measured it: the local stack
   scores identical 1.0s on every gated metric. The honest cost is
-  time — 10–20 minutes on a laptop today. That's a hardware knob, not
+  time — about a minute and a half on this laptop as of September,
+  10–20 minutes on the August build. That's a hardware knob, not
   a quality gap."*
 
 ## The close — measured, not vibes (30 s)
@@ -170,10 +173,17 @@ ordering_clean_rate:  1.000   (~10 s per assignment)
 
 - **OpenAI hiccup mid-act**: the pre-warmed a01 shortlist from setup
   is still on screen — narrate from it; retry the click once. Don't
-  switch the main tab to ollama live (10–20 min pacing).
+  switch the main tab to ollama live unless the same-day rehearsal
+  timed it (84 s on 2026-09-04; 10–20 min on the August build).
 - **Local tab crashed / not started**: tell the story with numbers —
   the parity run is committed (identical 1.0s, Experiment 27) — and
   show the enforced no-egress profile in `.env.example`.
+- **`httpx.ReadTimeout` mid-verify on the local tab**: fixed 2026-09-04
+  (a stock Ollama server serves one request at a time, and the
+  verifier now screens candidates one at a time on the local
+  provider). If it recurs on a slower machine, raise
+  `RAGSTONE_LLM_TIMEOUT` (60 s per call by default); do not raise
+  `RAGSTONE_MATCH_VERIFY_WORKERS` against a stock Ollama server.
 - **No network at all**: the local tab still works, and the rehearsal
   eval printout in the repo history backs every number.
 - **"Data directory … not found" / "No documents were loaded"**: the
@@ -191,8 +201,9 @@ ordering_clean_rate:  1.000   (~10 s per assignment)
   precision, ~10 s per assignment.
 - **"What does it cost?"** Cloud: a few cents per matched assignment
   (one extraction + up to ten verification calls on gpt-4o-mini).
-  Local: zero marginal cost, 10–20 laptop-minutes; server-class local
-  hardware brings that to minutes.
+  Local: zero marginal cost, about 1.5 laptop-minutes measured in
+  September (10–20 on the August build); server-class local hardware
+  brings that down further.
 - **"How do we know it's right?"** Ground truth by construction, three
   gated metrics, honesty itself gated (Act 3), CI fails on regression,
   and the scale test's two misses are root-caused in EXPERIMENTS.md
@@ -233,3 +244,13 @@ requirement.
 the watcher flag produced the torchvision traceback flood, and an
 accidental edit of the CV-directory field produced `Data directory …
 not found`. Both are now covered by the launch rules in Setup.
+
+**Rehearsal log (2026-09-04, M4 Max on AC, Ollama 0.33.2).** The
+local a01 run died with `httpx.ReadTimeout` mid-verify: eight
+concurrent screens queued on a one-slot server and the later ones
+waited past the 60 s read timeout (three probe requests got their
+first byte at 2 / 8 / 14 s). Fixed by verifying one candidate at a
+time on Ollama. Re-run on the fix: extraction 7.6 s, ten candidates
+verified with the second vote in 76 s, **84 s end to end**, the same
+two strong names (Anders Nielsen, Astrid Okafor) with all seven
+must-haves evidenced for both.

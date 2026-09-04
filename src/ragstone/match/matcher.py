@@ -31,6 +31,7 @@ not pretend otherwise.
 import datetime
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -50,6 +51,16 @@ MAX_VERIFIED_CANDIDATES = 10
 # pool size the ingest enrichment uses). Sequential verification was the
 # dominant match cost: ten candidates, ten serialized LLM round-trips.
 VERIFY_WORKERS = 8
+# ...except against a stock Ollama server, which serves one chat request
+# at a time and sends a queued request nothing until its turn (measured
+# 2026-09-04 on Ollama 0.33.2: three concurrent requests got their first
+# byte at 2 s / 8 s / 14 s). Eight concurrent screens there buy no
+# throughput and push the later ones past the client's read timeout
+# (RAGSTONE_LLM_TIMEOUT, 60 s) -- the local demo died mid-verify with
+# httpx.ReadTimeout. Ollama models therefore verify one candidate at a
+# time unless the operator says the server runs more slots
+# (OLLAMA_NUM_PARALLEL on the server, this variable here).
+VERIFY_WORKERS_ENV = "RAGSTONE_MATCH_VERIFY_WORKERS"
 # One retry when the model returns unparseable JSON, then fail closed.
 PARSE_RETRIES = 1
 # Second-vote screening (Experiment 30, part 4): every credited quote is
@@ -944,6 +955,25 @@ class _MatchState(TypedDict, total=False):
     result: MatchResult
 
 
+def default_verify_workers(llm: Any) -> int:
+    """Verify-stage concurrency when the caller does not pin it.
+
+    The env override (VERIFY_WORKERS_ENV) wins when set; otherwise an
+    Ollama chat model verifies sequentially and everything else uses
+    VERIFY_WORKERS. The provider is read off the class name so the
+    optional langchain-ollama dependency is never imported here.
+    """
+    raw = os.getenv(VERIFY_WORKERS_ENV, "").strip()
+    if raw:
+        try:
+            return max(1, int(raw))
+        except ValueError:
+            logger.warning("match: ignoring non-integer %s=%r", VERIFY_WORKERS_ENV, raw)
+    if type(llm).__name__ == "ChatOllama":
+        return 1
+    return VERIFY_WORKERS
+
+
 class Matcher:
     """Core matching logic over an LLM + retriever + person chunk index.
 
@@ -957,7 +987,7 @@ class Matcher:
         retriever: Any,
         people: Dict[str, Dict[str, Any]],
         max_candidates: int = MAX_VERIFIED_CANDIDATES,
-        verify_workers: int = VERIFY_WORKERS,
+        verify_workers: Optional[int] = None,
         extract_samples: int = EXTRACT_SAMPLES,
         second_vote: bool = SECOND_VOTE,
     ) -> None:
@@ -965,7 +995,11 @@ class Matcher:
         self._retriever = retriever
         self._people = people
         self._max_candidates = max_candidates
-        self._verify_workers = verify_workers
+        self._verify_workers = (
+            max(1, verify_workers)
+            if verify_workers is not None
+            else default_verify_workers(llm)
+        )
         self._extract_samples = max(1, extract_samples)
         self._second_vote = second_vote
         # Joined once: the lexical channel scans these per match and the

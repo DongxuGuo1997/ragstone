@@ -204,9 +204,13 @@ Two safety properties, one arithmetic override, and a second vote:
   the first two words of a long phrase), never as a claim.
 
 Verification calls are independent per candidate and run concurrently
-(up to eight at a time). On the cloud provider this took a match from
-roughly 24 seconds to roughly 10. A single local Ollama server
-serializes requests, so concurrency does not help there.
+on the cloud provider (up to eight at a time), which took a match from
+roughly 24 seconds to roughly 10. A stock Ollama server serves one
+request at a time and answers a queued request with nothing until its
+turn, so concurrency there gained no time and pushed the later calls
+past the request timeout; with the local provider candidates are
+verified one at a time (`RAGSTONE_MATCH_VERIFY_WORKERS` raises this for
+a server configured with more slots).
 
 ### A worked example
 
@@ -377,9 +381,10 @@ structural requirement rather than a disclaimer.
 - **The Swedish brief's domain word is missed.** Skills, years and
   language cross the language boundary; "fordonsindustrin" as a domain
   requirement does not yet. Tiers are unaffected on the bench.
-- **Local throughput.** A single Ollama server serializes model calls,
-  so the concurrent verifier gains nothing there; a GPU server that
-  batches requests (or more workers behind vLLM) would.
+- **Local throughput.** A stock Ollama server serializes model calls,
+  so the local provider verifies candidates one at a time; a server
+  configured for more parallel slots (or more workers behind vLLM)
+  would gain from raising `RAGSTONE_MATCH_VERIFY_WORKERS`.
 - **Out of scope by design.** Availability, rates, soft skills and
   interview signal are not modelled. The output is a starting
   shortlist for a human, not a decision.

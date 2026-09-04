@@ -299,6 +299,18 @@ Notable changes to Ragstone. The format follows
   Linux/Docker unaffected).
 
 ### Fixed
+- **Local staffing match timed out mid-verify** (found live, 2026-09-04):
+  the verifier fired eight concurrent screens at an Ollama server that
+  serves one request at a time and sends a queued request nothing until
+  its turn (measured on 0.33.2: first bytes at 2 s / 8 s / 14 s for three
+  concurrent calls), so the later screens waited past the 60 s read
+  timeout and the match died with `httpx.ReadTimeout`. Ollama chat
+  models now verify one candidate at a time (same wall-clock on a
+  one-slot server, no queue), and `RAGSTONE_MATCH_VERIFY_WORKERS`
+  sizes the pool for a server configured with more slots. Re-timed on
+  the fix: the local a01 match (qwen3.5:9b, Ollama 0.33.2, M4 Max on
+  AC) completes in 84 s end to end with the same two strong names as
+  the cloud run.
 - **Single-document retrieval** (Experiment 22, found live): two stacked
   bugs made document-level queries ("what is this paper?") on a lone
   uploaded document retrieve contributor name-lists and the TOC instead
