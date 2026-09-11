@@ -322,7 +322,7 @@ earns its niche.
   embedding client from config; input length is capped before any
   spend; the synchronous core is offloaded to worker threads by the
   servers, which measured flat latency to 32 concurrent clients.
-- **Quality control.** About 550 tests, lint, type checks with zero
+- **Quality control.** About 600 tests, lint, type checks with zero
   suppressions, and the retrieval-eval gate run in CI; container images are
   scanned on a schedule.
 

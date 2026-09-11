@@ -7,6 +7,16 @@ Notable changes to Ragstone. The format follows
 ## [Unreleased]
 
 ### Changed
+- **README slimmed for the open-source front door.** The measured
+  verdicts, the support-tier table, the benchmark tables and the
+  local-stack numbers moved to `docs/BENCHMARKS.md`; the REST API,
+  Docker, vector-store, durable-memory and observability reference
+  moved to `docs/DEPLOYMENT.md` (which now also says plainly that
+  LangSmith traces carry document text). The README keeps the pitch,
+  the quick start, the surfaces, a four-row verdict table and a
+  documentation map. `.env.example` lost the keys nothing read
+  (`LOG_LEVEL`, `LOG_FORMAT`, `APP_NAME`, `APP_VERSION`, `DEBUG`,
+  `OLLAMA_MODEL`), and pre-commit gained `detect-private-key`.
 - **Eval integrity hardening**: baselines now record a `data_sha`
   fingerprint of their golden set + corpus and every gate compares it —
   editing measured data fails loudly instead of silently invalidating

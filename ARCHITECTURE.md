@@ -201,7 +201,7 @@ already hits 0.97, not a law. This repo's policy:
    numbers, and a regression fails the build.
 2. **Opt-ins must own a niche and a revisit condition.** Each one is
    baselined, honestly labeled with what it buys and costs, and carries
-   an explicit *enable-when* (see the README's support-tier table). An
+   an explicit *enable-when* (see the support-tier table in docs/BENCHMARKS.md). An
    option without a documented niche doesn't get to stay.
 3. **Niche duplicates get consolidated.** Two features occupying one
    measured niche is redundancy, not learning — the weaker one's lesson

@@ -100,7 +100,7 @@ Each is a `@tool` function away with the existing streaming events.
 ### 3.0 Second evaluation corpus — FIRST REAL CORPUS DELIVERED (July 2026, Experiment 23); expansion open
 Seventeen experiments rest on one fictional corpus whose retrieval is
 near-saturated (hit 0.97, smoke faithfulness 1.0). Every verdict — and
-every opt-in's *enable-when* condition in the README's support-tier
+every opt-in's *enable-when* condition in the docs/BENCHMARKS.md support-tier
 table — is a single-corpus result. A second, materially different corpus
 (real documents: long PDFs, tables, domain jargon; or a public QA set
 adapted to the needle format) would validate or overturn the existing

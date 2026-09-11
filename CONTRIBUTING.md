@@ -21,7 +21,7 @@ git clone https://github.com/DongxuGuo1997/ragstone.git
 cd ragstone
 python -m venv venv && source venv/bin/activate
 pip install -e ".[dev,sqlite,api,qdrant]"   # pgvector needs a server
-pytest tests/ -q                             # ~270 tests, no network
+pytest tests/ -q                             # ~600 tests, no network
 ```
 
 Copy `.env.example` to `.env` for anything that talks to OpenAI (the
