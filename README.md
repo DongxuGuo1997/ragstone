@@ -13,10 +13,21 @@ evaluation harness. Use it as a Python library, a Streamlit app, a CLI
 chat, a REST API, or as an MCP tool that puts your documents in reach of
 any agent (Claude, Cursor, ...). Built with LangChain 1.x and LangGraph.
 
+Ragstone began as a learning project: one person working through RAG and
+LangChain by building a pipeline and asking, at every step, "does this
+actually help?" That habit of measuring an idea before keeping it is what
+the project grew around. Along the way it picked up an eval harness, a
+fully local mode, an agent mode built mostly to be compared against the
+fixed pipeline, a REST API, an MCP server and a complete vertical use
+case. It is still exploratory — the experiment log records the ideas
+that failed next to the ones that shipped — but the engine underneath is
+tested, measured and usable.
+
 ## Why Ragstone?
 
 RAG didn't get replaced by agents — it became the primitive they stand on.
-Ragstone (a real building stone) leans into being that foundation:
+Ragstone (a real building stone) explores what that foundation should
+look like:
 
 - **Efficient by design** — a fixed, deterministic pipeline: one retrieval,
   one LLM call, predictable latency and cost. An optional agent mode exists

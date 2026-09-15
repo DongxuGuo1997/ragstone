@@ -14,7 +14,9 @@ Notable changes to Ragstone. The format follows
   moved to `docs/DEPLOYMENT.md` (which now also says plainly that
   LangSmith traces carry document text). The README keeps the pitch,
   the quick start, the surfaces, a four-row verdict table and a
-  documentation map. `.env.example` lost the keys nothing read
+  documentation map, and opens with where the project came from (a
+  learning project that kept what measured well). `.env.example` lost
+  the keys nothing read
   (`LOG_LEVEL`, `LOG_FORMAT`, `APP_NAME`, `APP_VERSION`, `DEBUG`,
   `OLLAMA_MODEL`), and pre-commit gained `detect-private-key`.
 - **Eval integrity hardening**: baselines now record a `data_sha`
