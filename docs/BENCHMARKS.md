@@ -272,10 +272,13 @@ Presenting it live? The rehearsed act-by-act runbook is
   Measured: strong-candidate recall@5 **1.0**, no-full-match honesty
   **1.0**, ranking cleanliness **1.0** (Experiment 27).
 - **It scales, measured.** The same assignments over a 400-consultant
-  pool (10× the bench): top-5 precision **0.925** with honesty and
-  ranking discipline intact — and the two imperfections are attributed,
-  not hidden (one bench fix, one named verifier lever). Verification
-  runs concurrently: ~10 s per assignment (Experiment 29).
+  pool (10× the bench): top-5 precision **0.950** with honesty and
+  ranking discipline intact. The first run scored 0.925; its two
+  imperfections were attributed, not hidden (one bench fix, one
+  verifier lever), and closing the verifier lever with a code-level
+  second vote produced the current number (Experiments 29 and 30).
+  Verification runs concurrently on the cloud path: ~10 s per
+  assignment.
 - **Privacy is structural — and measured.** CVs are personal data under
   the GDPR; with the Ollama provider the entire match runs locally, and
   the full eval under the enforced no-egress profile

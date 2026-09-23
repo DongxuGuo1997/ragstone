@@ -6,29 +6,12 @@
 
 **A foundation stone for grounded Q&A applications.**
 
-Ragstone is an efficient Retrieval-Augmented Generation (RAG) engine for
-smaller applications: one LLM call per answer, fully local operation with
-Ollama if you want it, and measurable answer quality via a built-in
-evaluation harness. Use it as a Python library, a Streamlit app, a CLI
-chat, a REST API, or as an MCP tool that puts your documents in reach of
-any agent (Claude, Cursor, ...). Built with LangChain 1.x and LangGraph.
-
-Ragstone began as a learning project: one person working through RAG and
-LangChain by building a pipeline and asking, at every step, "does this
-actually help?" That habit of measuring an idea before keeping it is what
-the project grew around. Along the way it picked up an eval harness, a
-fully local mode, an agent mode built mostly to be compared against the
-fixed pipeline, a REST API, an MCP server and a complete vertical use
-case. It is still exploratory — the experiment log records the ideas
-that failed next to the ones that shipped — but the engine underneath is
-tested, measured and usable.
-
-It is also a test ground for building software with an AI pair. Much of
-the code, the documentation and the experiment write-ups were drafted in
-collaboration with Claude, Anthropic's coding assistant, and that is
-exactly why the eval gates matter: an idea from either of us ships only
-when the numbers hold, and the maintainer reviews and answers for every
-commit.
+Ragstone is a Retrieval-Augmented Generation (RAG) engine for smaller
+applications: documents in, cited answers out, one model call per
+answer, and fully local with Ollama if you want it. It ships with an
+evaluation harness that fails the build when quality drops, and it runs
+as a Python library, a web UI, a CLI, a REST API, or an MCP tool for
+agents. Built with LangChain 1.x and LangGraph.
 
 ## Why Ragstone?
 
@@ -47,6 +30,25 @@ look like:
   if quality regresses against the committed baseline.
 - **A tool for agents** — the bundled MCP server makes your documents a
   first-class tool for Claude, Cursor, or any MCP-compatible client.
+
+## Where it comes from
+
+Ragstone began as a learning project: one person working through RAG and
+LangChain by building a pipeline and asking, at every step, "does this
+actually help?" That habit of measuring an idea before keeping it is what
+the project grew around. Along the way it picked up an eval harness, a
+fully local mode, an agent mode built mostly to be compared against the
+fixed pipeline, a REST API, an MCP server and a complete vertical use
+case. It is still exploratory — the experiment log records the ideas
+that failed next to the ones that shipped — but the engine underneath is
+tested, measured and usable.
+
+It is also a test ground for building software with an AI pair. Much of
+the code, the documentation and the experiment write-ups were drafted in
+collaboration with Claude, Anthropic's coding assistant, and that is
+exactly why the eval gates matter: an idea from either of us ships only
+when the numbers hold, and the maintainer reviews and answers for every
+commit.
 
 ## New to RAG? Start here
 
@@ -124,6 +126,38 @@ ollama pull qwen3.5:9b && ollama pull embeddinggemma
 ragstone                                          # choose Ollama in the sidebar
 ```
 
+## Measured, not vibes
+
+Every default was chosen by an experiment, and several features were
+*rejected* for default status by their own measurements and kept as
+labeled opt-ins. A few of the verdicts the harness produced:
+
+| Question | Verdict |
+|---|---|
+| Does an agent loop beat the fixed pipeline? | Identical quality at **1.8× latency, 1.45× tokens** → the pipeline stays default |
+| Does self-correcting retrieval pay? | Looked like a win on 43 questions, **failed to replicate on 224** → opt-in, honestly labeled |
+| Can the local stack match the cloud path? | qwen3.5:9b + embeddinggemma: correct **0.951** / faithful **1.0**, at the gpt-4o-mini reference |
+| Can CV↔assignment matching be measured? | Strong-candidate recall@5 **1.0**, no-full-match honesty **1.0**; top-5 precision **0.95** at 400 consultants |
+
+![Measured quality over the project's git history](docs/quality_history.svg)
+
+The full tables — every configuration, the support-tier policy, the
+local-stack numbers by hardware tier — are in
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md). The hypothesis → method →
+decision log, including the experiments that were wrong, is
+[EXPERIMENTS.md](EXPERIMENTS.md).
+
+Run the harness yourself:
+
+```bash
+make eval-retrieval        # retrieval layer: hit rate + MRR, free
+make eval                  # + LLM-judged correctness and faithfulness (cents)
+make eval-local            # the same, on the local stack
+```
+
+Each run is compared against `evals/baseline.json`; any metric dropping
+more than 0.05 fails the run.
+
 ## Ways to use it
 
 | Surface | Start it | Docs |
@@ -170,7 +204,7 @@ Errors are typed: catch `PipelineError` (or a subclass such as
   `fusion`, `corrective` (retrieval grades itself and refuses with
   evidence), `auto` (a cheap router picks simple or corrective), and
   `agent` (the LLM drives the retrieval loop). Which one earns its cost
-  on which corpus is measured, not assumed — see below.
+  on which corpus is measured, not assumed — see above.
 - **Vector stores**: FAISS (default), Qdrant (embedded or server),
   pgvector, Chroma (legacy). Retrieval parity across backends is enforced
   by test.
@@ -182,38 +216,6 @@ Errors are typed: catch `PipelineError` (or a subclass such as
 Optional extras: `rerank`, `sqlite`, `api`, `qdrant`, `pgvector`, `otel`,
 or everything at once with `pip install -e ".[all]"`. What each adds and
 when to enable it: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
-
-## Measured, not vibes
-
-Every default was chosen by an experiment, and several features were
-*rejected* for default status by their own measurements and kept as
-labeled opt-ins. A few of the verdicts the harness produced:
-
-| Question | Verdict |
-|---|---|
-| Does an agent loop beat the fixed pipeline? | Identical quality at **1.8× latency, 1.45× tokens** → the pipeline stays default |
-| Does self-correcting retrieval (CRAG) pay? | Looked like a win at n=43, **failed to replicate at n=224** → opt-in, honestly labeled |
-| Can the local stack match the cloud path? | qwen3.5:9b + embeddinggemma: correct **0.951** / faithful **1.0**, at the gpt-4o-mini reference |
-| Can CV↔assignment matching be measured? | Strong-candidate recall@5 **1.0**, no-full-match honesty **1.0**; top-5 precision **0.925** at 400 consultants |
-
-![Measured quality over the project's git history](docs/quality_history.svg)
-
-The full tables — every configuration, the support-tier policy, the
-local-stack numbers by hardware tier — are in
-[docs/BENCHMARKS.md](docs/BENCHMARKS.md). The hypothesis → method →
-decision log, including the experiments that were wrong, is
-[EXPERIMENTS.md](EXPERIMENTS.md).
-
-Run the harness yourself:
-
-```bash
-make eval-retrieval        # retrieval layer: hit rate + MRR, free
-make eval                  # + LLM-judged correctness and faithfulness (cents)
-make eval-local            # the same, on the local stack
-```
-
-Each run is compared against `evals/baseline.json`; any metric dropping
-more than 0.05 fails the run.
 
 ## The staffing-match showcase
 
