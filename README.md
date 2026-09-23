@@ -23,6 +23,13 @@ case. It is still exploratory — the experiment log records the ideas
 that failed next to the ones that shipped — but the engine underneath is
 tested, measured and usable.
 
+It is also a test ground for building software with an AI pair. Much of
+the code, the documentation and the experiment write-ups were drafted in
+collaboration with Claude, Anthropic's coding assistant, and that is
+exactly why the eval gates matter: an idea from either of us ships only
+when the numbers hold, and the maintainer reviews and answers for every
+commit.
+
 ## Why Ragstone?
 
 RAG didn't get replaced by agents — it became the primitive they stand on.
