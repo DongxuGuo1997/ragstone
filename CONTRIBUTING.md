@@ -88,6 +88,16 @@ document (`generate_cases.py::validate` enforces); unanswerable cases
 need a manual corpus-absence check — one that is actually answerable
 scores correct answers as failures.
 
+## Upgrading LangChain
+
+The LangChain packages are pinned to major versions in `pyproject.toml`.
+Before bumping one, run `./scripts/check_langchain_compatibility.sh` (or
+`pytest tests/test_langchain_compatibility.py`): it exercises every
+LangChain import and call surface this codebase relies on, so an
+upstream rename shows up as a failing test instead of a runtime crash.
+Bump the pin, fix whatever the canary flags, then run the retrieval
+eval to prove metric parity before merging.
+
 ## Scope notes
 
 Docker is an optional deployment path; nothing in development or testing

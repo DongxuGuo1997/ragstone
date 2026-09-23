@@ -154,6 +154,21 @@ Ask questions about your loaded documents.
    Use ask_question to query your documents
    ```
 
+### From an editor chat
+
+In Cursor or any client that lets you address a server by name, the
+same workflow is four messages:
+
+```
+@ragstone create_ollama_pipeline model="qwen3.5:9b" pipeline_id="my-docs"
+@ragstone load_documents pipeline_id="my-docs" data_dir="data"
+@ragstone setup_retriever pipeline_id="my-docs" use_ensemble=true chain_type="simple"
+@ragstone ask_question pipeline_id="my-docs" question="What is this project about?"
+```
+
+Pipelines are named, so an agent can keep several corpora open at once
+and pick one per question.
+
 ### Advanced Usage
 
 #### Multiple Specialized Pipelines

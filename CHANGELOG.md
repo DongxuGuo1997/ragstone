@@ -6,369 +6,122 @@ Notable changes to Ragstone. The format follows
 
 ## [Unreleased]
 
-### Changed
-- **README slimmed for the open-source front door.** The measured
-  verdicts, the support-tier table, the benchmark tables and the
-  local-stack numbers moved to `docs/BENCHMARKS.md`; the REST API,
-  Docker, vector-store, durable-memory and observability reference
-  moved to `docs/DEPLOYMENT.md` (which now also says plainly that
-  LangSmith traces carry document text). The README keeps the pitch,
-  the quick start, the surfaces, a four-row verdict table and a
-  documentation map, and opens with where the project came from (a
-  learning project that kept what measured well). `.env.example` lost
-  the keys nothing read
-  (`LOG_LEVEL`, `LOG_FORMAT`, `APP_NAME`, `APP_VERSION`, `DEBUG`,
-  `OLLAMA_MODEL`), and pre-commit gained `detect-private-key`.
-- **Eval integrity hardening**: baselines now record a `data_sha`
-  fingerprint of their golden set + corpus and every gate compares it —
-  editing measured data fails loudly instead of silently invalidating
-  old numbers (pre-fingerprint entries keep gating on metrics alone).
-  The LLM judge is pinned to a dated snapshot
-  (`gpt-4o-mini-2024-07-18`, verified live) so provider-side alias
-  moves can't masquerade as regressions; baseline keys keep the alias
-  and answerer models stay deliberately unpinned.
-- **Entry-point coverage**: all five console scripts are import-tested
-  against pyproject, and both Streamlit UIs boot headless in the suite
-  (server up, health endpoint answering) — a broken first command now
-  fails CI.
-- **Local embedding default: embeddinggemma** (Experiment 25 / ROADMAP
-  8.2): a 622 MB model that matches the cloud embedder on real legal
-  text (hit 0.80/MRR 0.65 vs nomic's 0.56/0.47) and improves the smoke
-  slice (1.0/0.939); end-to-end local correctness rose +7–14pp from the
-  swap alone. New machinery: a per-family task-convention table
-  (validated empirically — embeddinggemma's documented templates
-  measured HARMFUL and are deliberately not applied),
-  `RAGSTONE_OLLAMA_EMBED_MODEL` (pin an embedder, fail-loud), and
-  `RAGSTONE_EMBED_TASK_PREFIXES` (A-B knob). Also measured: thinking
-  mode bought zero correctness at 33× latency — reasoning does not fix
-  retrieval ambiguity.
-
-### Security
-- pip-audit allowlist renewed for chromadb: the expired PYSEC-2026-311
-  entry and three further server-side CVEs (CVE-2026-45830/-45831/
-  -45833, all in the chroma HTTP server's tenant authorisation and
-  `/api/v2` endpoints, which ragstone never runs) are allowlisted until
-  2026-11-01 with the exposure analysis on record. No fixed chromadb
-  release exists; the next renewal should retire the legacy chroma
-  store instead.
+Every quality-affecting entry below carries the experiment that
+measured it; the numbers live in [EXPERIMENTS.md](EXPERIMENTS.md).
 
 ### Added
-- **Second-vote screening of credited evidence** (Experiment 30, part
-  4). A credited skill now stands only if the CV names it: a quote that
-  names the skill and occurs in the CV is kept, a weak or invented quote
-  is replaced by the first CV line naming the skill, and a product name
-  the CV never mentions flips to "not evidenced" — no model call. A
-  generic phrase the CV never names ("hardware interfacing") goes to a
-  stricter quote-only judge with one repair call whose answer must
-  occur in the CV. Years, degree, language and domain are exempt. On
-  the 400-consultant scale test top-5 precision rises 0.925 → 0.950
-  with the Experiment-29 residual (CAN bus credited from a Vector CANoe
-  line) now caught; the 11-brief gates are unchanged. The years
-  arithmetic now treats an Education heading as a block and a bare
-  date line after a degree as the degree's, so a Master's no longer
-  counts as work. `--second-vote off` keeps the previous path.
-- **Years read real CV layouts, to the month.** Section headings may
-  carry a leading slash or pipe ("/Past employments"), be plural or
-  all-caps, and are recognised by the section word opening or closing
-  the line (a company name containing "Experience" is not a heading);
-  month names in date ranges are counted ("Sept 2021 – Ongoing" is 5.7
-  years in September 2026, not 5), while "2019-2022" still reads as
-  three years. A preferred item like "automotive industry" ticks on
-  the sector word alone. Verified on a real consultant CV exported
-  from the company template.
-- **Preferred ticks mean "the CV names it".** Retrieval still
-  surfaces candidates for a preferred item, but the tick per candidate
-  and the ranking tiebreak now come only from the CV's own words — in a
-  one-CV pool every query returned that CV, which read as "has every
-  preferred item". Years of experience recognise more section headings
-  ("Work history", "Positions", all-caps variants), more degree cues
-  (B.Eng, M.Tech, thesis, civilingenjör, …) and look three lines above a
-  bare date line for a degree.
-- **Phrases are judged, product names are looked up.** The second
-  vote now decides "product name or phrase" by shape rather than by
-  capital letters: a single token, or a token with a digit, a symbol or
-  internal capitals (PyTest, CANoe, ISO 26262, C++) must be named by
-  the CV; a phrase of ordinary words ("Python-based test automation",
-  "Swedish driving license B", "Android Automotive Software
-  Development") goes to the quote-only judge, and a repaired quote is
-  judged once more before it is accepted. On a real request this
-  turned four false "not evidenced" verdicts — Pytest-based test
-  automation, Android Automotive, AI-assisted tools, a driving licence
-  — into credits with the CV line that shows them. Gates unchanged.
-- **Requirements shown as read, preferred items ticked per candidate.**
-  The staffing UI now shows what the brief was read as — must-haves,
-  preferred items and location — above the shortlist, and each
-  candidate lists every preferred item with a tick or a cross instead
-  of a caption naming only the hits. Preferred items match more
-  leniently than must-haves (singular form, or the first two words of
-  a long phrase: "Hypervisors" ~ "Hypervisor", "Android Automotive
-  Software Development" ~ "Android Automotive apps"). Years of
-  experience count only ranges under an Experience-like heading when
-  the CV has one, and the evidence lists the exact spans counted.
-- **Years of experience by arithmetic** (Experiment 30, part 3). The
-  matcher sums the CV's engagement date ranges (union of intervals,
-  education lines excluded, open ranges end this year) and lets that
-  decide the years requirement; the evidence says it was computed, not
-  quoted. The model's reading is used only for a CV with no date range.
-  Gates unchanged on the bench; a real CV whose profile blurb overstates
-  its years can no longer pass on the blurb.
-- **The matcher's extractor reads RFQs** (Experiment 30, part 2). The
-  extraction schema is now per line: the model copies every sentence of
-  a must/preferred section verbatim, classifies it, and states whether
-  its items are all required or alternatives; the parser builds the
-  requirement list from that. Two new requirement kinds — `education`
-  (a degree, verified against the CV) and `location` (context on the
-  requirements line and an informational note per candidate, never a
-  gap) — plus guards that keep programming languages out of the
-  spoken-language kind and preferred items out of must. Measured on the
-  11-brief bench: strong-candidate recall back to **1.0**, extraction
-  recall and precision **0.984** (both now gated), stability 1.0 across
-  three samples; the real RFQ that motivated the work extracts
-  identically three times out of three. Optional per-item majority
-  voting across N extraction samples is available (`extract_samples`),
-  default 1.
-- **Long-form RFQ briefs in the staffing bench** (a10, a11) and
-  extraction-level eval metrics (Experiment 30, part 1). Two
-  hand-authored briefs in the shape real requests arrive in — sectioned
-  prose, "including X and Y" conjunctions, comma-list conjunctions, a
-  degree sentence, the location only in prose, a preferred item that
-  must not be promoted — with the same ground-truth-by-construction
-  oracle. `run_staffing_eval.py` now scores the extracted must-have set
-  directly (`extract_must_recall` / `extract_must_precision`, plus
-  nice-to-have recall, location capture and `--extract-repeats N`
-  stability). Measured before any fix: the current extractor drops
-  strong-candidate recall from 1.0 to 0.903 on the new bench — the
-  real-RFQ failure, reproduced and on record.
-- **Engine mechanism doc** (`docs/HOW_IT_WORKS.md`): how ragstone
-  works end to end for users and reviewers — the ingest path (load,
-  split, enrich, metadata cards, embed, index) and the ask path
-  (guards, cache, rephrase, hybrid retrieval, optional rerank, the
-  strict answer prompt, post-hoc evidence highlighting, the
-  per-request receipt), the chain types with their measured verdicts
-  and enable-when conditions, the four front doors, the two-layer
-  eval gate with committed results, privacy posture, and known
-  limits. Linked from the README's measured-at-a-glance footer.
-- **CV-matching mechanism doc** (`docs/CV_MATCHING.md`): how the
-  matcher works stage by stage — ingestion and person tagging,
-  extract, discover (coverage-breadth ranking, exact-phrase channel,
-  the ten-candidate cap), verify (the strictness rules, fail-closed
-  parsing), score (tiers, full-match honesty, gap wording) — with a
-  worked example, the metric definitions and results, the privacy
-  posture, and the known limits. Written for users and reviewers,
-  not only developers; linked from the README.
-- **Staffing demo runbook** (`docs/guides/STAFFING_DEMO_SCRIPT.md`):
-  a rehearsed six-act script for presenting the CV↔assignment matcher
-  live — cloud-paced acts, a "bring your own DOCX" upload act, and a
-  pre-started local finale (rehearsal measured the 9B at 25.8
-  min/assignment on battery — quality-identical to cloud — so the
-  local act is staged as a reveal, not a wait). Every timing and
-  claim in the script traces to a measured run.
-- **Open-source front door**: bug-report and feature-request issue
-  forms (the latter asks how the change would be measured), a PR
-  template carrying the two eval-gating rules from CONTRIBUTING.md,
-  a Contributor Covenant 2.1 code of conduct, and CI/license/Python
-  badges on the README.
-- **Staffing scale test** (ROADMAP 9.4 / Experiment 29): the same nine
-  assignments over a 400-consultant population (`--scale 10`
-  generator; the committed 40-person bench proven byte-identical and
-  untouched). Top-5 precision 0.925 with honesty and ordering perfect;
-  the first run's misses exposed and fixed the one unchecked
-  prose-label dimension (domain, now a mechanical Requirements-section
-  check), and the residual three slots are attributed verifier
-  leniency — the named next lever. Matcher verification now runs
-  concurrently (metric-neutral, 5–8× faster: ~10 s/assignment; the
-  demo eval completes in 90 s).
-- **Staffing match, fully local and measured** (ROADMAP 9.3 delivered):
-  the 9-assignment staffing eval on qwen3.5:9b + embeddinggemma under
-  the enforced no-egress profile scores identically to the cloud stack
-  — strong_recall@5 1.0, honesty 1.0, ordering 1.0. New baseline key
-  `ollama:qwen3.5:9b|k=12|chain=match|set=staffing|ollama-reasoning=off`.
-  "No CV leaves the machine" is now a measured claim.
-- **Cross-provider judge audit** (Experiment 28 / ROADMAP 3.1
-  delivered): gemma4:31b — different provider, different family, fully
-  local — re-judged the regulatory dump's identical stored answers.
-  88% verdict agreement, 0 parse failures in 136; correctness +3.6pp
-  under the local judge (the cloud judge is conservative, not
-  self-flattering), faithfulness −5.4pp (stricter grounding, including
-  one genuine catch). Local judging costs hours vs cents: it is the
-  periodic audit, not the per-commit gate.
-- **Cross-lingual staffing case + lexical discovery channel**: the
-  bench gains a09, an entirely Swedish assignment brief ("Krav" /
-  "Meriterande") against the English CVs. Its first run caught a real
-  matcher bug — retrieval-rank discovery let near-miss profiles crowd
-  out a true match whose skill mentions were textually weak — fixed by
-  a lexical channel: an exact skill phrase in a CV makes the person a
-  discovery candidate regardless of retrieval rank (boundary-safe;
-  verification still decides coverage). The 9-assignment bench measures
-  1.0 on all gated metrics; the golden-set fingerprint gate fired on
-  the bench change exactly as designed and the baseline was
-  consciously re-recorded.
-- **Real-CV upload in the staffing UI**: drop PDF/DOCX/MD/TXT files
-  into the sidebar and the match runs against them instead of the
-  bundled bench — one file per person, names derived from filenames
-  ("John_Smith_CV.pdf" → John Smith), content-addressed ingest caching.
-  Uploads stay on the machine; with the Ollama provider the entire
-  match is local. The eval's strict `cvNN_` tagging is unchanged.
-- **Paired significance testing** (`evals/compare_runs.py`): exact
-  McNemar test between two `--dump-answers` runs over the same golden
-  set — reports concordant/discordant counts, the exact two-sided
-  p-value, and the flipped case ids (this repo reads its flips). Run
-  live on the temperature pair, it formalizes Experiment 26's
-  judgment: b=2/c=1, p=1.0 — noise. An instrument, never a gate.
-- **Staffing match chain + dedicated UI** (ROADMAP 9.1/9.3): the
-  CV↔assignment matcher (`ragstone.match`) — a LangGraph graph that
-  extracts structured requirements from a free-text brief, discovers
-  candidates by per-requirement retrieval over person-tagged chunks,
-  verifies coverage per candidate with verbatim evidence quotes, and
-  ranks by verified coverage with an honest `full_match_exists` (gaps
-  read "not evidenced in the CV"). Measured on the constructed bench:
-  strong_recall@5 1.0, full_match_accuracy 1.0 (incl. the deliberately
-  unsatisfiable assignment), ordering_clean_rate 1.0
-  (`evals/run_staffing_eval.py`, gated). Ships with a separate
-  one-command staffing UI (`make run-match-ui` / `ragstone-match`):
-  bundled example briefs, live progress, coverage tables, and CV
-  evidence highlighting via the citations aligner.
-- **Staffing-match bench** (ROADMAP 9.0): 40 synthetic consultant CVs
-  (embedded automotive, telecom, cloud, DevOps) plus 8 client
-  assignment briefs for the CV↔assignment matching showcase, with
-  ground truth true by construction — personas are structured specs,
-  expected match tiers come from a mechanical oracle, and rendered
-  prose is regex-verified against the skill taxonomy (every spec skill
-  mentioned, none leaked, OR-requirements phrased as alternatives).
-  One assignment is deliberately unsatisfiable, so honest "no full
-  match" reporting is measurable. Also serves as a contamination
-  control: no model has ever seen these documents.
-- **Second corpus at full power** (Experiment 24 / ROADMAP 3.0 v2):
-  the regulatory golden set expanded 27 → 68 machine-audited cases
-  (multi-turn ×3) and the full chain matrix re-ran with statistical
-  power. One flip: fusion is the best chain on this corpus (correct
-  +10.7pp, faithful 0.982 at 2.3× tokens; niche = near-duplicate or
-  tiered passages). One walk-back: corrective's n=27 "enable-when
-  validated" shrank to noise at n=68 — the support-tier table is
-  corrected in both directions. Holds: multi_query rejected, chunk-500
-  hurts, the local nomic embedding gap is real (hit 0.56 vs 0.78).
-
-- **API versioning + RFC 7807 errors** (ROADMAP 5.9): the REST surface
-  is frozen as `/v1`; unprefixed paths keep working as deprecated
-  aliases marked with an RFC 8594 `Deprecation` header. Every error is
-  now `application/problem+json` (type/title/status/detail/instance +
-  request id); `detail` remains top-level, so existing clients keep
-  parsing. Typed pipeline errors carry `urn:ragstone:problem:<Class>`
-  so clients can branch without parsing prose.
-
-- **Session TTL + right to erasure** (ROADMAP 5.10):
-  `RAGSTONE_SESSION_TTL` expires idle conversation sessions lazily on
-  the ask path; `DELETE /pipelines/{id}/sessions/{sid}` (and an MCP
-  `delete_session` tool) erases a session's history on request,
-  idempotently and audited. SECURITY.md now answers "where does user
-  text live and when does it die" per store. Also hardened the eval
-  judge's verdict parser: a clear pass/fail is rescued from invalid
-  JSON (unescaped quotes in the judge's reason) instead of
-  fail-closing the answer for the judge's formatting — the bug that
-  cost two verdicts in Experiment 23.
-
-- **Second evaluation corpus, v1** (Experiment 23 / ROADMAP 3.0): the
-  GDPR + EU AI Act from EUR-Lex as `--set regulatory` (1,331 chunks, 27
-  hand-written cases with grep-verified needles). First cross-corpus
-  verdict trial: enrichment held; **corrective's enable-when condition
-  validated** the first time its trigger actually occurred (hit <0.9 →
-  faithfulness +8.7pp, multi-turn +50pp at 2.2× tokens); rerank's value
-  split by embedder; Experiment 21's local-parity claim found its
-  boundary (nomic trails on legal jargon, local generation holds, the
-  local reranker closes most of the gap). New measured failure class:
-  fine-tier confusion from near-duplicate numeric schedules.
-
-- **Provable no-egress mode** (ROADMAP 8.1): `RAGSTONE_PROFILE=local`
-  refuses cloud providers, the OpenAI embedding fallback, remote
-  document sources, and phone-home tracing; restricts the reranker to
-  its local model cache; and validates every configured endpoint as
-  loopback at boot, fail closed. The invariant is regression-tested by
-  a socket-intercepting test over the full ingest-and-ask path
-  (CI-safe fake-model tier + live Ollama tier). Data-flow diagrams per
-  deployment mode in SECURITY.md.
-
-- **The local stack, measured** (Experiment 21 / ROADMAP 8.0): a
-  four-model Ollama answerer matrix (edge → workstation → server tiers)
-  through the full eval harness — parity with the cloud baseline on the
-  bundled corpus, local rerank retrieval at 1.0/1.0, and a local-judge
-  delta scored on identical stored answers (4/98 flips, 0 parse
-  failures). New: `RAGSTONE_OLLAMA_REASONING` thinking control,
-  `run_eval.py --ollama-reasoning/--judge-reasoning/--dump-answers/--limit`,
-  `evals/rejudge.py`, `make eval-local`, committed `ollama:` baselines.
-
-- **Evidence highlighting** (citations v1): source snippets in the
-  Streamlit trace panel and the CLI's `/sources` now highlight the exact
-  words the answer reuses — post-hoc answer-to-source alignment with
-  exact character offsets, no prompt or generation change.
-
-- **Load and scale benchmarks** (Experiment 16): `bench_concurrency.py`
-  and `bench_scale.py` measure the previously argued claims — server
-  overhead 1.7ms p50 on cache hits, flat p50 to 32 concurrent clients
-  with clean 429 backpressure, ~7x parallel-generation payoff; FAISS
-  ~10ms at 100k chunks, BM25 the ensemble bottleneck at scale, embedded
-  Qdrant for small corpora only. On macOS, large FAISS indexes need
-  OMP_NUM_THREADS=1 (libomp instability, bisected and documented;
-  Linux/Docker unaffected).
-
-### Fixed
-- **Local staffing match timed out mid-verify** (found live, 2026-09-04):
-  the verifier fired eight concurrent screens at an Ollama server that
-  serves one request at a time and sends a queued request nothing until
-  its turn (measured on 0.33.2: first bytes at 2 s / 8 s / 14 s for three
-  concurrent calls), so the later screens waited past the 60 s read
-  timeout and the match died with `httpx.ReadTimeout`. Ollama chat
-  models now verify one candidate at a time (same wall-clock on a
-  one-slot server, no queue), and `RAGSTONE_MATCH_VERIFY_WORKERS`
-  sizes the pool for a server configured with more slots. Re-timed on
-  the fix: the local a01 match (qwen3.5:9b, Ollama 0.33.2, M4 Max on
-  AC) completes in 84 s end to end with the same two strong names as
-  the cloud run.
-- **Single-document retrieval** (Experiment 22, found live): two stacked
-  bugs made document-level queries ("what is this paper?") on a lone
-  uploaded document retrieve contributor name-lists and the TOC instead
-  of content. The chunk-enrichment identity prefix is now skipped when a
-  corpus has one source document (nothing to disambiguate — the prefix
-  dominated content-empty chunks' embeddings and zeroed the document
-  name's BM25 IDF), and nomic-embed-text now gets the
-  `search_query:`/`search_document:` task prefixes its model card
-  requires (`NomicTaskEmbeddings`, own cache namespace). single_doc MRR
-  0.594→0.750 (OpenAI) / 0.656→0.719 (nomic); smoke and rerank
-  baselines held exactly on both stacks.
-
-### Removed
-- **Overengineering audit pass**: the parallel `config.json` loading
-  system (env vars are the one config surface; `load_config`/`from_file`/
-  `to_dict`/`to_file`/`validate` and `config.example.json` deleted), the
-  unused stages of Ollama embedding selection (per-LLM preference tables
-  and the embed-with-the-chat-LLM last resort — a missing dedicated
-  embedder is now a clear error instead of silently degraded retrieval),
-  two duplicate "list installed Ollama models" implementations (one
-  shared helper in `utils/ollama.py` now), the `mcp/connection_test.py`
-  debug script, and unused `UIConfig` theme fields.
-- **Answer self-check** (added and deleted within this cycle): Experiment
-  17 measured it harming both correctness (-3.8pp, outside the CI) and
-  faithfulness (-3.3pp) at 2x tokens - an imperfect checker's caveats
-  poison correct answers by disclaiming true claims. The first measured
-  deletion under the kept-though-rejected policy; the lesson lives in
-  EXPERIMENTS.md.
+- **CV↔assignment matcher** (`ragstone.match`, `ragstone-match` UI): a
+  LangGraph graph that extracts structured requirements from a brief,
+  discovers candidates by per-requirement retrieval over person-tagged
+  chunks, verifies each with verbatim CV quotes and ranks by verified
+  coverage with an honest `full_match_exists`. Gated at 1.0 on
+  strong-candidate recall, no-full-match honesty and ordering
+  (Experiment 27). Docs: `docs/CV_MATCHING.md`.
+- **Staffing bench**: 40 synthetic consultant CVs and 11 briefs with
+  ground truth true by construction, one brief unsatisfiable, one in
+  Swedish, two in long-form RFQ shape; a 400-consultant scale variant
+  (`--scale 10`). Extraction is scored directly
+  (`extract_must_recall` / `extract_must_precision`, gated at 0.984).
+  Experiments 27, 29, 30.
+- **Matcher hardening from a real request** (Experiment 30): per-line
+  extraction that copies each requirement sentence verbatim before
+  classifying it; `education` and `location` requirement kinds; years
+  of experience computed from the CV's date ranges instead of quoted;
+  a code-level second vote that keeps a credited skill only if the CV
+  names it (top-5 precision at scale 0.925 → 0.950); preferred items
+  ticked per candidate from the CV's own words. `--second-vote off`
+  keeps the previous path.
+- **Staffing match fully local**: the eval under the no-egress profile
+  (qwen3.5:9b + embeddinggemma) scores identically to the cloud stack
+  on every gated metric. Real-CV upload (PDF/DOCX/MD/TXT) in the UI
+  stays on the machine.
+- **Second evaluation corpus**: GDPR and the EU AI Act as
+  `--set regulatory` (68 cases). One verdict flipped (fusion is the
+  best chain on near-duplicate passages, correct +10.7pp), one was
+  walked back (corrective's trigger shrank to noise at n=68), three
+  held. Experiments 23 and 24.
+- **The local stack, measured**: four Ollama answerers through the
+  full harness at parity with the cloud baseline (Experiment 21);
+  embeddinggemma promoted to the local embedding default after it
+  matched the cloud embedder on legal text (Experiment 25); a local
+  31B judge re-scored the cloud's stored answers at 88% agreement
+  (Experiment 28). `RAGSTONE_OLLAMA_REASONING`,
+  `RAGSTONE_OLLAMA_EMBED_MODEL`, `make eval-local`, `evals/rejudge.py`.
+- **Provable no-egress mode** (`RAGSTONE_PROFILE=local`): cloud
+  providers, remote sources and tracing refused, every endpoint
+  validated as loopback at boot, regression-tested by a
+  socket-intercepting test. Data-flow modes in `SECURITY.md`.
+- **Operability**: request ids, OpenTelemetry spans and a Prometheus
+  `/metrics` endpoint; named API keys with per-key rate limits, an
+  audit log and `GET /usage`; registry persistence so pipelines
+  survive restarts without re-ingest; graceful shutdown; boot-time
+  config checks that list every problem with its fix; pip-audit with
+  an expiring allowlist and a weekly Trivy image scan.
+- **Governability**: the REST surface frozen as `/v1` with RFC 7807
+  error bodies (unprefixed paths stay as deprecated aliases);
+  `RAGSTONE_SESSION_TTL` and `DELETE /pipelines/{id}/sessions/{sid}`
+  for erasure; `SECURITY.md` answers where user text lives and when
+  it dies.
+- **Evidence highlighting**: source snippets mark the exact words the
+  answer reuses, computed after generation with character offsets.
+- **Document metadata cards**: one extracted title/authors/date chunk
+  per document, so "who wrote this?" retrieves the author block
+  instead of the references section (Experiment 19; default on).
+- **Paired significance test** (`evals/compare_runs.py`): exact
+  McNemar between two answer dumps over the same golden set.
+- **Load and scale benchmarks** (Experiment 16): flat p50 to 32
+  concurrent clients with clean 429s; FAISS ~10 ms at 100k chunks;
+  the macOS `OMP_NUM_THREADS=1` requirement for large indexes.
+- **Docs for readers, not only developers**: `docs/HOW_IT_WORKS.md`,
+  `docs/CV_MATCHING.md`, `docs/BENCHMARKS.md`, `docs/DEPLOYMENT.md`,
+  two demo runbooks, issue forms, a PR template and a code of conduct.
 
 ### Changed
-- **The REST API is stateless by default**: `session_id` now defaults to
-  a fresh per-request session instead of a shared "api_session" — the
-  shared default accumulated one conversation across ALL clients, letting
-  follow-up rephrasing reinterpret a question against a stranger's
-  history. Pass a session_id explicitly to opt into conversation memory;
-  the response is unchanged in shape and returns the session used.
-- **Response-cache scope is corpus+chain (session removed)**: only
-  history-free turns ever touch the cache, so identical questions on the
-  same corpus and chain now share entries across clients — the
-  session-scoped key was blocking every cross-client hit.
-- **Router tuned and its default-status question closed** (Experiment
-  15b): stricter classifier + the cheap utility model reaches
-  faithfulness 0.981 at 1.25x tokens — still over the pre-registered
-  1.2x gate, so `chain_type="auto"` remains opt-in (recommended with
-  `RAGSTONE_REPHRASE_MODEL=gpt-4.1-nano`); the tuned variant replaces
-  the original as it dominates on every axis.
+- **README slimmed for the open-source front door**: benchmarks and the
+  support-tier policy moved to `docs/BENCHMARKS.md`, operations to
+  `docs/DEPLOYMENT.md`; the README opens with where the project came
+  from. The changelog was compressed to this form, the roadmap trimmed
+  to open items, and three stale guides removed or folded.
+- **Eval integrity**: baselines carry a `data_sha` fingerprint of their
+  golden set and corpus, so editing measured data fails loudly; the
+  judge is pinned to a dated snapshot.
+- **Entry points are tested**: all five console scripts and both
+  Streamlit UIs boot in the suite.
+- **Router tuned, still opt-in** (Experiment 15b): faithfulness 0.981
+  at 1.25× tokens, over the pre-registered 1.2× gate.
+- **The REST API is stateless by default**: `session_id` is per
+  request unless a client passes one; the response cache is scoped by
+  corpus and chain, never by session.
+- **Local verify runs one candidate at a time on Ollama**, with
+  `RAGSTONE_MATCH_VERIFY_WORKERS` for servers configured with more
+  slots (see Fixed).
+
+### Fixed
+- **Local staffing match timed out mid-verify** (2026-09-04): eight
+  concurrent screens against a one-slot Ollama waited past the read
+  timeout. Serialized on Ollama; the local a01 match now completes in
+  84 s.
+- **Single-document retrieval** (Experiment 22): the enrichment prefix
+  is skipped for one-document corpora and nomic-embed-text gets its
+  required task prefixes. single_doc MRR 0.594 → 0.750.
+- **Judge verdict parser** rescues a clear pass/fail from invalid JSON
+  instead of failing the answer for the judge's formatting.
+
+### Removed
+- **Answer self-check** (Experiment 17): measured harmful to both
+  correctness and faithfulness at 2× tokens, deleted the same cycle.
+- **Overengineering pass**: the parallel `config.json` system, unused
+  Ollama embedding fallbacks, duplicate model-listing helpers, a debug
+  script and unused UI config fields.
+- **`.env.example` keys nothing read** (`LOG_LEVEL`, `LOG_FORMAT`,
+  `APP_NAME`, `APP_VERSION`, `DEBUG`, `OLLAMA_MODEL`).
+
+### Security
+- chromadb server-side CVEs (PYSEC-2026-311, CVE-2026-45830/-45831/
+  -45833) allowlisted until 2026-11-01 with the exposure analysis on
+  record: ragstone never runs the chroma HTTP server. No fixed release
+  exists; the plan at expiry is to retire the legacy chroma store.
+- pre-commit gained `detect-private-key`.
 
 ## [2.1.0] — 2026-07-07
 

@@ -70,7 +70,7 @@ ragstone                                          # choose Ollama in the sidebar
 | Surface | Start it | Docs |
 |---|---|---|
 | Chat web UI (Streamlit) | `ragstone` | this page |
-| CLI chat | `ragstone-chat` | [docs/guides/CHAT_USAGE.md](docs/guides/CHAT_USAGE.md) |
+| CLI chat | `ragstone-chat` | [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md#four-front-doors-one-engine) |
 | MCP server for agents (Claude, Cursor, VS Code) | `ragstone-mcp` | [docs/README_MCP.md](docs/README_MCP.md) |
 | REST API (streaming, auth, metrics, tracing) | `pip install -e ".[api]"`, then `ragstone-api` | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
 | Staffing-match UI (the showcase) | `ragstone-match` | [docs/CV_MATCHING.md](docs/CV_MATCHING.md) |

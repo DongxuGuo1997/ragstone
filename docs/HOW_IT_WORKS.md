@@ -231,7 +231,11 @@ server-sent events in the API.
   highlights, the glass-box panel (interpretation, stages, tokens,
   cost), and a compare mode that runs two chain variants side by side
   on the same retriever.
-- **CLI chat** for development.
+- **CLI chat** for development: `ragstone-chat --provider ollama
+  --model qwen3.5:9b --data-dir data --chain simple` streams answers
+  with the same trace, and its slash commands (`/sources`, `/trace`,
+  `/chain <type>`, `/compare <type> <question>`, `/cache on|off`,
+  `/new`) let you switch chains and compare their cost mid-conversation.
 - **REST API** for applications: `/pipelines` to create and load,
   `/pipelines/{id}/ask` with streaming server-sent events, per-session
   memory endpoints, `/health`, `/ready`, `/metrics`, `/usage`. API-key
