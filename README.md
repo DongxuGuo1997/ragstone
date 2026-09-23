@@ -48,6 +48,58 @@ look like:
 - **A tool for agents** — the bundled MCP server makes your documents a
   first-class tool for Claude, Cursor, or any MCP-compatible client.
 
+## New to RAG? Start here
+
+A language model answers from what it memorised during training. It has
+never seen your documents, and retraining it for every new file is
+neither practical nor private. Retrieval-augmented generation (RAG) adds
+one step: at question time, *search* your documents for the few passages
+that matter, hand those passages to the model together with the
+question, and tell it to answer from them only. The answer comes back
+with the passages it used, so it can be checked.
+
+```mermaid
+flowchart LR
+    Q([question]) --> S["search your documents<br/>for the few passages that matter"]
+    D[("your documents,<br/>indexed once")] -.-> S
+    S -- "question + passages" --> M["language model<br/>answers from those passages only"]
+    M --> A(["answer, with its sources"])
+```
+
+The search hop is the whole difference. Everything in this repo is
+about doing that hop well, and proving that it works.
+
+**Words you will meet.** A document is split into *chunks* (passages of
+about a thousand characters). Each chunk is turned into an *embedding*
+(a list of numbers that captures its meaning) and stored in a *vector
+store*, so a question can be matched against meaning, not just exact
+words. The *retriever* is the search step; *hybrid* means it also runs a
+classic keyword search (BM25) and merges the two. A *reranker* is an
+optional second pass that reorders the candidates more carefully. The
+*chain* is the recipe from question to answer (the default is one
+search, one model call). *Faithfulness* asks whether every claim in the
+answer is supported by the retrieved passages; a claim that is not is a
+*hallucination*. An *LLM judge* is a model used to grade answers at
+scale, which is how this repo measures itself.
+
+**Your first fifteen minutes.**
+
+1. Follow the quick start below, then copy the bundled test documents
+   into place: `cp evals/corpus/*.md data/`. They describe a fictional
+   world, so the model cannot answer from memory, only from the files.
+2. Open the UI, click **Build Pipeline**, and ask
+   *"When did the Aurora-7 mission launch?"* Open the sources under the
+   answer: the highlighted words are what the answer was built from.
+3. Ask something the documents do not cover and watch it decline
+   instead of inventing an answer. That refusal is a tested behaviour.
+4. Run `make eval-retrieval`. It checks, for 49 known questions, whether
+   the right passage came back. This is what "measured" means here.
+5. Then read [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md), which walks
+   the whole mechanism stage by stage in the same plain language.
+
+Prefer a terminal? `ragstone-chat --data-dir evals/corpus` does steps
+two and three without the browser.
+
 ## Quick start
 
 Requires Python 3.10+, and either an OpenAI API key or a running
@@ -223,6 +275,7 @@ docs/           mechanism docs and guides (map below)
 
 | Read | For |
 |---|---|
+| [New to RAG? Start here](#new-to-rag-start-here) | the idea in one picture, the vocabulary, a first fifteen minutes |
 | [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) | the engine, stage by stage |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | design decisions, and what was deliberately not built |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | every measured result and the support-tier policy |
